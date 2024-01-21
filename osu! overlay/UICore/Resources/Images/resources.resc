@@ -1,0 +1,10 @@
+window_close Resources\Images\WindowIcons\Close.png
+window_maximize Resources\Images\WindowIcons\Maximize.png
+window_minimize Resources\Images\WindowIcons\Minimize.png
+window_restore Resources\Images\WindowIcons\Restore.png
+window_app_icon Resources\Images\WindowIcons\AppIcon.png
+checkmark_50x50 Resources\Images\Misc\Checkmark-50x50.png
+menu_arrow_down_7x7 Resources\Images\Misc\Menu-Arrow-Down-7x7.png
+menu_arrow_left_7x7 Resources\Images\Misc\Menu-Arrow-Left-7x7.png
+menu_arrow_right_7x7 Resources\Images\Misc\Menu-Arrow-Right-7x7.png
+menu_arrow_up_7x7 Resources\Images\Misc\Menu-Arrow-Up-7x7.png

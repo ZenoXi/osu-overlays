@@ -1,0 +1,242 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|Win32">
+      <Configuration>Debug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|Win32">
+      <Configuration>Release</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{ab181468-c249-4142-8a3f-b05caf192fb9}</ProjectGuid>
+    <RootNamespace>osuoverlay</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v142</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings">
+  </ImportGroup>
+  <ImportGroup Label="Shared">
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <IncludePath>$(ProjectDir);$(ProjectDir)UICore;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <IncludePath>$(ProjectDir);$(ProjectDir)UICore;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>$(ProjectDir);$(ProjectDir)UICore;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>$(ProjectDir);$(ProjectDir)UICore;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="osu! overlay.cpp" />
+    <ClCompile Include="Shared\Util\Functions.cpp" />
+    <ClCompile Include="Shared\Util\Navigation.cpp" />
+    <ClCompile Include="SmokeSim\SmokeSimScene.cpp" />
+    <ClCompile Include="UICore\App.cpp" />
+    <ClCompile Include="UICore\Components\Base\Button.cpp" />
+    <ClCompile Include="UICore\Components\Base\Checkbox.cpp" />
+    <ClCompile Include="UICore\Components\Base\ComponentBase.cpp" />
+    <ClCompile Include="UICore\Components\Base\DirectionalPanel.cpp" />
+    <ClCompile Include="UICore\Components\Base\Label.cpp" />
+    <ClCompile Include="UICore\Components\Base\MenuItem.cpp" />
+    <ClCompile Include="UICore\Components\Base\MenuPanel.cpp" />
+    <ClCompile Include="UICore\Components\Base\TextInput.cpp" />
+    <ClCompile Include="UICore\D2DEffects\TintEffect.cpp" />
+    <ClCompile Include="UICore\Helper\ResourceManager.cpp" />
+    <ClCompile Include="UICore\Helper\StringHelper.cpp" />
+    <ClCompile Include="UICore\Helper\Time.cpp" />
+    <ClCompile Include="UICore\Scenes\ContextMenuScene.cpp" />
+    <ClCompile Include="UICore\Scenes\DefaultNonClientAreaScene.cpp" />
+    <ClCompile Include="UICore\Scenes\DefaultTitleBarScene.cpp" />
+    <ClCompile Include="UICore\Scenes\EntryScene.cpp" />
+    <ClCompile Include="UICore\Scenes\Scene.cpp" />
+    <ClCompile Include="UICore\Scenes\TestScene.cpp" />
+    <ClCompile Include="UICore\Scenes\TooltipScene.cpp" />
+    <ClCompile Include="UICore\Window\DisplayWindow.cpp" />
+    <ClCompile Include="UICore\Window\Window.cpp" />
+    <ClCompile Include="UICore\Window\WindowBackend.cpp" />
+    <ClCompile Include="UICore\Window\WindowGraphics.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Shared\Util\Constants.h" />
+    <ClInclude Include="Shared\Util\Functions.h" />
+    <ClInclude Include="Shared\Util\Navigation.h" />
+    <ClInclude Include="Shared\Util\ThreadPool.h" />
+    <ClInclude Include="SmokeSim\SmokeSimScene.h" />
+    <ClInclude Include="UICore\App.h" />
+    <ClInclude Include="UICore\Components\Base\Button.h" />
+    <ClInclude Include="UICore\Components\Base\Canvas.h" />
+    <ClInclude Include="UICore\Components\Base\Checkbox.h" />
+    <ClInclude Include="UICore\Components\Base\ComponentBase.h" />
+    <ClInclude Include="UICore\Components\Base\DirectionalPanel.h" />
+    <ClInclude Include="UICore\Components\Base\EmptyPanel.h" />
+    <ClInclude Include="UICore\Components\Base\Image.h" />
+    <ClInclude Include="UICore\Components\Base\Label.h" />
+    <ClInclude Include="UICore\Components\Base\MenuItem.h" />
+    <ClInclude Include="UICore\Components\Base\MenuPanel.h" />
+    <ClInclude Include="UICore\Components\Base\MenuTemplate.h" />
+    <ClInclude Include="UICore\Components\Base\NumberInput.h" />
+    <ClInclude Include="UICore\Components\Base\Panel.h" />
+    <ClInclude Include="UICore\Components\Base\TextInput.h" />
+    <ClInclude Include="UICore\Components\ComHelper.h" />
+    <ClInclude Include="UICore\Components\Custom\DitheredBackground.h" />
+    <ClInclude Include="UICore\D2DEffects\TintEffect.h" />
+    <ClInclude Include="UICore\Helper\decimal.h" />
+    <ClInclude Include="UICore\Helper\EventEmitter.h" />
+    <ClInclude Include="UICore\Helper\EventSubscription.h" />
+    <ClInclude Include="UICore\Helper\Handle.h" />
+    <ClInclude Include="UICore\Helper\MiscUtils.h" />
+    <ClInclude Include="UICore\Helper\ResourceManager.h" />
+    <ClInclude Include="UICore\Helper\StringHelper.h" />
+    <ClInclude Include="UICore\Helper\Time.h" />
+    <ClInclude Include="UICore\Scenes\ContextMenuScene.h" />
+    <ClInclude Include="UICore\Scenes\DefaultNonClientAreaScene.h" />
+    <ClInclude Include="UICore\Scenes\DefaultTitleBarScene.h" />
+    <ClInclude Include="UICore\Scenes\EntryScene.h" />
+    <ClInclude Include="UICore\Scenes\Scene.h" />
+    <ClInclude Include="UICore\Scenes\TestScene.h" />
+    <ClInclude Include="UICore\Scenes\TooltipParams.h" />
+    <ClInclude Include="UICore\Scenes\TooltipScene.h" />
+    <ClInclude Include="UICore\Window\CursorIcon.h" />
+    <ClInclude Include="UICore\Window\DisplayWindow.h" />
+    <ClInclude Include="UICore\Window\DragDropEventHandler.h" />
+    <ClInclude Include="UICore\Window\FileDropHandler.h" />
+    <ClInclude Include="UICore\Window\GdiInclude.h" />
+    <ClInclude Include="UICore\Window\Graphics.h" />
+    <ClInclude Include="UICore\Window\KeyboardEventHandler.h" />
+    <ClInclude Include="UICore\Window\KeyboardManager.h" />
+    <ClInclude Include="UICore\Window\MouseEventHandler.h" />
+    <ClInclude Include="UICore\Window\MouseManager.h" />
+    <ClInclude Include="UICore\Window\Window.h" />
+    <ClInclude Include="UICore\Window\WindowBackend.h" />
+    <ClInclude Include="UICore\Window\WindowDisplayType.h" />
+    <ClInclude Include="UICore\Window\WindowGraphics.h" />
+    <ClInclude Include="UICore\Window\WindowId.h" />
+    <ClInclude Include="UICore\Window\WindowMessage.h" />
+    <ClInclude Include="UICore\Window\WindowProperties.h" />
+    <ClInclude Include="UICore\Window\WindowsEx.h" />
+    <ClInclude Include="UICore\Window\WindowType.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+  </ImportGroup>
+</Project>
