@@ -233,7 +233,16 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        _BuildMasterPanel()->OnLeftPressed(x, y);
+        auto masterPanel = _BuildMasterPanel();
+        zcom::EventTargets targets = masterPanel->OnLeftPressed(x, y);
+
+        // Update selected item
+        zcom::Component* mainTarget = targets.MainTarget();
+        for (auto component : masterPanel->GetAllChildren())
+            if (component != mainTarget && component->Selected())
+                component->OnDeselected();
+        if (mainTarget != nullptr && !mainTarget->Selected() && mainTarget->GetSelectable())
+            mainTarget->OnSelected();
     }
     else if (msg.id == MouseRightPressedMessage::ID())
     {
@@ -441,11 +450,11 @@ void zwnd::Window::_UIThread()
     {
         _window->LockSize();
 
-        _windowSizeMessage = std::nullopt;
-        _window->ProcessQueueMessages([&](WindowMessage msg) { Window::_HandleMessage(msg); });
-
         ztime::clock[CLOCK_GAME].Update();
         ztime::clock[CLOCK_MAIN].Update();
+
+        _windowSizeMessage = std::nullopt;
+        _window->ProcessQueueMessages([&](WindowMessage msg) { Window::_HandleMessage(msg); });
 
         // Check for resize
         if (_windowSizeMessage.has_value())

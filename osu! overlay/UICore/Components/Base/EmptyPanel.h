@@ -9,12 +9,12 @@ namespace zcom
     {
 #pragma region base_class
     protected:
-        void _OnUpdate() {}
-        void _OnDraw(Graphics g) {}
-        void _OnResize(int width, int height) {}
+        void _OnUpdate() override {}
+        void _OnDraw(Graphics g) override {}
+        void _OnResize(int width, int height) override {}
 
     public:
-        const char* GetName() const { return Name(); }
+        const char* GetName() const override { return Name(); }
         static const char* Name() { return "empty_panel"; }
 #pragma endregion
 

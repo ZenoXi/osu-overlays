@@ -28,7 +28,7 @@ namespace zcom
 
 #pragma region base_class
     protected:
-        void _OnDraw(Graphics g)
+        void _OnDraw(Graphics g) override
         {
             // Create grayscale version of _icon
             if (_icon && !_iconGrayscale)
@@ -119,7 +119,7 @@ namespace zcom
             }
         }
 
-        void _OnResize(int width, int height)
+        void _OnResize(int width, int height) override
         {
             if (_label)
                 _label->Resize(width - 55, height);
@@ -132,7 +132,7 @@ namespace zcom
         //}
 
     public:
-        const char* GetName() const { return Name(); }
+        const char* GetName() const override { return Name(); }
         static const char* Name() { return "menu_item"; }
 #pragma endregion
 

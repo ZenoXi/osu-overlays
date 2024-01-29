@@ -25,10 +25,25 @@ namespace zcom
         };
 
 #pragma region base_class
+    public:
+        void SetBorderColor(D2D1_COLOR_F color)
+        {
+            if (_baseBorderColor == color)
+                return;
+
+            _baseBorderColor = color;
+            _UpdateBorderColor();
+        }
+
     protected:
-        void _OnUpdate()
+        void _OnUpdate() override
         {
             Panel::_OnUpdate();
+
+            _UpdateBorderColor();
+            // Apply inactive flag to child elements
+            for (auto& item : _items)
+                item.item->SetActive(GetActive());
 
             // Check if cursor is not out of bounds
             // This cound happen if the label text is changed directly
@@ -182,7 +197,7 @@ namespace zcom
             }
         }
 
-        void _OnDraw(Graphics g)
+        void _OnDraw(Graphics g) override
         {
             Panel::_OnDraw(g);
 
@@ -205,7 +220,7 @@ namespace zcom
             }
         }
 
-        void _OnResize(int width, int height)
+        void _OnResize(int width, int height) override
         {
             Panel::_OnResize(width, height);
 
@@ -213,7 +228,7 @@ namespace zcom
             _UpdateLabelPlacement();
         }
 
-        EventTargets _OnLeftPressed(int x, int y)
+        EventTargets _OnLeftPressed(int x, int y) override
         {
             Panel::_OnLeftPressed(x, y);
 
@@ -233,9 +248,9 @@ namespace zcom
             return EventTargets().Add(this, x, y);
         }
 
-        EventTargets _OnMouseMove(int deltaX, int deltaY)
+        EventTargets _OnMouseMove(int x, int y, int deltaX, int deltaY) override
         {
-            auto targets = Panel::_OnMouseMove(deltaX, deltaY);
+            auto targets = Panel::_OnMouseMove(x, y, deltaX, deltaY);
 
             // Get new cursor position
             if (_textLabel->GetSelectionLength() != 0)
@@ -262,22 +277,22 @@ namespace zcom
             return EventTargets().Add(this, GetMousePosX(), GetMousePosY());
         }
 
-        void _OnSelected(bool reverse); // Uses 'App'
+        void _OnSelected(bool reverse) override; // Uses 'App'
 
-        void _OnDeselected(); // Uses 'App'
+        void _OnDeselected() override; // Uses 'App'
 
         // Override 'Panel' tab handling
-        Component* IterateTab(bool reverse)
+        Component* IterateTab(bool reverse) override
         {
             return Component::IterateTab(reverse);
         }
 
-        bool _OnHotkey(int id)
+        bool _OnHotkey(int id) override
         {
             return false;
         }
 
-        bool _OnKeyDown(BYTE vkCode)
+        bool _OnKeyDown(BYTE vkCode) override
         {
             static const std::wstring symbols = L"!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~";
             static const std::wstring newline = L"\n\r";
@@ -895,7 +910,7 @@ namespace zcom
             return true;
         }
 
-        bool _OnKeyUp(BYTE vkCode)
+        bool _OnKeyUp(BYTE vkCode) override
         {
             switch (vkCode)
             {
@@ -926,7 +941,7 @@ namespace zcom
             return true;
         }
 
-        bool _OnChar(wchar_t ch)
+        bool _OnChar(wchar_t ch) override
         {
             std::wstring newText = _textLabel->GetText();
             unsigned int newCursorPos = _cursorPos;
@@ -987,7 +1002,7 @@ namespace zcom
         }
 
     public:
-        const char* GetName() const { return Name(); }
+        const char* GetName() const override { return Name(); }
         static const char* Name() { return "text_input"; }
 #pragma endregion
 
@@ -1018,6 +1033,8 @@ namespace zcom
 
         EventEmitter<void, Label*, std::wstring*> _textChangedEvent;
         bool _settingInternally = false;
+
+        D2D1_COLOR_F _baseBorderColor = D2D1::ColorF(0);
 
     protected:
         friend class Scene;
@@ -1349,6 +1366,22 @@ namespace zcom
         void _OnLabelTextLayoutChanged(Label* label)
         {
             _UpdateLabelPlacement();
+        }
+
+        void _UpdateBorderColor()
+        {
+            if (GetActive())
+            {
+                Component::SetBorderColor(_baseBorderColor);
+            }
+            else
+            {
+                D2D1_COLOR_F color = _baseBorderColor;
+                color.r *= 0.6f;
+                color.g *= 0.6f;
+                color.b *= 0.6f;
+                Component::SetBorderColor(color);
+            }
         }
     };
 }

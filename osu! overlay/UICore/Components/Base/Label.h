@@ -47,7 +47,7 @@ namespace zcom
     {
 #pragma region base_class
     protected:
-        void _OnDraw(Graphics g)
+        void _OnDraw(Graphics g) override
         {
             // Create resources
             if (!_textBrush)
@@ -100,12 +100,12 @@ namespace zcom
             }
         }
 
-        void _OnResize(int width, int height)
+        void _OnResize(int width, int height) override
         {
             _CreateTextLayout();
         }
 
-        EventTargets _OnLeftPressed(int x, int y)
+        EventTargets _OnLeftPressed(int x, int y) override
         {
             if (_textSelectable)
             {
@@ -122,13 +122,13 @@ namespace zcom
             return EventTargets().Add(this, x, y);
         }
 
-        EventTargets _OnLeftReleased(int x, int y)
+        EventTargets _OnLeftReleased(int x, int y) override
         {
             _selecting = false;
             return EventTargets().Add(this, x, y);
         }
 
-        EventTargets _OnMouseMove(int deltaX, int deltaY)
+        EventTargets _OnMouseMove(int x, int y, int deltaX, int deltaY) override
         {
             if (deltaX == 0 && deltaY == 0)
                 return EventTargets().Add(this, GetMousePosX(), GetMousePosY());
@@ -150,17 +150,17 @@ namespace zcom
 
             return EventTargets().Add(this, GetMousePosX(), GetMousePosY());
         }
+ 
+        void _OnSelected(bool reverse) override;
 
-        void _OnSelected(bool reverse);
+        void _OnDeselected() override;
 
-        void _OnDeselected();
-
-        bool _OnHotkey(int id)
+        bool _OnHotkey(int id) override
         {
             return false;
         }
 
-        bool _OnKeyDown(BYTE vkCode)
+        bool _OnKeyDown(BYTE vkCode) override
         {
             if (vkCode == 'C' && KeyState('C', KMOD_CONTROL))
             {
@@ -216,12 +216,12 @@ namespace zcom
             return false;
         }
 
-        bool _OnKeyUp(BYTE vkCode)
+        bool _OnKeyUp(BYTE vkCode) override
         {
             return false;
         }
 
-        bool _OnChar(wchar_t ch)
+        bool _OnChar(wchar_t ch) override
         {
             return false;
         }
@@ -347,7 +347,7 @@ namespace zcom
         }
 
     public:
-        const char* GetName() const { return Name(); }
+        const char* GetName() const override { return Name(); }
         static const char* Name() { return "label"; }
 #pragma endregion
 

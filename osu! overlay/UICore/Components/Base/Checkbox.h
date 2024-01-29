@@ -34,17 +34,17 @@ namespace zcom
 
 #pragma region base_class
     protected:
-        void _OnDraw(Graphics g);
-        EventTargets _OnLeftPressed(int x, int y);
-        void _OnSelected(bool reverse);
-        void _OnDeselected();
-        bool _OnHotkey(int id) { return false; }
-        bool _OnKeyDown(BYTE vkCode);
-        bool _OnKeyUp(BYTE vkCode) { return false; }
-        bool _OnChar(wchar_t ch) { return false; }
+        void _OnDraw(Graphics g) override;
+        EventTargets _OnLeftPressed(int x, int y) override;
+        void _OnSelected(bool reverse) override;
+        void _OnDeselected() override;
+        bool _OnHotkey(int id) override { return false; }
+        bool _OnKeyDown(BYTE vkCode) override;
+        bool _OnKeyUp(BYTE vkCode) override { return false; }
+        bool _OnChar(wchar_t ch) override { return false; }
 
     public:
-        const char* GetName() const { return Name(); }
+        const char* GetName() const override { return Name(); }
         static const char* Name() { return "checkbox"; }
 #pragma endregion
     };

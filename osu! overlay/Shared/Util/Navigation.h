@@ -7,6 +7,7 @@
 
 #include <cmath>
 #include <unordered_map>
+#include <string>
 
 enum Direction
 {

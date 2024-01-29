@@ -16,6 +16,7 @@ void zcom::DefaultTitleBarScene::_Init(SceneOptionsBase* options)
 
     _titleBarHeight = opt.titleBarHeight;
     _captionHeight = opt.captionHeight;
+    _tintIcon = !opt.windowIconResourceName;
 
     // The following functions set up the default title bar look
     // See the function implementations for details on achieving
@@ -29,7 +30,7 @@ void zcom::DefaultTitleBarScene::_Init(SceneOptionsBase* options)
     if (opt.showMinimizeButton)
         AddMinimizeButton();
     if (opt.showIcon)
-        AddIcon(_window->resourceManager.GetImage("window_app_icon"));
+        AddIcon(_window->resourceManager.GetImage(opt.windowIconResourceName.value_or("window_app_icon")));
     if (opt.showTitle)
         AddTitle(opt.windowTitle);
     AddMenuButton(L"File");
@@ -60,12 +61,13 @@ void zcom::DefaultTitleBarScene::AddCloseButton()
     _closeButton->ButtonImage()->SetTintColor(_activeItemTint);
     _closeButton->ButtonHoverImage()->SetTintColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
     _closeButton->ButtonClickImage()->SetTintColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
+    _closeButton->SetSelectable(false);
     _closeButton->SetActivation(ButtonActivation::RELEASE);
     _closeButton->SubscribeOnActivated([&]() {
         _window->Close();
-        }).Detach();
+    }).Detach();
 
-        _canvas->AddComponent(_closeButton.get());
+    _canvas->AddComponent(_closeButton.get());
 }
 
 void zcom::DefaultTitleBarScene::AddMaximizeButton()
@@ -83,15 +85,16 @@ void zcom::DefaultTitleBarScene::AddMaximizeButton()
     _maximizeButton->SetButtonColor(D2D1::ColorF(0, 0.0f));
     _maximizeButton->SetButtonHoverColor(D2D1::ColorF(0, 0.1f));
     _maximizeButton->SetButtonClickColor(D2D1::ColorF(0, 0.2f));
+    _maximizeButton->SetSelectable(false);
     _maximizeButton->SetActivation(ButtonActivation::RELEASE);
     _maximizeButton->SubscribeOnActivated([&]() {
         if (_window->Backend().Maximized())
             _window->Backend().Restore();
         else
             _window->Backend().Maximize();
-        }).Detach();
+    }).Detach();
 
-        _canvas->AddComponent(_maximizeButton.get());
+    _canvas->AddComponent(_maximizeButton.get());
 }
 
 void zcom::DefaultTitleBarScene::AddMinimizeButton()
@@ -111,21 +114,23 @@ void zcom::DefaultTitleBarScene::AddMinimizeButton()
     _minimizeButton->SetButtonColor(D2D1::ColorF(0, 0.0f));
     _minimizeButton->SetButtonHoverColor(D2D1::ColorF(0, 0.1f));
     _minimizeButton->SetButtonClickColor(D2D1::ColorF(0, 0.2f));
+    _minimizeButton->SetSelectable(false);
     _minimizeButton->SetActivation(ButtonActivation::RELEASE);
     _minimizeButton->SubscribeOnActivated([&]() {
         _window->Backend().Minimize();
-        }).Detach();
+    }).Detach();
 
-        _canvas->AddComponent(_minimizeButton.get());
+    _canvas->AddComponent(_minimizeButton.get());
 }
 
 void zcom::DefaultTitleBarScene::AddIcon(ID2D1Bitmap* icon)
 {
-    _iconImage = Create<Image>(_window->resourceManager.GetImage("window_app_icon"));
+    _iconImage = Create<Image>(icon);
     _iconImage->SetBaseSize(29, 29);
     _iconImage->SetPlacement(ImagePlacement::CENTER);
     _iconImage->SetPixelSnap(true);
-    _iconImage->SetTintColor(D2D1::ColorF(0));
+    if (_tintIcon)
+        _iconImage->SetTintColor(D2D1::ColorF(0));
 
     _canvas->AddComponent(_iconImage.get());
 }
@@ -193,7 +198,7 @@ std::vector<RECT> zcom::DefaultTitleBarScene::ExcludedCaptionRects()
             _closeButton->GetY(),
             _closeButton->GetX() + _closeButton->GetWidth(),
             _closeButton->GetY() + _closeButton->GetHeight()
-            });
+        });
     }
 
     // Add minimixe button
@@ -204,7 +209,7 @@ std::vector<RECT> zcom::DefaultTitleBarScene::ExcludedCaptionRects()
             _minimizeButton->GetY(),
             _minimizeButton->GetX() + _minimizeButton->GetWidth(),
             _minimizeButton->GetY() + _minimizeButton->GetHeight()
-            });
+        });
     }
 
     // Add maximize button
@@ -215,7 +220,7 @@ std::vector<RECT> zcom::DefaultTitleBarScene::ExcludedCaptionRects()
             _maximizeButton->GetY(),
             _maximizeButton->GetX() + _maximizeButton->GetWidth(),
             _maximizeButton->GetY() + _maximizeButton->GetHeight()
-            });
+        });
     }
 
     // Add menu buttons
@@ -226,7 +231,7 @@ std::vector<RECT> zcom::DefaultTitleBarScene::ExcludedCaptionRects()
             _menuButtons[i]->GetY(),
             _menuButtons[i]->GetX() + _menuButtons[i]->GetWidth(),
             _menuButtons[i]->GetY() + _menuButtons[i]->GetHeight()
-            });
+        });
     }
 
     return excludedRects;
@@ -267,7 +272,7 @@ void zcom::DefaultTitleBarScene::HandleWindowStateChanges()
                 if (_titleLabel)
                     _titleLabel->SetFontColor(newColor);
             }
-            });
+        });
     }
 }
 

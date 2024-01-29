@@ -28,7 +28,7 @@ namespace zcom
     {
 #pragma region base_class
     protected:
-        bool _Redraw()
+        bool _Redraw() override
         {
             return _text->Redraw()
                 || _image->Redraw()
@@ -36,7 +36,7 @@ namespace zcom
                 || _imageClicked->Redraw();
         }
 
-        void _OnDraw(Graphics g)
+        void _OnDraw(Graphics g) override
         {
             // Update images
             if (_image->Redraw())
@@ -100,7 +100,7 @@ namespace zcom
             );
         }
 
-        void _OnResize(int width, int height)
+        void _OnResize(int width, int height) override
         {
             _text->Resize(width, height);
             _image->Resize(width, height);
@@ -108,27 +108,27 @@ namespace zcom
             _imageClicked->Resize(width, height);
         }
 
-        void _OnMouseEnter()
+        void _OnMouseEnter() override
         {
             InvokeRedraw();
         }
 
-        void _OnMouseLeave()
+        void _OnMouseLeave() override
         {
             InvokeRedraw();
         }
 
-        void _OnMouseEnterArea()
+        void _OnMouseEnterArea() override
         {
             InvokeRedraw();
         }
 
-        void _OnMouseLeaveArea()
+        void _OnMouseLeaveArea() override
         {
             InvokeRedraw();
         }
 
-        EventTargets _OnLeftPressed(int x, int y)
+        EventTargets _OnLeftPressed(int x, int y) override
         {
             if (_activation == ButtonActivation::PRESS || _activation == ButtonActivation::PRESS_AND_RELEASE)
             {
@@ -139,7 +139,7 @@ namespace zcom
             return EventTargets().Add(this, x, y);
         }
 
-        EventTargets _OnLeftReleased(int x, int y)
+        EventTargets _OnLeftReleased(int x, int y) override
         {
             if (GetMouseInsideArea())
             {
@@ -153,16 +153,16 @@ namespace zcom
             return EventTargets().Add(this, x, y);
         }
 
-        void _OnSelected(bool reverse);
+        void _OnSelected(bool reverse) override;
 
-        void _OnDeselected();
+        void _OnDeselected() override;
 
-        bool _OnHotkey(int id)
+        bool _OnHotkey(int id) override
         {
             return false;
         }
 
-        bool _OnKeyDown(BYTE vkCode)
+        bool _OnKeyDown(BYTE vkCode) override
         {
             if (vkCode == VK_RETURN)
             {
@@ -172,18 +172,18 @@ namespace zcom
             return false;
         }
 
-        bool _OnKeyUp(BYTE vkCode)
+        bool _OnKeyUp(BYTE vkCode) override
         {
             return false;
         }
 
-        bool _OnChar(wchar_t ch)
+        bool _OnChar(wchar_t ch) override
         {
             return false;
         }
 
     public:
-        const char* GetName() const { return Name(); }
+        const char* GetName() const override { return Name(); }
         static const char* Name() { return "button"; }
 #pragma endregion
 
@@ -352,6 +352,7 @@ namespace zcom
             {
                 SetButtonImageAll(nullptr);
                 SetButtonColorAll(D2D1::ColorF(0, 0.0f));
+                SetBorderVisibility(false);
                 break;
             }
             case ButtonPreset::MINIMAL:

@@ -8,10 +8,13 @@
 #include "Components/Base/Image.h"
 #include "Helper/EventEmitter.h"
 
+#include <optional>
+
 namespace zcom
 {
     struct DefaultTitleBarSceneOptions : public SceneOptionsBase
     {
+        std::optional<std::string> windowIconResourceName = std::nullopt;
         std::wstring windowTitle = L"UI Framework";
         bool showCloseButton = true;
         bool showMaximizeButton = true;
@@ -58,6 +61,7 @@ namespace zcom
 
         int _titleBarHeight = 0;
         int _captionHeight = 0;
+        bool _tintIcon = true;
 
         D2D1_COLOR_F _activeItemTint = D2D1::ColorF(0);
         D2D1_COLOR_F _inactiveItemTint = D2D1::ColorF(0.5f, 0.5f, 0.5f);

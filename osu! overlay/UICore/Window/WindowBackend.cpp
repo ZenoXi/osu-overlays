@@ -58,11 +58,25 @@ zwnd::WindowBackend::WindowBackend(HINSTANCE hInst, WindowProperties props, HWND
 
     // Calculate initial window size
     RECT workRect;
-    SystemParametersInfo(SPI_GETWORKAREA, 0, &workRect, 0);
+    if (props.ignoreTaskbarForPlacement)
+    {
+        workRect.left = 0;
+        workRect.top = 0;
+        workRect.right = GetSystemMetrics(SM_CXSCREEN);
+        workRect.bottom = GetSystemMetrics(SM_CYSCREEN);
+    }
+    else
+    {
+        SystemParametersInfo(SPI_GETWORKAREA, 0, &workRect, 0);
+    }
     int x = (workRect.right - props.initialWidth) / 2;
     int y = (workRect.bottom - props.initialHeight) / 2;
     int w = props.initialWidth;
     int h = props.initialHeight;
+    if (props.initialXOffset)
+        x = props.initialXOffset.value();
+    if (props.initialYOffset)
+        y = props.initialYOffset.value();
 
     // Set windowed rect size
     _windowedRect.left = x;
@@ -706,8 +720,8 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     case WM_GETMINMAXINFO:
     {
         MINMAXINFO* info = (MINMAXINFO*)lParam;
-        info->ptMinTrackSize.x = 0;
-        info->ptMinTrackSize.y = 0;
+        info->ptMinTrackSize.x = 600;
+        info->ptMinTrackSize.y = 400;
         break;
     }
     case WM_ENTERSIZEMOVE:

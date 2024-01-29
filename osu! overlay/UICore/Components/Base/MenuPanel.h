@@ -38,7 +38,7 @@ namespace zcom
     {
 #pragma region base_class
     protected:
-        void _OnUpdate()
+        void _OnUpdate() override
         {
             Panel::_OnUpdate();
 
@@ -68,12 +68,12 @@ namespace zcom
             }
         }
 
-        EventTargets _OnMouseMove(int deltaX, int deltaY)
+        EventTargets _OnMouseMove(int x, int y, int deltaX, int deltaY) override
         {
             // Notify parent menu of mouse movement
             _mouseMoveEventEmitter->InvokeAll();
 
-            auto targets = Panel::_OnMouseMove(deltaX, deltaY);
+            auto targets = Panel::_OnMouseMove(x, y, deltaX, deltaY);
             Component* mainTarget = targets.MainTarget();
             auto it = std::find_if(_items.begin(), _items.end(), [mainTarget](Item& item) { return item.item == mainTarget; });
             if (it != _items.end())
@@ -122,7 +122,7 @@ namespace zcom
             return std::move(targets.Add(this, GetMousePosX(), GetMousePosY()));
         }
 
-        EventTargets _OnLeftPressed(int x, int y)
+        EventTargets _OnLeftPressed(int x, int y) override
         {
             auto targets = Panel::_OnLeftPressed(x, y);
             Component* mainTarget = targets.MainTarget();
@@ -180,7 +180,7 @@ namespace zcom
             return std::move(targets.Add(this, x, y));
         }
 
-        void _OnMouseLeave()
+        void _OnMouseLeave() override
         {
             // Stop scheduled child menu open
             _childMenuToShow = std::nullopt;
@@ -221,7 +221,7 @@ namespace zcom
         }
 
     public:
-        const char* GetName() const { return Name(); }
+        const char* GetName() const override { return Name(); }
         static const char* Name() { return "menu_panel"; }
 #pragma endregion
 

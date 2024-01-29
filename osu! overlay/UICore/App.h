@@ -3,6 +3,8 @@
 #include "Window/WindowsEx.h"
 #include "Window/Window.h"
 #include "Helper/Handle.h"
+#include "Helper/EventEmitter.h"
+#include "Shared/Options.h"
 
 #include <mutex>
 #include <optional>
@@ -37,8 +39,12 @@ public:
     std::future<std::optional<zwnd::WindowId>> CreateChildWindowAsync(zwnd::WindowId parentWindowId, zwnd::WindowProperties props, std::function<void(zwnd::Window* window)> initFunction);
     std::future<std::optional<zwnd::WindowId>> CreateToolWindowAsync(zwnd::WindowId parentWindowId, zwnd::WindowProperties props, std::function<void(zwnd::Window* window)> initFunction);
 
+    std::unique_ptr<AsyncEventSubscription<void, zwnd::WindowId, zwnd::WindowType, zwnd::WindowProperties>> SubscribeOnWindowCreated(std::function<void(zwnd::WindowId, zwnd::WindowType, zwnd::WindowProperties)> handler);
+    std::unique_ptr<AsyncEventSubscription<void, zwnd::WindowId>> SubscribeOnWindowClosed(std::function<void(zwnd::WindowId)> handler);
+
     Handle<zwnd::Window> GetWindow(zwnd::WindowId windowId);
     Handle<zwnd::Window> GetWindowNoLock(zwnd::WindowId windowId);
+    Handle<zwnd::Window> FindWindowByClassName(std::wstring className);
     zwnd::Window* GetMessageWindow();
     bool WindowsClosed();
 private:
@@ -63,8 +69,14 @@ private:
     std::vector<WindowInfo> _windows;
     std::mutex _m_windows;
 
+    EventEmitter<void, zwnd::WindowId, zwnd::WindowType, zwnd::WindowProperties> _windowCreatedEvent;
+    EventEmitter<void, zwnd::WindowId> _windowClosedEvent;
+
     std::unique_ptr<zwnd::Window> _messageWindow;
 
     std::thread _windowCleaningThread;
     std::atomic<bool> _closeThread;
+
+public:
+    Options options;
 };

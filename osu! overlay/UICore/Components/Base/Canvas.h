@@ -110,6 +110,8 @@ namespace zcom
 
         void Resize(int width, int height)
         {
+            if (width < 1) width = 1;
+            if (height < 1) height = 1;
             _panel->Resize(width, height);
         }
 
@@ -292,12 +294,12 @@ namespace zcom
         // KEYBOARD EVENT MANAGER FUNCTIONS
         //
 
-        bool _OnHotkey(int id)
+        bool _OnHotkey(int id) override
         {
             return false;
         }
 
-        bool _OnKeyDown(BYTE vkCode)
+        bool _OnKeyDown(BYTE vkCode) override
         {
             if (vkCode == VK_TAB)
             {
@@ -312,12 +314,12 @@ namespace zcom
             return false;
         }
 
-        bool _OnKeyUp(BYTE vkCode)
+        bool _OnKeyUp(BYTE vkCode) override
         {
             return false;
         }
 
-        bool _OnChar(wchar_t ch)
+        bool _OnChar(wchar_t ch) override
         {
             return false;
         }

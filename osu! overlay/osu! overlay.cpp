@@ -59,7 +59,10 @@ int WINAPI main(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT)
             wnd->resourceManager.SetImageResourceFilePath("Resources/Images/resources.resc");
             wnd->resourceManager.InitAllImages();
             wnd->LoadNonClientAreaScene<zcom::DefaultNonClientAreaScene>(nullptr);
-            wnd->LoadTitleBarScene<zcom::DefaultTitleBarScene>(nullptr);
+            zcom::DefaultTitleBarSceneOptions opt;
+            opt.windowIconResourceName = "cursor_icon";
+            opt.windowTitle = L"Overlay engine";
+            wnd->LoadTitleBarScene<zcom::DefaultTitleBarScene>(&opt);
             wnd->LoadStartingScene<zcom::EntryScene>(nullptr);
         }
     );

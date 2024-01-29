@@ -4,6 +4,10 @@
 #include "DefaultNonClientAreaScene.h"
 #include "DefaultTitleBarScene.h"
 #include "SmokeSim/SmokeSimScene.h"
+#include "SmokeSim/SmokeSimParameterPanel.h"
+#include "Components/Base/ScrollPanel.h"
+#include "Components/Base/FlexPanel.h"
+#include "Components/Base/EmptyPanel.h"
 
 zcom::EntryScene::EntryScene(App* app, zwnd::Window* window)
     : Scene(app, window)
@@ -26,91 +30,71 @@ void zcom::EntryScene::_Init(SceneOptionsBase* options)
 
     
 
-    _smokeSimOverlayLabel = Create<Label>(L"Smoke simulation");
-    _smokeSimOverlayLabel->SetOffsetPixels(15, 60);
-    _smokeSimOverlayLabel->SetBaseSize(300, 30);
-    _smokeSimOverlayLabel->SetVerticalTextAlignment(Alignment::CENTER);
-    _smokeSimOverlayLabel->SetFontSize(14.0f);
-    _smokeSimOverlayLabel->SetFontColor(D2D1::ColorF(0.8f, 0.8f, 0.8f));
-    _smokeSimOverlayLabel->SetFont(L"Arial");
+    _mainPanel = Create<FlexPanel>(FlexDirection::RIGHT);
+    _mainPanel->SetSizeFixed(true, true);
+    _mainPanel->SetSpacing(1);
+    _mainPanel->SetParentSizePercent(1.0f, 1.0f);
 
-    _smokeSimOverlayButton = Create<Button>(L"Enable");
-    _smokeSimOverlayButton->SetOffsetPixels(330, 60);
-    _smokeSimOverlayButton->SetBaseSize(80, 30);
-    _smokeSimOverlayButton->SetActivation(ButtonActivation::RELEASE);
-    _smokeSimOverlayButton->SubscribeOnActivated([&] {
-        if (!_smokeSimOverlayWindowId)
-        {
-            _smokeSimOverlayWindowId = _app->CreateChildWindow(
-                _window->GetWindowId(),
-                zwnd::WindowProperties()
-                    .WindowClassName(L"wndClassSmokeSimOverlay")
-                    //.InitialSize(1920, 1080)
-                    .InitialSize(1000, 1000)
-                    .TopMost()
-                    .DisableWindowAnimations()
-                    .DisableWindowActivation()
-                    .DisableMouseInteraction()
-                    .DisableFastTooltips(),
-                [](zwnd::Window* wnd) {
-                    // Remove window decorations
-                    zcom::DefaultNonClientAreaSceneOptions ncOpt;
-                    ncOpt.drawWindowShadow = false;
-                    ncOpt.drawWindowBorder = false;
-                    ncOpt.resizingBorderWidths = { 7, 7, 7, 7 };
-                    ncOpt.clientAreaMargins = { 0, 0, 0, 0 };
-                    wnd->LoadNonClientAreaScene<zcom::DefaultNonClientAreaScene>(&ncOpt);
+    _selectionPanel = Create<Panel>();
+    _selectionPanel->SetParentSizePercent(1.0f, 1.0f);
+    _selectionPanel->SetProperty(FlexShrink());
+    _selectionPanel->SetBackgroundColor(D2D1::ColorF(0x1A1A1A));
 
-                    zcom::DefaultTitleBarSceneOptions tbOpt;
-                    tbOpt.showCloseButton = false;
-                    tbOpt.showMaximizeButton = false;
-                    tbOpt.showMinimizeButton = false;
-                    tbOpt.showTitle = false;
-                    tbOpt.showIcon = false;
-                    tbOpt.titleBarHeight = 0;
-                    // Make entire window act as caption to enable easy window moving
-                    tbOpt.captionHeight = 10000;
-                    wnd->LoadTitleBarScene<zcom::DefaultTitleBarScene>(&tbOpt);
+    _overlayListPanel = Create<FlexPanel>(FlexDirection::DOWN);
+    _overlayListPanel->FillContainerWidth();
+    _overlayListPanel->SetVerticalOffsetPixels(60);
+    _overlayListPanel->SetSpacing(3);
+    _overlayListPanel->SetItemAlignment(Alignment::CENTER);
 
-                    wnd->LoadStartingScene<zcom::SmokeSimScene>(nullptr);
-                }
-            );
+    _CreateOverlaySelector(L"Enhanced smoke", L"enhancedSmokeOverlay", [=] {
+        auto paramPanel = Create<SmokeSimParameterPanel>(SmokeSimType::ENHANCED_SMOKE);
+        paramPanel->SetParentHeightPercent(1.0f);
+        paramPanel->SetBaseWidth(300);
+        return paramPanel;
+    });
+    _CreateOverlaySelector(L"Cursor trail", L"cursorTrailOverlay", [=] {
+        auto paramPanel = Create<SmokeSimParameterPanel>(SmokeSimType::CURSOR_TRAIL);
+        paramPanel->SetParentHeightPercent(1.0f);
+        paramPanel->SetBaseWidth(300);
+        return paramPanel;
+    });
 
-            if (_smokeSimOverlayWindowId)
-            {
-                _smokeSimOverlayStatusLabel->SetText(L"Enabled");
-                _smokeSimOverlayStatusLabel->SetFontColor(D2D1::ColorF(0.2f, 0.8f, 0.2f));
-                _smokeSimOverlayButton->Text()->SetText(L"Disable");
-            }
-        }
-        else
-        {
-            Handle<zwnd::Window> windowHandle = _app->GetWindow(_smokeSimOverlayWindowId.value());
-            if (windowHandle.Valid())
-                windowHandle->Close();
+    auto creditsLabel1 = Create<Label>(L"Made by Zenox");
+    creditsLabel1->SetParentWidthPercent(1.0f);
+    creditsLabel1->SetBaseSize(-20, 20);
+    creditsLabel1->SetVerticalOffsetPixels(-100);
+    creditsLabel1->SetAlignment(Alignment::CENTER, Alignment::END);
+    creditsLabel1->SetTextSelectable(true);
 
-            _smokeSimOverlayWindowId = std::nullopt;
-            _smokeSimOverlayStatusLabel->SetText(L"Disabled");
-            _smokeSimOverlayStatusLabel->SetFontColor(D2D1::ColorF(0.8f, 0.2f, 0.2f));
-            _smokeSimOverlayButton->Text()->SetText(L"Enable");
-        }
-    }).Detach();
+    auto creditsLabel2 = Create<Label>(L"If you have any questions, you can message me directly on osu!, username: ZenoXLTU\nFor updates and FAQ check the app page: https://github.com/ZenoXi/osu-overlays");
+    creditsLabel2->SetParentWidthPercent(1.0f);
+    creditsLabel2->SetBaseSize(-20, 80);
+    creditsLabel2->SetVerticalOffsetPixels(-20);
+    creditsLabel2->SetAlignment(Alignment::CENTER, Alignment::END);
+    creditsLabel2->SetFontStyle(DWRITE_FONT_STYLE_ITALIC);
+    creditsLabel2->SetTextSelectable(true);
+    creditsLabel2->SetWordWrap(true);
 
-    _smokeSimOverlayStatusLabel = Create<Label>(L"Disabled");
-    _smokeSimOverlayStatusLabel->SetOffsetPixels(420, 60);
-    _smokeSimOverlayStatusLabel->SetBaseSize(100, 30);
-    _smokeSimOverlayStatusLabel->SetVerticalTextAlignment(Alignment::CENTER);
-    _smokeSimOverlayStatusLabel->SetFontSize(14.0f);
-    _smokeSimOverlayStatusLabel->SetFontColor(D2D1::ColorF(0.8f, 0.2f, 0.2f));
-    _smokeSimOverlayStatusLabel->SetFont(L"Arial");
+    _windowCreatedEventSubscription = _app->SubscribeOnWindowCreated([=](zwnd::WindowId id, zwnd::WindowType, zwnd::WindowProperties props) {
+        _canvas->BasePanel()->ExecuteSynchronously([=] {
+            _HandleWindowCreatedEvent(id, props);
+        });
+    });
+    _windowClosedEventSubscription = _app->SubscribeOnWindowClosed([=](zwnd::WindowId id) {
+        _canvas->BasePanel()->ExecuteSynchronously([=] {
+            _HandleWindowClosedEvent(id);
+        });
+    });
 
+    _selectionPanel->AddItem(_overlayListLabel.get());
+    _selectionPanel->AddItem(_overlayListPanel.get());
+    _selectionPanel->AddItem(std::move(creditsLabel1));
+    _selectionPanel->AddItem(std::move(creditsLabel2));
 
+    _mainPanel->AddItem(_selectionPanel.get());
 
-    _canvas->AddComponent(_overlayListLabel.get());
-    _canvas->AddComponent(_smokeSimOverlayLabel.get());
-    _canvas->AddComponent(_smokeSimOverlayButton.get());
-    _canvas->AddComponent(_smokeSimOverlayStatusLabel.get());
-    _canvas->SetBackgroundColor(D2D1::ColorF(0.1f, 0.1f, 0.1f));
+    _canvas->AddComponent(_mainPanel.get());
+    _canvas->SetBackgroundColor(D2D1::ColorF(0));
 }
 
 void zcom::EntryScene::_Uninit()
@@ -136,4 +120,72 @@ void zcom::EntryScene::_Update()
 void zcom::EntryScene::_Resize(int width, int height, ResizeInfo info)
 {
 
+}
+
+void zcom::EntryScene::_CreateOverlaySelector(std::wstring buttonText, std::wstring windowClassName, std::function<std::unique_ptr<Component>()> parameterPanelInitFunc)
+{
+    auto row = Create<FlexPanel>(FlexDirection::RIGHT);
+    row->FillContainerWidth();
+    row->SetBaseWidth(-20);
+    row->SetSpacing(3);
+    row->SetProperty(PROP_Shadow{});
+    auto statusIndicator = Create<EmptyPanel>();
+    statusIndicator->SetBaseSize(10, 30);
+    statusIndicator->SetCornerRounding(3);
+    statusIndicator->SetBackgroundColor(D2D1::ColorF(0x30B020));
+    statusIndicator->SetVisible(false);
+    auto button = Create<Button>(buttonText);
+    button->SetParentWidthPercent(1.0f);
+    button->SetBaseHeight(30);
+    button->SetProperty(FlexShrink());
+    button->SetSelectable(false);
+    button->SetBorderVisibility(false);
+    button->SetBackgroundColor(D2D1::ColorF(0x303030));
+    button->SetButtonColor(D2D1::ColorF(0, 0.0f));
+    button->SetButtonHoverColor(D2D1::ColorF(0xFFFFFF, 0.1f));
+    button->SetButtonClickColor(D2D1::ColorF(0x000000, 0.1f));
+    button->SetCornerRounding(3);
+    button->SubscribeOnActivated([=] {
+        if (_currentPropertyPanel)
+            _mainPanel->RemoveItem(_currentPropertyPanel);
+
+        auto paramPanel = parameterPanelInitFunc();
+        _currentPropertyPanel = paramPanel.get();
+        _mainPanel->AddItem(std::move(paramPanel));
+    }).Detach();
+
+    _OverlaySelector selector;
+    selector.overlayWindowClassName = windowClassName;
+    selector.statusIndicator = statusIndicator.get();
+    _overlaySelectors.push_back(std::move(selector));
+
+    row->AddItem(std::move(statusIndicator));
+    row->AddItem(std::move(button));
+    _overlayListPanel->AddItem(std::move(row));
+}
+
+void zcom::EntryScene::_HandleWindowCreatedEvent(zwnd::WindowId windowId, zwnd::WindowProperties props)
+{
+    for (auto& selector : _overlaySelectors)
+    {
+        if (selector.overlayWindowClassName == props.windowClassName)
+        {
+            selector.overlayWindowId = windowId;
+            selector.statusIndicator->SetVisible(true);
+            break;
+        }
+    }
+}
+
+void zcom::EntryScene::_HandleWindowClosedEvent(zwnd::WindowId windowId)
+{
+    for (auto& selector : _overlaySelectors)
+    {
+        if (selector.overlayWindowId.has_value() && selector.overlayWindowId.value() == windowId)
+        {
+            selector.overlayWindowId = std::nullopt;
+            selector.statusIndicator->SetVisible(false);
+            break;
+        }
+    }
 }

@@ -54,7 +54,7 @@ void zcom::Checkbox::_OnDraw(Graphics g)
         finalCheckColor.b *= 0.5f;
     }
 
-    if (GetCornerRounding() > 0.0f)
+    if (GetCornerRounding() > 5.0f)
     {
         auto size = g.target->GetSize();
         D2D1_ROUNDED_RECT rrect;
@@ -69,7 +69,7 @@ void zcom::Checkbox::_OnDraw(Graphics g)
     else
     {
         auto size = g.target->GetSize();
-        D2D1_RECT_F rect = { 3.0f, 3.0f, size.width - 3.0f, size.height - 3.0f };
+        D2D1_RECT_F rect = { 5.0f, 5.0f, size.width - 5.0f, size.height - 5.0f };
         ID2D1SolidColorBrush* brush = nullptr;
         g.target->CreateSolidColorBrush(finalCheckColor, &brush);
         g.target->FillRectangle(rect, brush);

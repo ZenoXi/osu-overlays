@@ -95,6 +95,12 @@ namespace zcom
                 _targets.erase(it);
         }
 
+        void RemoveLast()
+        {
+            if (!_targets.empty())
+                _targets.pop_back();
+        }
+
         bool Empty() const
         {
             return _targets.empty();
@@ -248,7 +254,7 @@ namespace zcom
 
     protected:
         // Pre default handling
-        EventEmitter<void, Component*, int, int> _onMouseMove;
+        EventEmitter<void, Component*, int, int, int, int> _onMouseMove;
         EventEmitter<void, Component*> _onMouseEnter;
         EventEmitter<void, Component*> _onMouseEnterArea;
         EventEmitter<void, Component*> _onMouseLeave;
@@ -264,7 +270,7 @@ namespace zcom
         EventEmitter<void, Component*, Graphics> _onDraw;
 
         // Post default handling
-        EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postMouseMove;
+        EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int, int, int> _postMouseMove;
         EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postLeftPressed;
         EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postRightPressed;
         EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postLeftReleased;
@@ -345,15 +351,12 @@ namespace zcom
         }
         void SetOffsetPixels(int horizontal, int vertical)
         {
-            bool changed = false;
-            if (_hPosPixelOffset != horizontal || _vPosPixelOffset != vertical)
-                changed = true;
+            if (_hPosPixelOffset == horizontal && _vPosPixelOffset == vertical)
+                return;
 
             _hPosPixelOffset = horizontal;
             _vPosPixelOffset = vertical;
-
-            if (changed)
-                _onLayoutChanged->InvokeAll();
+            _onLayoutChanged->InvokeAll();
         }
 
         // Size description
@@ -372,15 +375,12 @@ namespace zcom
         }
         void SetParentSizePercent(float width, float height)
         {
-            bool changed = false;
-            if (_hSizeParentPercent != width || _vSizeParentPercent != height)
-                changed = true;
+            if (_hSizeParentPercent == width && _vSizeParentPercent == height)
+                return;
 
             _hSizeParentPercent = width;
             _vSizeParentPercent = height;
-
-            if (changed)
-                _onLayoutChanged->InvokeAll();
+            _onLayoutChanged->InvokeAll();
         }
         void SetBaseWidth(int width)
         {
@@ -392,15 +392,12 @@ namespace zcom
         }
         void SetBaseSize(int width, int height)
         {
-            bool changed = false;
-            if (_hSize != width || _vSize != height)
-                changed = true;
+            if (_hSize == width && _vSize == height)
+                return;
 
             _hSize = width;
             _vSize = height;
-
-            if (changed)
-                _onLayoutChanged->InvokeAll();
+            _onLayoutChanged->InvokeAll();
         }
 
         // Common
@@ -454,8 +451,8 @@ namespace zcom
             if (width == _width && height == _height)
                 return;
 
-            if (width <= 0) width = 1;
-            if (height <= 0) height = 1;
+            if (width < 0) width = 0;
+            if (height < 0) height = 0;
             _width = width;
             _height = height;
             SafeFullRelease((IUnknown**)&_canvas);
@@ -501,6 +498,7 @@ namespace zcom
             }
             _visible = visible;
             _redraw = true;
+            _onLayoutChanged->InvokeAll();
         }
 
         // Rendering
@@ -704,9 +702,9 @@ namespace zcom
             int deltaY = y - _mousePosY;
             _mousePosX = x;
             _mousePosY = y;
-            _onMouseMove->InvokeAll(this, deltaX, deltaY);
-            auto targets = _OnMouseMove(deltaX, deltaY);
-            _postMouseMove->InvokeAll(this, targets.GetTargets(), deltaX, deltaY);
+            _onMouseMove->InvokeAll(this, x, y, deltaX, deltaY);
+            auto targets = _OnMouseMove(x, y, deltaX, deltaY);
+            _postMouseMove->InvokeAll(this, targets.GetTargets(), x, y, deltaX, deltaY);
 
             if (!targets.Empty())
                 OnMouseEnter();
@@ -874,7 +872,7 @@ namespace zcom
             _OnDeselected();
         }
     protected:
-        virtual EventTargets _OnMouseMove(int deltaX, int deltaY) { return EventTargets().Add(this, GetMousePosX(), GetMousePosY()); }
+        virtual EventTargets _OnMouseMove(int x, int y, int deltaX, int deltaY) { return EventTargets().Add(this, x, y); }
         virtual void _OnMouseEnter() {}
         virtual void _OnMouseLeave() {}
         virtual void _OnMouseEnterArea() {}
@@ -895,7 +893,7 @@ namespace zcom
         int GetMousePosX() const { return _mousePosX; }
         int GetMousePosY() const { return _mousePosY; }
 
-        EventSubscription<void, Component*, int, int> SubscribeOnMouseMove(std::function<void(Component*, int, int)> handler)
+        EventSubscription<void, Component*, int, int, int, int> SubscribeOnMouseMove(std::function<void(Component*, int, int, int, int)> handler)
         {
             return _onMouseMove->Subscribe(handler);
         }
@@ -952,7 +950,7 @@ namespace zcom
             return _onDraw->Subscribe(handler);
         }
 
-        EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostMouseMove(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int, int, int> SubscribePostMouseMove(std::function<void(Component*, std::vector<EventTargets::Params>, int, int, int, int)> handler)
         {
             return _postMouseMove->Subscribe(handler);
         }
@@ -1000,7 +998,7 @@ namespace zcom
         // Main functions
         void Update()
         {
-            if (!_active) return;
+            //if (!_active) return;
 
             // Execute pending actions
             // A (possibly expensive, but not relevant for now) copy of the pending actions is
@@ -1039,6 +1037,12 @@ namespace zcom
         ID2D1Bitmap* Draw(Graphics g)
         {
             _redraw = false;
+
+            //static int counter = 0;
+            //std::cout << counter++ << '\n';
+
+            if (_width == 0 || _height == 0)
+                return nullptr;
 
             if (!_canvas)
             {

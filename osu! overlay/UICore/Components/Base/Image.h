@@ -222,7 +222,7 @@ namespace zcom
 
     private:
         ID2D1Bitmap* _image = nullptr;
-        RECT_F _sourceRect = {0.0f, 0.0f, std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
+        RECT_F _sourceRect = { 0.0f, 0.0f, std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
         RECT_F _targetRect = { -1.0f, -1.0f, -1.0f, -1.0f };
         ImagePlacement _placement = ImagePlacement::NONE;
         float _offsetX = 0.0f;
@@ -235,7 +235,7 @@ namespace zcom
 
 #pragma region base_class
     protected:
-        void _OnDraw(Graphics g)
+        void _OnDraw(Graphics g) override
         {
             if (!_image)
                 return;
@@ -282,7 +282,7 @@ namespace zcom
                 }
                 float width = targetRect.right - targetRect.left;
                 float height = targetRect.bottom - targetRect.top;
-                destRect = { left, top, left + width, top + height};
+                destRect = { left, top, left + width, top + height };
             }
             else if (_placement == ImagePlacement::FIT)
             {
@@ -461,7 +461,7 @@ namespace zcom
         }
 
     public:
-        const char* GetName() const { return Name(); }
+        const char* GetName() const override { return Name(); }
         static const char* Name() { return "image"; }
 #pragma endregion
     };
