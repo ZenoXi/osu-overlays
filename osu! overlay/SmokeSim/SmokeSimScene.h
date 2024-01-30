@@ -116,6 +116,7 @@ namespace zcom
         bool _addingSmoke = false;
 
         TimePoint _lastFrameTime = TimePoint(0);
+        TimePoint _creationTime = TimePoint(0);
 
         std::vector<float> u;
         std::vector<float> v;

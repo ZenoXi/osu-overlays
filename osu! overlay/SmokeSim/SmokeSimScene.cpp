@@ -15,6 +15,8 @@ void zcom::SmokeSimScene::_Init(SceneOptionsBase* options)
     if (options)
         opt = *reinterpret_cast<const SmokeSimSceneOptions*>(options);
 
+    _creationTime = ztime::Main();
+
     _simType = opt.simType;
     _cellSize = opt.cellSize;
     THREAD_COUNT = opt.maxThreads;
@@ -83,7 +85,22 @@ void zcom::SmokeSimScene::_Init(SceneOptionsBase* options)
         g.target->DrawBitmap(backgroundBitmap, D2D1::RectF(0.0f, 0.0f, panel->GetWidth(), panel->GetHeight()));
 
         backgroundBitmap->Release();
-        
+
+        if ((ztime::Main() - _creationTime).GetDuration(SECONDS) < 2)
+        {
+            float offset = 2.0f;
+            D2D1_RECT_F rect = D2D1::RectF(
+                offset,
+                offset,
+                g.target->GetSize().width - offset,
+                g.target->GetSize().height - offset
+            );
+            ID2D1SolidColorBrush* brush;
+            g.target->CreateSolidColorBrush(D2D1::ColorF(0xFF0000), &brush);
+            g.target->DrawRectangle(rect, brush, offset * 2);
+            brush->Release();
+        }
+
         // Velocity field
         //ID2D1SolidColorBrush* lineBrush;
         //ID2D1SolidColorBrush* densityBrush;

@@ -644,8 +644,8 @@ void zwnd::Window::_UIThread()
                 clientAreaBitmap->Release();
             }
 
-            if (GetKeyState(VK_SPACE) & 0x8000)
-                g.target->Clear(D2D1::ColorF(0.2f, 0.2f, 0.2f, 0.8f));
+            //if (GetKeyState(VK_SPACE) & 0x8000)
+            //    g.target->Clear(D2D1::ColorF(0.2f, 0.2f, 0.2f, 0.8f));
 
             // Display frame number while 'Ctrl + S + F' is held
             if ((GetKeyState(VK_CONTROL) & 0x8000) &&
