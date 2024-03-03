@@ -17,35 +17,6 @@
 
 int WINAPI main(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT)
 {
-    // Set working directory
-    //std::wstring dir;
-    //dir.resize(MAX_PATH);
-    //GetModuleFileName(NULL, dir.data(), MAX_PATH);
-    //auto pos = dir.find_last_of(L"\\/");
-    //std::wstring runDir = dir.substr(0, pos);
-    //std::wcout << "Executable path: " << dir << '\n';
-
-    //if (!SetCurrentDirectory(runDir.data()))
-    //{
-    //    std::cout << "Directory set failed\n";
-    //    return -1;
-    //}
-
-    //TCHAR path[MAX_PATH] = { 0 };
-    //DWORD a = GetCurrentDirectory(MAX_PATH, path);
-    //std::wcout << "New working directory: " << path << '\n';
-
-    //// Read arguments
-    //std::vector<std::wstring> args;
-    //int argCount;
-    //LPWSTR* pArgs = CommandLineToArgvW(cmdLine, &argCount);
-    //for (int i = 0; i < argCount; i++)
-    //{
-    //    args.push_back(std::wstring(pArgs[i]));
-    //    std::wcout << args[i] << '\n';
-    //}
-    //LocalFree(pArgs);
-
     App app(hInst);
 
     std::optional<zwnd::WindowId> id = app.CreateTopWindow(

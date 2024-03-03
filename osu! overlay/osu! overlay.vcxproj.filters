@@ -27,9 +27,6 @@
     <ClCompile Include="UICore\Components\Base\ComponentBase.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="UICore\Components\Base\DirectionalPanel.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="UICore\Components\Base\Label.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -99,6 +96,30 @@
     <ClCompile Include="Shared\Util\Navigation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Shared\Options.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SmokeSim\SmokeSimParameterPanel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Components\Base\FlexPanel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Components\Base\NumberInput.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Components\Base\ScrollPanel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Components\Base\KeySelector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Components\Base\Slider.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SmokeSim\ColorSelectorScene.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="UICore\Components\Base\Button.h">
@@ -113,10 +134,7 @@
     <ClInclude Include="UICore\Components\Base\ComponentBase.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="UICore\Components\Base\DirectionalPanel.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="UICore\Components\Base\EmptyPanel.h">
+    <ClInclude Include="UICore\Components\Base\Dummy.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="UICore\Components\Base\Image.h">
@@ -273,6 +291,42 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Shared\Util\Constants.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Options.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Util\ValueOrDefault.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SmokeSim\SmokeSimParameterPanel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SmokeSim\SmokeSimType.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Components\Base\FlexPanel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Components\Base\ScrollPanel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Components\Base\Dummy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Components\Base\KeySelector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Components\Base\Slider.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Helper\BinarySearchIterator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Util\Color.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SmokeSim\ColorSelectorScene.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -7,7 +7,7 @@
 #include "SmokeSim/SmokeSimParameterPanel.h"
 #include "Components/Base/ScrollPanel.h"
 #include "Components/Base/FlexPanel.h"
-#include "Components/Base/EmptyPanel.h"
+#include "Components/Base/Dummy.h"
 
 zcom::EntryScene::EntryScene(App* app, zwnd::Window* window)
     : Scene(app, window)
@@ -59,21 +59,30 @@ void zcom::EntryScene::_Init(SceneOptionsBase* options)
         return paramPanel;
     });
 
+    auto creditsPanel = Create<FlexPanel>(FlexDirection::DOWN);
+    creditsPanel->FillContainerWidth();
+    creditsPanel->SetVerticalOffsetPixels(-5);
+    creditsPanel->SetVerticalAlignment(Alignment::END);
+    creditsPanel->SetSpacing(5);
+
     auto creditsLabel1 = Create<Label>(L"Made by Zenox");
     creditsLabel1->SetParentWidthPercent(1.0f);
-    creditsLabel1->SetBaseSize(-20, 20);
-    creditsLabel1->SetVerticalOffsetPixels(-100);
-    creditsLabel1->SetAlignment(Alignment::CENTER, Alignment::END);
+    creditsLabel1->SetBaseWidth(-20);
+    creditsLabel1->AutomaticHeight();
+    creditsLabel1->SetHorizontalAlignment(Alignment::CENTER);
     creditsLabel1->SetTextSelectable(true);
 
     auto creditsLabel2 = Create<Label>(L"If you have any questions, you can message me directly on osu!, username: ZenoXLTU\nFor updates and FAQ check the app page: https://github.com/ZenoXi/osu-overlays");
     creditsLabel2->SetParentWidthPercent(1.0f);
-    creditsLabel2->SetBaseSize(-20, 80);
-    creditsLabel2->SetVerticalOffsetPixels(-20);
-    creditsLabel2->SetAlignment(Alignment::CENTER, Alignment::END);
+    creditsLabel2->SetBaseWidth(-20);
+    creditsLabel2->AutomaticHeight();
+    creditsLabel2->SetHorizontalAlignment(Alignment::CENTER);
     creditsLabel2->SetFontStyle(DWRITE_FONT_STYLE_ITALIC);
     creditsLabel2->SetTextSelectable(true);
     creditsLabel2->SetWordWrap(true);
+
+    creditsPanel->AddItem(std::move(creditsLabel1));
+    creditsPanel->AddItem(std::move(creditsLabel2));
 
     _windowCreatedEventSubscription = _app->SubscribeOnWindowCreated([=](zwnd::WindowId id, zwnd::WindowType, zwnd::WindowProperties props) {
         _canvas->BasePanel()->ExecuteSynchronously([=] {
@@ -88,8 +97,7 @@ void zcom::EntryScene::_Init(SceneOptionsBase* options)
 
     _selectionPanel->AddItem(_overlayListLabel.get());
     _selectionPanel->AddItem(_overlayListPanel.get());
-    _selectionPanel->AddItem(std::move(creditsLabel1));
-    _selectionPanel->AddItem(std::move(creditsLabel2));
+    _selectionPanel->AddItem(std::move(creditsPanel));
 
     _mainPanel->AddItem(_selectionPanel.get());
 
@@ -129,7 +137,7 @@ void zcom::EntryScene::_CreateOverlaySelector(std::wstring buttonText, std::wstr
     row->SetBaseWidth(-20);
     row->SetSpacing(3);
     row->SetProperty(PROP_Shadow{});
-    auto statusIndicator = Create<EmptyPanel>();
+    auto statusIndicator = Create<Dummy>();
     statusIndicator->SetBaseSize(10, 30);
     statusIndicator->SetCornerRounding(3);
     statusIndicator->SetBackgroundColor(D2D1::ColorF(0x30B020));

@@ -24,10 +24,10 @@ class KeyboardEventHandler
 protected:
     BYTE _keyStates[_KEY_COUNT]{ 0 };
 
-    virtual bool _OnHotkey(int id) = 0;
-    virtual bool _OnKeyDown(BYTE vkCode) = 0;
-    virtual bool _OnKeyUp(BYTE vkCode) = 0;
-    virtual bool _OnChar(wchar_t ch) = 0;
+    virtual bool _OnHotkey(int id) { return false; };
+    virtual bool _OnKeyDown(BYTE vkCode) { return false; };
+    virtual bool _OnKeyUp(BYTE vkCode) { return false; };
+    virtual bool _OnChar(wchar_t ch) { return false; };
     
     EventEmitter<bool, int> _onHotkeyHandlers;
     EventEmitter<bool, BYTE> _onKeyDownHandlers;

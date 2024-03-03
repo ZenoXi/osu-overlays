@@ -426,9 +426,9 @@ namespace zcom
 #pragma endregion
 
     protected:
-        void _AddItem(Component* item, bool transferOwnership) override
+        void _AddItem(Component* item, size_t position, bool transferOwnership) override
         {
-            Panel::_AddItem(item, transferOwnership);
+            Panel::_AddItem(item, position, transferOwnership);
 
             // Intercept component selection event
             _items.back().selectHandler = item->SubscribeOnSelected([&](zcom::Component* srcItem, bool reverse)

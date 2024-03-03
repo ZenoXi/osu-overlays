@@ -301,7 +301,7 @@ namespace zwnd
             return true;
         }
 
-        static const char* ID() { return "mouse_left_pressed"; }
+        static const char* ID() { return "nc_mouse_left_pressed"; }
     };
 
     class NonClientMouseLeftReleasedMessage
@@ -329,7 +329,7 @@ namespace zwnd
             return true;
         }
 
-        static const char* ID() { return "mouse_left_released"; }
+        static const char* ID() { return "nc_mouse_left_released"; }
     };
 
     class NonClientMouseRightPressedMessage
@@ -357,7 +357,7 @@ namespace zwnd
             return true;
         }
 
-        static const char* ID() { return "mouse_right_pressed"; }
+        static const char* ID() { return "nc_mouse_right_pressed"; }
     };
 
     class NonClientMouseRightReleasedMessage
@@ -385,7 +385,7 @@ namespace zwnd
             return true;
         }
 
-        static const char* ID() { return "mouse_right_released"; }
+        static const char* ID() { return "nc_mouse_right_released"; }
     };
 
     class MouseWheelUpMessage

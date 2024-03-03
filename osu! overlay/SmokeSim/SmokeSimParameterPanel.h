@@ -25,6 +25,7 @@ namespace zcom
 
 #pragma region base_class
     public:
+        void _OnUpdate() override;
         const char* GetName() const { return Name(); }
         static const char* Name() { return "smoke_sim_parameter_panel"; }
 #pragma endregion
@@ -56,8 +57,16 @@ namespace zcom
 
         SmokeSimType _simType;
         std::optional<zwnd::WindowId> _overlayWindowId = std::nullopt;
+        std::optional<zwnd::WindowId> _colorSelectorWindowId = std::nullopt;
 
+        std::unique_ptr<AsyncEventSubscription<void, zwnd::WindowId>> _windowClosedEventSubscription = nullptr;
+
+        TimePoint _lastColorInputUpdate = TimePoint(0);
+        Component* _colorInput = nullptr;
+
+        void _UpdateColorInput();
         void _OpenOverlayWindow();
         void _UpdateActiveItems();
+        void _OpenColorSelector();
     };
 }

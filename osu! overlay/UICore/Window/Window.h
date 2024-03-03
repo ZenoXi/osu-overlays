@@ -131,7 +131,7 @@ namespace zwnd
         // Returns the full window height
         int Height() const { return _window->GetHeight(); }
         // Close the window
-        void Close() { _closed.store(true); }
+        void Close() { _closed.store(true); _window->KillMessageLoop(); }
         // Returns true when window is closing or closed
         bool Closing() const { return _closed.load(); }
         // Returns whether the window is closed

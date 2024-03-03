@@ -54,6 +54,16 @@ namespace zcom
             _UpdateText();
         }
 
+        void StepUp()
+        {
+            SetValue(GetValue() + GetStepSize());
+        }
+
+        void StepDown()
+        {
+            SetValue(GetValue() - GetStepSize());
+        }
+
         void SetPrecision(int precision)
         {
             if (precision < 0)
@@ -123,9 +133,7 @@ namespace zcom
     private:
         void _UpdateValue()
         {
-            NumberInputValue number(wstring_to_string(Text()->GetText()));
-            SetValue(number);
-            _UpdateText();
+            SetValue(NumberInputValue(wstring_to_string(Text()->GetText())));
         }
 
         void _UpdateText()

@@ -47,6 +47,7 @@ zwnd::Window::Window(
             _id,
             zwnd::WindowProperties()
                 .WindowClassName(L"wndClassTooltip")
+                .MinSize(1, 1)
                 .InitialSize(10, 10)
                 .InitialDisplay(zwnd::WindowDisplayType::HIDDEN)
                 .DisableWindowAnimations()
@@ -83,7 +84,7 @@ zwnd::Window::Window(HINSTANCE hinst)
 
 zwnd::Window::~Window()
 {
-    _closed.store(true);
+    // _closed should be always true here, since only the App object can destroy Window instances, and it always calls Window::Close before that
     if (_messageThread.joinable())
         _messageThread.join();
 }
@@ -203,7 +204,7 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
     }
     else if (msg.id == WindowCloseMessage::ID())
     {
-        _closed.store(true);
+        Close();
     }
     else if (msg.id == MouseMoveMessage::ID())
     {
@@ -344,36 +345,8 @@ void zwnd::Window::_MessageThread()
     _window->AddKeyboardHandler(&keyboardManager);
 
     // Main window loop
-    Clock msgTimer = Clock(0);
-    while (true)
-    {
-        // Check for window close
-        if (_closed.load())
-            break;
-
-        // Messages
-        bool msgProcessed = _window->ProcessMessages();
-
-        _window->HandleFullscreenChange();
-        _window->HandleCursorVisibility();
-
-        // Limit cpu usage
-        if (!msgProcessed)
-        {
-            // If no messages are received for 50ms or more, sleep to limit cpu usage.
-            // This way we allow for full* mouse poll rate utilization when necessary.
-            //
-            // * the very first mouse move after a break will have a very small delay
-            // which may be noticeable in certain situations (FPS games)
-            msgTimer.Update();
-            if (msgTimer.Now().GetTime(MILLISECONDS) >= 50)
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-        else
-        {
-            msgTimer.Reset();
-        }
-    }
+    _window->ProcessMessages();
+    _closed.store(true);
     _uiThread.join();
 
     resourceManager.ReleaseResources();
@@ -388,36 +361,13 @@ void zwnd::Window::_MessageOnlyThread()
     _window = std::make_unique<WindowBackend>(_hinst);
     _windowCreated.store(true);
 
-    Clock msgTimer = Clock(0);
-    while (true)
+    while (_window->ProcessSingleMessage())
     {
-        // Check for window close
-        if (_closed.load())
-            break;
-
-        // Messages
-        bool msgProcessed = _window->ProcessMessages();
         _window->ProcessQueueMessages([&](WindowMessage msg) {
             _windowMessageEvent->InvokeAll(msg);
         });
-
-        // Limit cpu usage
-        if (!msgProcessed)
-        {
-            // If no messages are received for 50ms or more, sleep to limit cpu usage.
-            // This way we allow for full* mouse poll rate utilization when necessary.
-            //
-            // * the very first mouse move after a break will have a very small delay
-            // which may be noticeable in certain situations (FPS games)
-            msgTimer.Update();
-            if (msgTimer.Now().GetTime(MILLISECONDS) >= 50)
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-        else
-        {
-            msgTimer.Reset();
-        }
     }
+    _closed.store(true);
 
     _window.reset();
 }

@@ -205,6 +205,7 @@ namespace zcom
         bool _customInactiveDraw = false;
     private:
         bool _visible = true;
+        bool _interactable = true;
 
         // Rendering
         bool _ignoreAlpha = false;
@@ -410,6 +411,7 @@ namespace zcom
         float GetOpacity() const { return _opacity; }
         bool GetActive() const { return _active; }
         bool GetVisible() const { return _visible; }
+        bool GetInteractable() const { return _interactable; }
 
         void SetX(int x)
         {
@@ -499,6 +501,18 @@ namespace zcom
             _visible = visible;
             _redraw = true;
             _onLayoutChanged->InvokeAll();
+        }
+        void SetInteractable(bool interactable)
+        {
+            if (interactable == _interactable)
+                return;
+
+            if (!interactable)
+            {
+                OnLeftReleased();
+                OnRightReleased();
+            }
+            _interactable = interactable;
         }
 
         // Rendering
@@ -995,8 +1009,11 @@ namespace zcom
             _onLayoutChanged->InvokeAll();
         }
 
+        // //////////////
         // Main functions
-        void Update()
+        // //////////////
+
+        virtual void Update()
         {
             //if (!_active) return;
 
@@ -1024,17 +1041,17 @@ namespace zcom
 
         // If this function returns true, the 'Draw()' function should be called
         // to redraw any visual changes
-        bool Redraw()
+        virtual bool Redraw()
         {
             return _redraw || !_canvas || _Redraw();
         }
 
-        void InvokeRedraw()
+        virtual void InvokeRedraw()
         {
             _redraw = true;
         }
 
-        ID2D1Bitmap* Draw(Graphics g)
+        virtual ID2D1Bitmap* Draw(Graphics g)
         {
             _redraw = false;
 
@@ -1259,12 +1276,12 @@ namespace zcom
             return _canvas;
         }
 
-        ID2D1Bitmap* ContentImage()
+        virtual ID2D1Bitmap* ContentImage()
         {
             return _canvas;
         }
 
-        void Resize(int width, int height)
+        virtual void Resize(int width, int height)
         {
             if (width != _width || height != _height)
             {
@@ -1273,7 +1290,10 @@ namespace zcom
             }
         }
 
+        // ////////////////////
         // Additional functions
+        // ////////////////////
+
         virtual std::list<Component*> GetChildren()
         {
             return std::list<Component*>();

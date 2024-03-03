@@ -10,6 +10,9 @@
 
 #include "SmokeSimType.h"
 
+#include "CudaSmokeSim/CudaSmokeSim.h"
+#pragma comment (lib, "CudaSmokeSim.lib")
+
 namespace zcom
 {
     struct SmokeSimSceneOptions : public SceneOptionsBase
@@ -26,27 +29,31 @@ namespace zcom
         {
             zutil::ValueOrDefault<int> trailWidth = zutil::ValueOrDefault<int>(10);
             zutil::ValueOrDefault<int> trailEdgeFadeRange = zutil::ValueOrDefault<int>(8);
-            zutil::ValueOrDefault<float> trailDensity = zutil::ValueOrDefault<float>(1.0f);
+            zutil::ValueOrDefault<float> trailDensity = zutil::ValueOrDefault<float>(0.7f);
             zutil::ValueOrDefault<int> trailWindWidth = zutil::ValueOrDefault<int>(10);
             zutil::ValueOrDefault<float> trailWindSpeed = zutil::ValueOrDefault<float>(0.2f);
-            zutil::ValueOrDefault<float> cursorTemp = zutil::ValueOrDefault<float>(0.5f);
+            zutil::ValueOrDefault<float> cursorTemp = zutil::ValueOrDefault<float>(0.4f);
 
-            zutil::ValueOrDefault<float> trailVelocityDiffusion = zutil::ValueOrDefault<float>(2.0f);
-            zutil::ValueOrDefault<float> trailDensityDiffusion = zutil::ValueOrDefault<float>(2.0f);
+            zutil::ValueOrDefault<int> trailColor = zutil::ValueOrDefault<int>(0xFF888888);
+            zutil::ValueOrDefault<float> trailVelocityDiffusion = zutil::ValueOrDefault<float>(0.0f);
+            zutil::ValueOrDefault<float> trailDensityDiffusion = zutil::ValueOrDefault<float>(0.0f);
             zutil::ValueOrDefault<float> trailTemperatureDiffusion = zutil::ValueOrDefault<float>(6.0f);
             zutil::ValueOrDefault<float> trailDensityReductionRate = zutil::ValueOrDefault<float>(0.15f);
             zutil::ValueOrDefault<float> trailTemperatureReductionRate = zutil::ValueOrDefault<float>(0.05f);
 
-            zutil::ValueOrDefault<int> brushWidth = zutil::ValueOrDefault<int>(10);
-            zutil::ValueOrDefault<int> brushEdgeFadeRange = zutil::ValueOrDefault<int>(2);
+            zutil::ValueOrDefault<int> smokeColor = zutil::ValueOrDefault<int>(0xFF888888);
+            zutil::ValueOrDefault<int> brushWidth = zutil::ValueOrDefault<int>(14);
+            zutil::ValueOrDefault<int> brushEdgeFadeRange = zutil::ValueOrDefault<int>(6);
             zutil::ValueOrDefault<float> smokeDensity = zutil::ValueOrDefault<float>(1.0f);
-            zutil::ValueOrDefault<int> cursorWindWidth = zutil::ValueOrDefault<int>(10);
-            zutil::ValueOrDefault<float> cursorWindSpeed = zutil::ValueOrDefault<float>(0.1f);
-            zutil::ValueOrDefault<int> slowdownPersistenceDurationMs = zutil::ValueOrDefault<int>(200);
+            zutil::ValueOrDefault<int> cursorWindWidth = zutil::ValueOrDefault<int>(14);
+            zutil::ValueOrDefault<float> cursorWindSpeed = zutil::ValueOrDefault<float>(0.2f);
+            zutil::ValueOrDefault<int> slowdownPersistenceDurationMs = zutil::ValueOrDefault<int>(250);
 
-            zutil::ValueOrDefault<float> smokeVelocityDiffusion = zutil::ValueOrDefault<float>(6.0f);
-            zutil::ValueOrDefault<float> smokeDensityDiffusion = zutil::ValueOrDefault<float>(1.0f);
-            zutil::ValueOrDefault<float> smokeDensityReductionRate = zutil::ValueOrDefault<float>(0.05f);
+            zutil::ValueOrDefault<float> smokeVelocityDiffusion = zutil::ValueOrDefault<float>(0.0f);
+            zutil::ValueOrDefault<float> smokeDensityDiffusion = zutil::ValueOrDefault<float>(0.0f);
+            zutil::ValueOrDefault<float> smokeDensityReductionRate = zutil::ValueOrDefault<float>(0.02f);
+
+            zutil::ValueOrDefault<int> smokeKeyCode = zutil::ValueOrDefault<int>('C');
         };
 
     private:
@@ -64,7 +71,7 @@ namespace zcom
             float flow;
             float velocityX;
             float velocityY;
-            
+
             float newPressure;
             float newVelocityX;
             float newVelocityY;
@@ -141,6 +148,8 @@ namespace zcom
         void _DensityStep(int W, int H, float* x, float* x0, float* u, float* v, float diff, float dt);
         void _TemperatureStep(int W, int H, float* x, float* x0, float* u, float* v, float diff, float dt);
         void _UpdateParticles(float dt);
+
+        CudaSmokeSim_Context* cuda_ctx = nullptr;
 
         TimePoint _lastParamUpdate = TimePoint(0);
         Duration _paramUpdateInterval = Duration(250, MILLISECONDS);

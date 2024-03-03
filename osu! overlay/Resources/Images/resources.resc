@@ -9,3 +9,5 @@ menu_arrow_left_7x7 Resources\Images\Misc\Menu-Arrow-Left-7x7.png
 menu_arrow_right_7x7 Resources\Images\Misc\Menu-Arrow-Right-7x7.png
 menu_arrow_up_7x7 Resources\Images\Misc\Menu-Arrow-Up-7x7.png
 cursor_icon Resources\Images\WindowIcons\CursorIcon.png
+slider_anchor Resources\Images\Misc\SliderAnchor.png
+slider_anchor_hovered Resources\Images\Misc\SliderAnchorHovered.png

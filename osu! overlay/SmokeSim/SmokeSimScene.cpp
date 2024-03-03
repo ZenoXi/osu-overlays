@@ -4,6 +4,7 @@
 
 #include "Shared/Util/Navigation.h"
 #include "Shared/Util/Functions.h"
+#include "Shared/Util/Color.h"
 
 zcom::SmokeSimScene::SmokeSimScene(App* app, zwnd::Window* window)
     : Scene(app, window)
@@ -26,8 +27,11 @@ void zcom::SmokeSimScene::_Init(SceneOptionsBase* options)
     _totalWidth = _width + 2;
     _totalHeight = _height + 2;
 
-    for (int i = 0; i < THREAD_COUNT; i++)
-        _threadPool.AddThread();
+    cuda_ctx = CudaSmokeSim_Init(_width, _height);
+
+    if (!cuda_ctx)
+        for (int i = 0; i < THREAD_COUNT; i++)
+            _threadPool.AddThread();
 
     int size = (_width + 2) * (_height + 2);
     u.resize(size, 0.0f);
@@ -68,10 +72,12 @@ void zcom::SmokeSimScene::_Init(SceneOptionsBase* options)
                 float temperature = temp[(y + 1) * (_width + 2) + x + 1];
                 float intensity = std::powf(_Clamp(density, 0.0f, 1.0f), 2.0f);
 
-                sourceData[y * _width * 4 + (x * 4) + 0] = 0x88 * intensity;
-                sourceData[y * _width * 4 + (x * 4) + 1] = 0x88 * intensity;
-                sourceData[y * _width * 4 + (x * 4) + 2] = 0x88 * intensity;
-                sourceData[y * _width * 4 + (x * 4) + 3] = 0xFF * intensity;
+                zutil::Color color = zutil::Color(_simType == SmokeSimType::CURSOR_TRAIL ? _simParams.trailColor.Get() : _simParams.smokeColor.Get());
+
+                sourceData[y * _width * 4 + (x * 4) + 0] = color.b * (color.a / 255.0f) * intensity;
+                sourceData[y * _width * 4 + (x * 4) + 1] = color.g * (color.a / 255.0f) * intensity;
+                sourceData[y * _width * 4 + (x * 4) + 2] = color.r * (color.a / 255.0f) * intensity;
+                sourceData[y * _width * 4 + (x * 4) + 3] = 0xFF * (color.a / 255.0f) * intensity;
 
                 // Temperature
                 //intensity = _Clamp(temperature / 10.0f, 0.0f, 1.0f);
@@ -156,12 +162,15 @@ void zcom::SmokeSimScene::_Init(SceneOptionsBase* options)
         //    g.target->FillRectangle(pixelRect, brush);
         //    brush->Release();
         //}
-    }).Detach();
+        }).Detach();
 }
 
 void zcom::SmokeSimScene::_Uninit()
 {
     _canvas->ClearComponents();
+
+    if (cuda_ctx)
+        CudaSmokeSim_Uninit(cuda_ctx);
 }
 
 void zcom::SmokeSimScene::_Focus()
@@ -185,22 +194,35 @@ void zcom::SmokeSimScene::_SetBoundary(int W, int H, int b, float* x)
 {
     for (int i = 1; i <= H; i++)
     {
-        x[_IndexAt(0, i)]       = b == 1 ? -x[_IndexAt(1, i)] : x[_IndexAt(1, i)];
-        x[_IndexAt(W + 1, i)]   = b == 1 ? -x[_IndexAt(W, i)] : x[_IndexAt(W, i)];
+        x[_IndexAt(0, i)] = b == 1 ? -x[_IndexAt(1, i)] : x[_IndexAt(1, i)];
+        x[_IndexAt(W + 1, i)] = b == 1 ? -x[_IndexAt(W, i)] : x[_IndexAt(W, i)];
     }
     for (int i = 1; i <= W; i++)
     {
-        x[_IndexAt(i, 0)]       = b == 2 ? -x[_IndexAt(i, 1)] : x[_IndexAt(i, 1)];
-        x[_IndexAt(i, H + 1)]   = b == 2 ? -x[_IndexAt(i, H)] : x[_IndexAt(i, H)];
+        x[_IndexAt(i, 0)] = b == 2 ? -x[_IndexAt(i, 1)] : x[_IndexAt(i, 1)];
+        x[_IndexAt(i, H + 1)] = b == 2 ? -x[_IndexAt(i, H)] : x[_IndexAt(i, H)];
     }
-    x[_IndexAt(0, 0)]           = 0.5 * (x[_IndexAt(1, 0)] + x[_IndexAt(0, 1)]);
-    x[_IndexAt(0, H + 1)]       = 0.5 * (x[_IndexAt(1, H + 1)] + x[_IndexAt(0, H)]);
-    x[_IndexAt(W + 1, 0)]       = 0.5 * (x[_IndexAt(W, 0)] + x[_IndexAt(W + 1, 1)]);
-    x[_IndexAt(W + 1, H + 1)]   = 0.5 * (x[_IndexAt(W, H + 1)] + x[_IndexAt(W + 1, H)]);
+    x[_IndexAt(0, 0)] = 0.5 * (x[_IndexAt(1, 0)] + x[_IndexAt(0, 1)]);
+    x[_IndexAt(0, H + 1)] = 0.5 * (x[_IndexAt(1, H + 1)] + x[_IndexAt(0, H)]);
+    x[_IndexAt(W + 1, 0)] = 0.5 * (x[_IndexAt(W, 0)] + x[_IndexAt(W + 1, 1)]);
+    x[_IndexAt(W + 1, H + 1)] = 0.5 * (x[_IndexAt(W, H + 1)] + x[_IndexAt(W + 1, H)]);
 }
 
 void zcom::SmokeSimScene::_Diffuse(int W, int H, int b, float* x, float* x0, float diff, float dt)
 {
+    if (diff <= 0.0f)
+    {
+        for (int i = 1; i <= W; i++)
+        {
+            for (int j = 1; j <= H; j++)
+            {
+                int index = _IndexAt(i, j);
+                x[index] = x0[index];
+            }
+        }
+        return;
+    }
+
     float a = dt * diff;
 
     for (int k = 0; k < 4; k++)
@@ -230,11 +252,11 @@ void zcom::SmokeSimScene::_Diffuse(int W, int H, int b, float* x, float* x0, flo
                                 x[_IndexToRight(index)] +
                                 x[_IndexAbove(index)] +
                                 x[_IndexBelow(index)]
-                            )
-                        ) / (1 + 4 * a);
+                                )
+                            ) / (1 + 4 * a);
                     }
                 }
-            }));
+                }));
             threads.push_back(thread);
         }
 
@@ -252,9 +274,9 @@ void zcom::SmokeSimScene::_Diffuse(int W, int H, int b, float* x, float* x0, flo
             if (!stillRunning)
                 break;
         }
-
-        _SetBoundary(W, H, b, x);
     }
+
+    _SetBoundary(W, H, b, x);
 }
 
 void zcom::SmokeSimScene::_Advect(int W, int H, int b, float* d, float* d0, float* u, float* v, float dt, bool conserve)
@@ -283,13 +305,13 @@ void zcom::SmokeSimScene::_Advect(int W, int H, int b, float* d, float* d0, floa
                 y = H + 0.5;
             j0 = (int)y;
             j1 = j0 + 1;
-            
+
             s1 = x - i0;
             s0 = 1 - s1;
-            
+
             t1 = y - j0;
             t0 = 1 - t1;
-            
+
             d[_IndexAt(i, j)] =
                 s0 * (t0 * d0[_IndexAt(i0, j0)] + t1 * d0[_IndexAt(i0, j1)]) +
                 s1 * (t0 * d0[_IndexAt(i1, j0)] + t1 * d0[_IndexAt(i1, j1)]);
@@ -322,7 +344,7 @@ void zcom::SmokeSimScene::_Project(int W, int H, float* u, float* v, float* p, f
             div[_IndexAt(i, j)] = -0.5 * h * (
                 u[_IndexAt(i + 1, j)] - u[_IndexAt(i - 1, j)] +
                 v[_IndexAt(i, j + 1)] - v[_IndexAt(i, j - 1)]
-            );
+                );
             p[_IndexAt(i, j)] = 0;
         }
     }
@@ -341,7 +363,7 @@ void zcom::SmokeSimScene::_Project(int W, int H, float* u, float* v, float* p, f
                     p[_IndexAt(i + 1, j)] +
                     p[_IndexAt(i, j - 1)] +
                     p[_IndexAt(i, j + 1)]
-                ) / 4;
+                    ) / 4;
             }
         }
         _SetBoundary(W, H, 0, p);
@@ -368,7 +390,6 @@ void zcom::SmokeSimScene::_VelocityStep(int W, int H, float* u, float* v, float*
 
     _SwapPtr(&u0, &u);
     _Diffuse(W, H, 1, u, u0, visc, dt);
-
     _SwapPtr(&v0, &v);
     _Diffuse(W, H, 2, v, v0, visc, dt);
 
@@ -436,6 +457,7 @@ void zcom::SmokeSimScene::_UpdateParameters(bool force)
     if (force || ztime::Main() > (_lastParamUpdate + _paramUpdateInterval))
     {
         _lastParamUpdate = ztime::Main();
+        _simParams.trailColor = _app->options.GetIntValue(L"smokesim.cursortrail.trailColor").value_or(_simParams.trailColor.Default());
         _simParams.trailWidth = _app->options.GetIntValue(L"smokesim.cursortrail.trailWidth").value_or(_simParams.trailWidth.Default());
         _simParams.trailEdgeFadeRange = _app->options.GetIntValue(L"smokesim.cursortrail.trailEdgeFadeRange").value_or(_simParams.trailEdgeFadeRange.Default());
         _simParams.trailDensity = _app->options.GetDoubleValue(L"smokesim.cursortrail.trailDensity").value_or(_simParams.trailDensity.Default());
@@ -447,6 +469,7 @@ void zcom::SmokeSimScene::_UpdateParameters(bool force)
         _simParams.trailTemperatureDiffusion = _app->options.GetDoubleValue(L"smokesim.cursortrail.temperatureDiffusion").value_or(_simParams.trailTemperatureDiffusion.Default());
         _simParams.trailDensityReductionRate = _app->options.GetDoubleValue(L"smokesim.cursortrail.densityReductionRate").value_or(_simParams.trailDensityReductionRate.Default());
         _simParams.trailTemperatureReductionRate = _app->options.GetDoubleValue(L"smokesim.cursortrail.temperatureReductionRate").value_or(_simParams.trailTemperatureReductionRate.Default());
+        _simParams.smokeColor = _app->options.GetIntValue(L"smokesim.enhancedsmoke.smokeColor").value_or(_simParams.smokeColor.Default());
         _simParams.brushWidth = _app->options.GetIntValue(L"smokesim.enhancedsmoke.brushWidth").value_or(_simParams.brushWidth.Default());
         _simParams.brushEdgeFadeRange = _app->options.GetIntValue(L"smokesim.enhancedsmoke.brushEdgeFadeRange").value_or(_simParams.brushEdgeFadeRange.Default());
         _simParams.smokeDensity = _app->options.GetDoubleValue(L"smokesim.enhancedsmoke.smokeDensity").value_or(_simParams.smokeDensity.Default());
@@ -456,6 +479,7 @@ void zcom::SmokeSimScene::_UpdateParameters(bool force)
         _simParams.smokeVelocityDiffusion = _app->options.GetDoubleValue(L"smokesim.enhancedsmoke.velocityDiffusion").value_or(_simParams.smokeVelocityDiffusion.Default());
         _simParams.smokeDensityDiffusion = _app->options.GetDoubleValue(L"smokesim.enhancedsmoke.densityDiffusion").value_or(_simParams.smokeDensityDiffusion.Default());
         _simParams.smokeDensityReductionRate = _app->options.GetDoubleValue(L"smokesim.enhancedsmoke.densityReductionRate").value_or(_simParams.smokeDensityReductionRate.Default());
+        _simParams.smokeKeyCode = _app->options.GetIntValue(L"smokesim.enhancedsmoke.smokeKeyCode").value_or(_simParams.smokeKeyCode.Default());
         _slowdownPersistenceDuration = Duration(_simParams.slowdownPersistenceDurationMs.Get(), MILLISECONDS);
     }
 }
@@ -497,7 +521,7 @@ void zcom::SmokeSimScene::_Update()
     bool addWind = true;
     if (_simType == SmokeSimType::ENHANCED_SMOKE)
     {
-        addSmoke = GetAsyncKeyState('C') & 0x8000;
+        addSmoke = GetAsyncKeyState(_simParams.smokeKeyCode.Get()) & 0x8000;
         bool slowdownPeriodEnded = (_smokeEndTime + _slowdownPersistenceDuration) <= ztime::Main();
         addWind = !_addingSmoke && slowdownPeriodEnded;
     }
@@ -773,15 +797,10 @@ void zcom::SmokeSimScene::_Update()
             }
         }
         bool slowdownPeriodEnded = (_smokeEndTime + _slowdownPersistenceDuration) <= ztime::Main();
-        //if (addWind && !addSmoke && !slowdownPeriodEnded)
-        //{
-        //    slowdownPeriodEnded = false;
-        //    _smokeEndTime = ztime::Main() - _slowdownPersistenceDuration;
-        //}
 
         float dtFinal = dt;
         if (_simType == SmokeSimType::ENHANCED_SMOKE && (_addingSmoke || !slowdownPeriodEnded))
-            dtFinal /= 8.0f;
+            dtFinal /= 16.0f;
 
         for (int i = 0; i < u.size(); i++)
         {
@@ -824,11 +843,34 @@ void zcom::SmokeSimScene::_Update()
             temperatureDiffusion = 0.0f;
         }
 
-        _VelocityStep(_width, _height, u.data(), v.data(), u_prev.data(), v_prev.data(), velocityDiffusion, dtFinal);
-        _DensityStep(_width, _height, dens.data(), dens_prev.data(), u.data(), v.data(), densityDiffusion, dtFinal);
-        if (_simType == SmokeSimType::CURSOR_TRAIL)
-            _DensityStep(_width, _height, temp.data(), temp_prev.data(), u.data(), v.data(), temperatureDiffusion, dtFinal);
-        _UpdateParticles(dtFinal);
+        //SimpleTimer timer;
+        if (cuda_ctx)
+        {
+            _AddSource(_width, _height, u.data(), u_prev.data(), 1.0f);
+            _AddSource(_width, _height, v.data(), v_prev.data(), 1.0f);
+            _AddSource(_width, _height, dens.data(), dens_prev.data(), 1.0f);
+            _AddSource(_width, _height, temp.data(), temp_prev.data(), 1.0f);
+
+            CudaSmokeSim_StepData data;
+            data.u = u.data();
+            data.v = v.data();
+            data.dens = dens.data();
+            data.temp = temp.data();
+            data.dt = dtFinal;
+            data.velDiffusion = velocityDiffusion;
+            data.densDiffusion = densityDiffusion;
+            data.tempDiffusion = temperatureDiffusion;
+            CudaSmokeSim_Step(cuda_ctx, &data);
+        }
+        else
+        {
+            _VelocityStep(_width, _height, u.data(), v.data(), u_prev.data(), v_prev.data(), velocityDiffusion, dtFinal);
+            _DensityStep(_width, _height, dens.data(), dens_prev.data(), u.data(), v.data(), densityDiffusion, dtFinal);
+            if (_simType == SmokeSimType::CURSOR_TRAIL)
+                _DensityStep(_width, _height, temp.data(), temp_prev.data(), u.data(), v.data(), temperatureDiffusion, dtFinal);
+            _UpdateParticles(dtFinal);
+        }
+        //std::cout << timer.MicrosElapsed() << '\n';
     }
     else
     {

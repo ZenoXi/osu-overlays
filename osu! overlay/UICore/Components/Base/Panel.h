@@ -187,7 +187,8 @@ namespace zcom
             {
                 Component* item = _item.item;
 
-                if (!item->GetVisible()) continue;
+                if (!item->GetVisible() || !item->GetInteractable())
+                    continue;
 
                 if (x >= item->GetX() && x < item->GetX() + item->GetWidth() &&
                     y >= item->GetY() && y < item->GetY() + item->GetHeight())
@@ -355,7 +356,7 @@ namespace zcom
             for (auto& _item : _items)
             {
                 Component* item = _item.item;
-                if (!item->GetVisible())
+                if (!item->GetVisible() || !item->GetInteractable())
                     continue;
                 if (item->GetMouseInside())
                     return item->OnLeftPressed(x - item->GetX(), y - item->GetY()).Add(this, x, y);
@@ -368,7 +369,7 @@ namespace zcom
             for (auto& _item : _items)
             {
                 Component* item = _item.item;
-                if (!item->GetVisible())
+                if (!item->GetVisible() || !item->GetInteractable())
                     continue;
                 if (item->GetMouseInside())
                     return item->OnLeftReleased(x - item->GetX(), y - item->GetY()).Add(this, x, y);
@@ -381,7 +382,7 @@ namespace zcom
             for (auto& _item : _items)
             {
                 Component* item = _item.item;
-                if (!item->GetVisible())
+                if (!item->GetVisible() || !item->GetInteractable())
                     continue;
                 if (item->GetMouseInside())
                     return item->OnRightPressed(x - item->GetX(), y - item->GetY()).Add(this, x, y);
@@ -394,7 +395,7 @@ namespace zcom
             for (auto& _item : _items)
             {
                 Component* item = _item.item;
-                if (!item->GetVisible())
+                if (!item->GetVisible() || !item->GetInteractable())
                     continue;
                 if (item->GetMouseInside())
                     return item->OnRightReleased(x - item->GetX(), y - item->GetY()).Add(this, x, y);
@@ -407,7 +408,7 @@ namespace zcom
             for (auto& _item : _items)
             {
                 Component* item = _item.item;
-                if (!item->GetVisible())
+                if (!item->GetVisible() || !item->GetInteractable())
                     continue;
                 if (item->GetMouseInside())
                     return item->OnWheelUp(x - item->GetX(), y - item->GetY());
@@ -420,7 +421,7 @@ namespace zcom
             for (auto& _item : _items)
             {
                 Component* item = _item.item;
-                if (!item->GetVisible())
+                if (!item->GetVisible() || !item->GetInteractable())
                     continue;
                 if (item->GetMouseInside())
                     return item->OnWheelDown(x - item->GetX(), y - item->GetY());
@@ -631,12 +632,16 @@ namespace zcom
         Panel& operator=(const Panel&) = delete;
 
     protected:
-        virtual void _AddItem(Component* item, bool transferOwnership)
+        virtual void _AddItem(Component* item, size_t position, bool transferOwnership)
         {
-            _items.push_back({ item, transferOwnership });
+            if (position > _items.size())
+                position = _items.size();
+
+            auto it = _items.begin() + position;
+            _items.insert(it, { item, transferOwnership });
 
             // Add layout change handler
-            _items.back().layoutChangeHandler = item->SubscribeOnLayoutChanged([&, item]()
+            _items[position].layoutChangeHandler = item->SubscribeOnLayoutChanged([&, item]()
             {
                 if (_deferUpdates)
                 {
@@ -652,7 +657,7 @@ namespace zcom
 
             // Add selection event bubbling
             // This is mainly done to enable scroll panels to scroll to nested selected components
-            _items.back().selectHandler = item->SubscribeOnSelected([&](zcom::Component* srcItem, bool reverse)
+            _items[position].selectHandler = item->SubscribeOnSelected([&](zcom::Component* srcItem, bool reverse)
             {
                 _onSelected->InvokeAll(srcItem, reverse);
             });
@@ -671,12 +676,22 @@ namespace zcom
     public:
         void AddItem(Component* item)
         {
-            _AddItem(item, false);
+            _AddItem(item, _items.size(), false);
         }
 
         void AddItem(std::unique_ptr<Component> item)
         {
-            _AddItem(item.release(), true);
+            _AddItem(item.release(), _items.size(), true);
+        }
+
+        void InsertItem(Component* item, size_t position)
+        {
+            _AddItem(item, position, false);
+        }
+
+        void InsertItem(std::unique_ptr<Component> item, size_t position)
+        {
+            _AddItem(item.release(), position, true);
         }
 
         void RemoveItem(Component* item)

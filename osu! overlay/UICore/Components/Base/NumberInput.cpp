@@ -22,7 +22,6 @@ void zcom::NumberInput::Init()
     valueUpButton->SetSelectable(false);
     valueUpButton->SetActivation(zcom::ButtonActivation::PRESS);
     valueUpButton->SubscribeOnActivated([&]() {
-        _UpdateValue();
         SetValue(_value + _stepSize);
     }).Detach();
 
@@ -42,7 +41,6 @@ void zcom::NumberInput::Init()
     valueDownButton->SetSelectable(false);
     valueDownButton->SetActivation(zcom::ButtonActivation::PRESS);
     valueDownButton->SubscribeOnActivated([&]() {
-        _UpdateValue();
         SetValue(_value - _stepSize);
     }).Detach();
 
@@ -59,6 +57,6 @@ void zcom::NumberInput::Init()
     SubscribeOnTextChanged([&](Label* label, std::wstring* newText)
     {
         if (!_internalChange)
-            _UpdateValue();
+            SetValue(NumberInputValue(wstring_to_string(*newText)));
     }).Detach();
 }

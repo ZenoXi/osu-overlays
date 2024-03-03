@@ -78,9 +78,13 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IncludePath>$(ProjectDir);$(ProjectDir)UICore;$(IncludePath)</IncludePath>
+    <OutDir>$(ProjectDir)build\$(Configuration)\</OutDir>
+    <TargetName>OverlayEngine</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <IncludePath>$(ProjectDir);$(ProjectDir)UICore;$(IncludePath)</IncludePath>
+    <OutDir>$(ProjectDir)build\$(Configuration)\</OutDir>
+    <TargetName>OverlayEngine</TargetName>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -90,11 +94,14 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>$(SolutionDir)include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>CudaSmokeSim.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -107,7 +114,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(SolutionDir)include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -115,6 +122,8 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>CudaSmokeSim.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -125,12 +134,21 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <AdditionalIncludeDirectories>$(SolutionDir)include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>CudaSmokeSim.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y /d "$(ProjectDir)build\$(Configuration)\$(TargetFileName)" "$(SolutionDir)output\$(Configuration)\"
+xcopy /y /d "$(SolutionDir)bin\$(Configuration)\*.dll" "$(SolutionDir)output\$(Configuration)\"
+xcopy /y /d /s "$(ProjectDir)Resources" "$(SolutionDir)output\$(Configuration)\Resources\"
+xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Configuration)\"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -142,7 +160,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalIncludeDirectories>$(SolutionDir)include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -150,13 +168,22 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <AdditionalLibraryDirectories>$(SolutionDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>CudaSmokeSim.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PostBuildEvent>
+      <Command>xcopy /y /d "$(ProjectDir)build\$(Configuration)\$(TargetFileName)" "$(SolutionDir)output\$(Configuration)\"
+xcopy /y /d "$(SolutionDir)bin\$(Configuration)\*.dll" "$(SolutionDir)output\$(Configuration)\"
+xcopy /y /d /s "$(ProjectDir)Resources" "$(SolutionDir)output\$(Configuration)\Resources\"
+xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Configuration)\"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="osu! overlay.cpp" />
     <ClCompile Include="Shared\Options.cpp" />
     <ClCompile Include="Shared\Util\Functions.cpp" />
     <ClCompile Include="Shared\Util\Navigation.cpp" />
+    <ClCompile Include="SmokeSim\ColorSelectorScene.cpp" />
     <ClCompile Include="SmokeSim\SmokeSimParameterPanel.cpp" />
     <ClCompile Include="SmokeSim\SmokeSimScene.cpp" />
     <ClCompile Include="UICore\App.cpp" />
@@ -164,11 +191,13 @@
     <ClCompile Include="UICore\Components\Base\Checkbox.cpp" />
     <ClCompile Include="UICore\Components\Base\ComponentBase.cpp" />
     <ClCompile Include="UICore\Components\Base\FlexPanel.cpp" />
+    <ClCompile Include="UICore\Components\Base\KeySelector.cpp" />
     <ClCompile Include="UICore\Components\Base\Label.cpp" />
     <ClCompile Include="UICore\Components\Base\MenuItem.cpp" />
     <ClCompile Include="UICore\Components\Base\MenuPanel.cpp" />
     <ClCompile Include="UICore\Components\Base\NumberInput.cpp" />
     <ClCompile Include="UICore\Components\Base\ScrollPanel.cpp" />
+    <ClCompile Include="UICore\Components\Base\Slider.cpp" />
     <ClCompile Include="UICore\Components\Base\TextInput.cpp" />
     <ClCompile Include="UICore\D2DEffects\TintEffect.cpp" />
     <ClCompile Include="UICore\Helper\ResourceManager.cpp" />
@@ -188,11 +217,13 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Shared\Options.h" />
+    <ClInclude Include="Shared\Util\Color.h" />
     <ClInclude Include="Shared\Util\Constants.h" />
     <ClInclude Include="Shared\Util\Functions.h" />
     <ClInclude Include="Shared\Util\Navigation.h" />
     <ClInclude Include="Shared\Util\ThreadPool.h" />
     <ClInclude Include="Shared\Util\ValueOrDefault.h" />
+    <ClInclude Include="SmokeSim\ColorSelectorScene.h" />
     <ClInclude Include="SmokeSim\SmokeSimParameterPanel.h" />
     <ClInclude Include="SmokeSim\SmokeSimScene.h" />
     <ClInclude Include="SmokeSim\SmokeSimType.h" />
@@ -201,9 +232,10 @@
     <ClInclude Include="UICore\Components\Base\Canvas.h" />
     <ClInclude Include="UICore\Components\Base\Checkbox.h" />
     <ClInclude Include="UICore\Components\Base\ComponentBase.h" />
-    <ClInclude Include="UICore\Components\Base\EmptyPanel.h" />
+    <ClInclude Include="UICore\Components\Base\Dummy.h" />
     <ClInclude Include="UICore\Components\Base\FlexPanel.h" />
     <ClInclude Include="UICore\Components\Base\Image.h" />
+    <ClInclude Include="UICore\Components\Base\KeySelector.h" />
     <ClInclude Include="UICore\Components\Base\Label.h" />
     <ClInclude Include="UICore\Components\Base\MenuItem.h" />
     <ClInclude Include="UICore\Components\Base\MenuPanel.h" />
@@ -211,10 +243,12 @@
     <ClInclude Include="UICore\Components\Base\NumberInput.h" />
     <ClInclude Include="UICore\Components\Base\Panel.h" />
     <ClInclude Include="UICore\Components\Base\ScrollPanel.h" />
+    <ClInclude Include="UICore\Components\Base\Slider.h" />
     <ClInclude Include="UICore\Components\Base\TextInput.h" />
     <ClInclude Include="UICore\Components\ComHelper.h" />
     <ClInclude Include="UICore\Components\Custom\DitheredBackground.h" />
     <ClInclude Include="UICore\D2DEffects\TintEffect.h" />
+    <ClInclude Include="UICore\Helper\BinarySearchIterator.h" />
     <ClInclude Include="UICore\Helper\decimal.h" />
     <ClInclude Include="UICore\Helper\EventEmitter.h" />
     <ClInclude Include="UICore\Helper\EventSubscription.h" />

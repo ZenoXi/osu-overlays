@@ -25,12 +25,25 @@ namespace zwnd
         std::optional<int> initialXOffset = std::nullopt;
         // Initial offset from the target monitor top coordinate
         std::optional<int> initialYOffset = std::nullopt;
+        // Minimum/Maximum window sizes
+        int minWidth = 300;
+        int minHeight = 160;
+        int maxWidth = 10000;
+        int maxHeight = 10000;
+        // Whether the initial width is final
+        bool fixedWidth = false;
+        // Whether the initial height is final
+        bool fixedHeight = false;
         // Whether to consider the taskbar area of the monitor when calculating window placement
         bool ignoreTaskbarForPlacement = false;
         // How to display the window right after creation
         WindowDisplayType initialDisplay = WindowDisplayType::NORMAL;
         // Top-most windows are placed at the top of the z-order
         bool topMost = false;
+        // Disable the ability to maximize the window
+        bool disableMaximizing = false;
+        // Disable the ability to minimize the window
+        bool disableMinimizing = false;
         // Disable window animation when maximizing/minimizing/restoring
         bool disableWindowAnimations = false;
         // Disable ability for window to become activated
@@ -58,13 +71,24 @@ namespace zwnd
         WindowProperties& WindowIcon(HICON icon) { windowIcon = icon; return *this; }
         WindowProperties& InitialWidth(int width) { initialWidth = width; return *this; }
         WindowProperties& InitialHeight(int height) { initialHeight = height; return *this; }
-        WindowProperties& InitialSize(int width, int height) { initialWidth = width; initialHeight = height; return *this; }
+        WindowProperties& InitialSize(int width, int height) { return InitialWidth(width).InitialHeight(height); }
         WindowProperties& InitialXOffset(int offset) { initialXOffset = offset; return *this; }
         WindowProperties& InitialYOffset(int offset) { initialYOffset = offset; return *this; }
-        WindowProperties& InitialOffset(int xOffset, int yOffset) { initialXOffset = xOffset; initialYOffset = yOffset; return *this; }
+        WindowProperties& InitialOffset(int xOffset, int yOffset) { return InitialXOffset(xOffset).InitialYOffset(yOffset); }
+        WindowProperties& MinWidth(int minWidth) { this->minWidth = minWidth; return *this; }
+        WindowProperties& MinHeight(int minHeight) { this->minHeight = minHeight; return *this; }
+        WindowProperties& MinSize(int minWidth, int minHeight) { return MinWidth(minWidth).MinHeight(minHeight); }
+        WindowProperties& MaxWidth(int maxWidth) { this->maxWidth = maxWidth; return *this; }
+        WindowProperties& MaxHeight(int maxHeight) { this->maxHeight = maxHeight; return *this; }
+        WindowProperties& MaxSize(int maxWidth, int maxHeight) { return MaxWidth(maxWidth).MaxHeight(maxHeight); }
+        WindowProperties& FixedWidth() { this->fixedWidth = true; return *this; }
+        WindowProperties& FixedHeight() { this->fixedHeight = true; return *this; }
+        WindowProperties& FixedSize() { return FixedWidth().FixedHeight(); }
         WindowProperties& IgnoreTaskbarForPlacement() { ignoreTaskbarForPlacement = true; return *this; }
         WindowProperties& InitialDisplay(WindowDisplayType initialDisplay) { this->initialDisplay = initialDisplay; return *this; }
         WindowProperties& TopMost() { topMost = true; return *this; }
+        WindowProperties& DisableMaximizing() { disableMaximizing = true; return *this; }
+        WindowProperties& DisableMinimizing() { disableMinimizing = true; return *this; }
         WindowProperties& DisableWindowAnimations() { disableWindowAnimations = true; return *this; }
         WindowProperties& DisableWindowActivation() { disableWindowActivation = true; return *this; }
         WindowProperties& DisableMouseInteraction() { disableMouseInteraction = true; return *this; }

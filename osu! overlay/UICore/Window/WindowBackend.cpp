@@ -6,6 +6,8 @@
 #pragma comment( lib,"Dwmapi.lib" )
 #include <hidusage.h>
 
+#include "Helper/Time.h"
+
 //BOOL CALLBACK enum_windows_callback(HWND handle, LPARAM lParam)
 //{
 //    unsigned long process_id = 0;
@@ -78,6 +80,21 @@ zwnd::WindowBackend::WindowBackend(HINSTANCE hInst, WindowProperties props, HWND
     if (props.initialYOffset)
         y = props.initialYOffset.value();
 
+    _minWidth = props.minWidth;
+    _minHeight = props.minHeight;
+    _maxWidth = props.maxWidth;
+    _maxHeight = props.maxHeight;
+    if (props.fixedWidth)
+    {
+        _minWidth = w;
+        _maxWidth = w;
+    }
+    if (props.fixedHeight)
+    {
+        _minHeight = h;
+        _maxHeight = h;
+    }
+
     // Set windowed rect size
     _windowedRect.left = x;
     _windowedRect.top = y;
@@ -91,7 +108,11 @@ zwnd::WindowBackend::WindowBackend(HINSTANCE hInst, WindowProperties props, HWND
     // WS_MAXIMIZEBOX: enables Aero snapping and the maximize option in the window menu
     // WS_MINIMIZEBOX: enables the minimize option in the window menu
     // WS_CAPTION: automatic window region updating
-    DWORD windowStyle = WS_THICKFRAME | WS_SYSMENU | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_CAPTION;
+    DWORD windowStyle = WS_THICKFRAME | WS_SYSMENU | WS_CAPTION;
+    if (!props.disableMaximizing)
+        windowStyle |= WS_MAXIMIZEBOX;
+    if (!props.disableMinimizing)
+        windowStyle |= WS_MINIMIZEBOX;
     
     // Create and show window
     _hwnd = CreateWindowEx(
@@ -206,6 +227,11 @@ zwnd::WindowBackend::~WindowBackend()
     }
 }
 
+void zwnd::WindowBackend::KillMessageLoop()
+{
+    PostMessage(_hwnd, WM_APP_KILL_MESSAGE_LOOP, NULL, NULL);
+}
+
 void zwnd::WindowBackend::LockSize()
 {
     _m_windowSize.lock();
@@ -233,21 +259,57 @@ void zwnd::WindowBackend::UpdateLayeredWindow()
     GDIRT->Release();
 }
 
-bool zwnd::WindowBackend::ProcessMessages()
+void zwnd::WindowBackend::ProcessMessages()
 {
     MSG msg;
-    bool msgProcessed = false;
-    while (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+    BOOL ret;
+    while ((ret = GetMessage(&msg, nullptr, 0, 0)) != 0)
     {
-        msgProcessed = true;
+        if (ret == -1)
+            break;
+        if (msg.message == WM_APP_KILL_MESSAGE_LOOP)
+            break;
+        if (msg.message == WM_QUIT)
+            exit(0);
+
         TranslateMessage(&msg);
         DispatchMessage(&msg);
-        if (msg.message == WM_QUIT)
-        {
-            exit(0);
-        }
     }
-    return msgProcessed;
+
+    // NOTE:
+    // If the message loop uses PeekMessage, sleeping between PeekMessage calls causes
+    // unexpected behavior in certain cases. The main one is the following:
+    // 
+    // If you have 2 windows, one of which owns the other (when creating the second
+    // window, the hwnd of the first is used as hWndParent in CreateWindow(Ex) function),
+    // switching focus between the two will cause the window that is being focused to
+    // freeze for a short time. This is likely caused by the fact that the PeekMessage
+    // call is delayed on the other window, but the weird part is that the freeze is way
+    // longer than the sleep duration - the sleep is usually <20ms, while the freeze
+    // lasts for up to a second. Perhaps some internal WinApi behaviour depends on the
+    // second window processing the message immediatelly and gets stuck if a delay is
+    // introduced, but this is only speculation.
+    //
+}
+
+bool zwnd::WindowBackend::ProcessSingleMessage()
+{
+    MSG msg;
+    BOOL ret;
+    if ((ret = GetMessage(&msg, nullptr, 0, 0)) != 0)
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
+
+    if (ret == -1)
+        return false;
+    if (msg.message == WM_APP_KILL_MESSAGE_LOOP)
+        return false;
+    if (msg.message == WM_QUIT)
+        exit(0);
+
+    return true;
 }
 
 void zwnd::WindowBackend::ProcessQueueMessages(std::function<void(WindowMessage)> callback)
@@ -343,21 +405,16 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
         // I can't say why the freeze occurs, but since the title bar is custom drawn, the default processing
         // for this message is unnecessary.
 
-        // Return FALSE explicitly, since returning TRUE would result in default processing
-        return FALSE;
+        // UPDATE: returning false completely breaks parent/owned window activation behaviour. The behaviour
+        // explained above was a result of using sleep in a PeekMessage call loop. In-depth explanation in a
+        // comment in ProcessMessages() function
+
+        return DefWindowProc(hWnd, msg, wParam, lParam);
     }
     case WM_NCCALCSIZE:
     {
         // Capture all window area as client area
         return 0;
-    }
-    case WM_MOUSEACTIVATE:
-    {
-        if (_activationDisabled)
-        {
-            return MA_NOACTIVATE;
-        }
-        break;
     }
     case WM_ACTIVATE:
     {
@@ -574,14 +631,13 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     case WM_SETCURSOR:
     {
         if (LOWORD(lParam) != HTCLIENT)
+        {
+            _cursorInClientArea = false;
             return DefWindowProc(hWnd, msg, wParam, lParam);
+        }
+        _cursorInClientArea = true;
 
-        _m_msg.lock();
-        // TODO: Build a cursor map that is updated every time the UI layout changes
-        // This will allow cursor to be updated on the first mouse move message that
-        // is outside of a custom cursor component, instead of the second message.
         SetCursor(_cursor);
-        _m_msg.unlock();
         break;
     }
     case WM_LBUTTONDOWN:
@@ -627,6 +683,10 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
         _msgQueue.push(message.Encode());
         _m_msg.unlock();
         break;
+    }
+    case WM_NCMOUSEMOVE:
+    {
+        return DefWindowProc(hWnd, msg, wParam, lParam);
     }
     case WM_NCLBUTTONDOWN:
     {
@@ -720,8 +780,10 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     case WM_GETMINMAXINFO:
     {
         MINMAXINFO* info = (MINMAXINFO*)lParam;
-        info->ptMinTrackSize.x = 600;
-        info->ptMinTrackSize.y = 400;
+        info->ptMinTrackSize.x = _minWidth;
+        info->ptMinTrackSize.y = _minHeight;
+        info->ptMaxTrackSize.x = _maxWidth;
+        info->ptMaxTrackSize.y = _maxHeight;
         break;
     }
     case WM_ENTERSIZEMOVE:
@@ -900,6 +962,78 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
         _m_msg.unlock();
         break;
     }
+    case WM_APP_SET_FULLSCREEN_STATE:
+    {
+        HandleFullscreenChange(wParam);
+        break;
+    }
+    case WM_APP_SET_CURSOR_VISIBILITY:
+    {
+        HandleCursorVisibilityChange(wParam);
+        break;
+    }
+    case WM_APP_SET_WINDOW_DISPLAY:
+    {
+        WindowDisplayType displayType = (WindowDisplayType)wParam;
+
+        int showFlag = SW_SHOWNORMAL;
+        switch (displayType)
+        {
+        case zwnd::WindowDisplayType::NORMAL: { showFlag = SW_SHOWNORMAL; break; }
+        case zwnd::WindowDisplayType::NORMAL_NOACTIVATE: { showFlag = SW_SHOWNOACTIVATE; break; }
+        case zwnd::WindowDisplayType::MINIMIZED: { showFlag = SW_SHOWMINIMIZED; break; }
+        case zwnd::WindowDisplayType::MAXIMIZED: { showFlag = SW_SHOWMAXIMIZED; break; }
+        case zwnd::WindowDisplayType::HIDDEN: { showFlag = SW_HIDE; break; }
+        }
+
+        if (!_initialShowWindowCallDone)
+            _insideInitialShowWindowCall = true;
+
+        ShowWindow(_hwnd, showFlag);
+
+        if (!_initialShowWindowCallDone)
+        {
+            _insideInitialShowWindowCall = false;
+            _initialShowWindowCallDone = true;
+        }
+        break;
+    }
+    case WM_APP_SET_WINDOW_RECT:
+    {
+        RECT* rect = (RECT*)lParam;
+        if (rect)
+        {
+            SetWindowPos(_hwnd, 0, rect->left, rect->top, rect->right - rect->left, rect->bottom - rect->top, SWP_NOZORDER | (_activationDisabled ? SWP_NOACTIVATE : NULL));
+            delete rect;
+        }
+        break;
+    }
+    case WM_APP_SET_CURSOR_ICON:
+    {
+        CursorIcon cursor = (CursorIcon)wParam;
+        switch (cursor)
+        {
+        case CursorIcon::APP_STARTING: { _cursor = LoadCursor(NULL, IDC_APPSTARTING); break; }
+        case CursorIcon::ARROW: { _cursor = LoadCursor(NULL, IDC_ARROW); break; }
+        case CursorIcon::CROSS: { _cursor = LoadCursor(NULL, IDC_CROSS); break; }
+        case CursorIcon::HAND: { _cursor = LoadCursor(NULL, IDC_HAND); break; }
+        case CursorIcon::HELP: { _cursor = LoadCursor(NULL, IDC_HELP); break; }
+        case CursorIcon::IBEAM: { _cursor = LoadCursor(NULL, IDC_IBEAM); break; }
+        case CursorIcon::NO: { _cursor = LoadCursor(NULL, IDC_NO); break; }
+        case CursorIcon::SIZE_ALL: { _cursor = LoadCursor(NULL, IDC_SIZEALL); break; }
+        case CursorIcon::SIZE_NESW: { _cursor = LoadCursor(NULL, IDC_SIZENESW); break; }
+        case CursorIcon::SIZE_NS: { _cursor = LoadCursor(NULL, IDC_SIZENS); break; }
+        case CursorIcon::SIZE_NWSE: { _cursor = LoadCursor(NULL, IDC_SIZENWSE); break; }
+        case CursorIcon::SIZE_WE: { _cursor = LoadCursor(NULL, IDC_SIZEWE); break; }
+        case CursorIcon::UP_ARROW: { _cursor = LoadCursor(NULL, IDC_UPARROW); break; }
+        case CursorIcon::WAIT: { _cursor = LoadCursor(NULL, IDC_WAIT); break; }
+        default: break;
+        }
+
+        if (_cursorInClientArea)
+            SetCursor(_cursor);
+        break;
+    }
     default:
     {
         return DefWindowProc(hWnd, msg, wParam, lParam);
@@ -909,184 +1043,89 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     return 0;
 }
 
-void zwnd::WindowBackend::HandleFullscreenChange()
+void zwnd::WindowBackend::HandleFullscreenChange(bool fullscreen)
 {
-    std::lock_guard<std::mutex> lock(_m_fullscreen);
-    if (_fullscreenChanged)
+    if (_fullscreenInternal == fullscreen)
+        return;
+    _fullscreenInternal = fullscreen;
+
+    if (_fullscreenInternal)
     {
-        _fullscreenChanged = false;
+        WINDOWPLACEMENT placement;
+        placement.length = sizeof(WINDOWPLACEMENT);
+        GetWindowPlacement(_hwnd, &placement);
+        _windowedMaximized = (placement.showCmd == SW_SHOWMAXIMIZED);
 
-        if (_fullscreen)
-        {
-            WINDOWPLACEMENT placement;
-            placement.length = sizeof(WINDOWPLACEMENT);
-            GetWindowPlacement(_hwnd, &placement);
-            _windowedMaximized = (placement.showCmd == SW_SHOWMAXIMIZED);
+        HMONITOR hMonitor = MonitorFromWindow(_hwnd, MONITOR_DEFAULTTONEAREST);
+        MONITORINFO info;
+        info.cbSize = sizeof(MONITORINFO);
+        GetMonitorInfo(hMonitor, &info);
+        RECT monitor = info.rcMonitor;
+        int w = monitor.right - monitor.left;
+        int h = monitor.bottom - monitor.top;
 
-            HMONITOR hMonitor = MonitorFromWindow(_hwnd, MONITOR_DEFAULTTONEAREST);
-            MONITORINFO info;
-            info.cbSize = sizeof(MONITORINFO);
-            GetMonitorInfo(hMonitor, &info);
-            RECT monitor = info.rcMonitor;
-            int w = monitor.right - monitor.left;
-            int h = monitor.bottom - monitor.top;
+        // TODO: perhaps hiding the window, changing the style and showing it again would work
 
-            // TODO: perhaps hiding the window, changing the style and showing it again would work
+        SetWindowLong(_hwnd, GWL_STYLE, WS_POPUP);
+        SetWindowPos(_hwnd, HWND_TOP, monitor.left, monitor.top, w, h, SWP_FRAMECHANGED);
+        // Window region gets stuck on the non-fullscreen window size and prevents the window from rendering fullscreen
+        // This is somehow related to the window being a layered window
+        SetWindowRgn(_hwnd, NULL, FALSE);
 
-            SetWindowLong(_hwnd, GWL_STYLE, WS_POPUP);
-            SetWindowPos(_hwnd, HWND_TOP, monitor.left, monitor.top, w, h, SWP_FRAMECHANGED);
-            // Window region gets stuck on the non-fullscreen window size and prevents the window from rendering fullscreen
-            // This is somehow related to the window being a layered window
-            SetWindowRgn(_hwnd, NULL, FALSE);
+        ShowWindow(_hwnd, SW_SHOW);
+    }
+    else
+    {
+        int x = _last2Moves[1].left;
+        int y = _last2Moves[1].top;
+        int w = _last2Moves[1].right - _last2Moves[1].left;
+        int h = _last2Moves[1].bottom - _last2Moves[1].top;
 
-            ShowWindow(_hwnd, SW_SHOW);
-        }
-        else
-        {
-            int x = _last2Moves[1].left;
-            int y = _last2Moves[1].top;
-            int w = _last2Moves[1].right - _last2Moves[1].left;
-            int h = _last2Moves[1].bottom - _last2Moves[1].top;
-
-            // NOTE:
-            // SETTING WS_CAPTION IS MANDATORY!!!!!!
-            // Not setting the WS_CAPTION style leaves window region updating disabled for some reason
-            // and the window behavior remains similar to a popup window, with no animations when
-            // minimizing/maximizing and a dysfunctional taskbar icon
-            SetWindowLongPtr(_hwnd, GWL_STYLE, WS_THICKFRAME | WS_SYSMENU | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_CAPTION);
-            SetWindowPos(_hwnd, NULL, x, y, w, h, SWP_FRAMECHANGED);
+        // NOTE:
+        // SETTING WS_CAPTION IS MANDATORY!!!!!!
+        // Not setting the WS_CAPTION style leaves window region updating disabled for some reason
+        // and the window behavior remains similar to a popup window, with no animations when
+        // minimizing/maximizing and a dysfunctional taskbar icon
+        SetWindowLongPtr(_hwnd, GWL_STYLE, WS_THICKFRAME | WS_SYSMENU | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_CAPTION);
+        SetWindowPos(_hwnd, NULL, x, y, w, h, SWP_FRAMECHANGED);
             
-            // NOTE:
-            // WS_DLGFRAME style is applied automatically to non-child windows
+        // NOTE:
+        // WS_DLGFRAME style is applied automatically to non-child windows
 
-            if (_windowedMaximized)
-                ShowWindow(_hwnd, SW_SHOWMAXIMIZED);
-            else
-                ShowWindow(_hwnd, SW_SHOW);
-        }
+        if (_windowedMaximized)
+            ShowWindow(_hwnd, SW_SHOWMAXIMIZED);
+        else
+            ShowWindow(_hwnd, SW_SHOW);
     }
 }
 
 void zwnd::WindowBackend::SetCursorIcon(CursorIcon cursor)
 {
-    switch (cursor)
-    {
-    case CursorIcon::APP_STARTING:
-    {
-        _cursor = LoadCursor(NULL, IDC_APPSTARTING);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::ARROW:
-    {
-        _cursor = LoadCursor(NULL, IDC_ARROW);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::CROSS:
-    {
-        _cursor = LoadCursor(NULL, IDC_CROSS);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::HAND:
-    {
-        _cursor = LoadCursor(NULL, IDC_HAND);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::HELP:
-    {
-        _cursor = LoadCursor(NULL, IDC_HELP);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::IBEAM:
-    {
-        _cursor = LoadCursor(NULL, IDC_IBEAM);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::NO:
-    {
-        _cursor = LoadCursor(NULL, IDC_NO);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::SIZE_ALL:
-    {
-        _cursor = LoadCursor(NULL, IDC_SIZEALL);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::SIZE_NESW:
-    {
-        _cursor = LoadCursor(NULL, IDC_SIZENESW);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::SIZE_NS:
-    {
-        _cursor = LoadCursor(NULL, IDC_SIZENS);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::SIZE_NWSE:
-    {
-        _cursor = LoadCursor(NULL, IDC_SIZENWSE);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::SIZE_WE:
-    {
-        _cursor = LoadCursor(NULL, IDC_SIZEWE);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::UP_ARROW:
-    {
-        _cursor = LoadCursor(NULL, IDC_UPARROW);
-        //SetCursor(_cursor);
-        break;
-    }
-    case CursorIcon::WAIT:
-    {
-        _cursor = LoadCursor(NULL, IDC_WAIT);
-        //SetCursor(_cursor);
-        break;
-    }
-    default:
-        break;
-    }
+    PostMessage(_hwnd, WM_APP_SET_CURSOR_ICON, (int)cursor, NULL);
 }
 
 void zwnd::WindowBackend::SetCursorVisibility(bool visible)
 {
-    if (visible != _cursorVisible)
-    {
-        _cursorVisible = visible;
-        _cursorVisibilityChanged = true;
-    }
+    PostMessage(_hwnd, WM_APP_SET_CURSOR_VISIBILITY, visible, NULL);
 }
 
-void zwnd::WindowBackend::HandleCursorVisibility()
+void zwnd::WindowBackend::HandleCursorVisibilityChange(bool visible)
 {
-    if (_cursorVisibilityChanged)
-    {
-        _cursorVisibilityChanged = false;
+    if (_cursorVisible == visible)
+        return;
+    _cursorVisible = visible;
 
-        if (!_cursorVisible)
-        {
-            int value;
-            while ((value = ShowCursor(false)) > -1);
-            while (value < -1) value = ShowCursor(true);
-        }
-        else
-        {
-            int value;
-            while ((value = ShowCursor(true)) < 1);
-            while (value > 1) value = ShowCursor(false);
-        }
+    if (!_cursorVisible)
+    {
+        int value;
+        while ((value = ShowCursor(false)) > -1);
+        while (value < -1) value = ShowCursor(true);
+    }
+    else
+    {
+        int value;
+        while ((value = ShowCursor(true)) < 1);
+        while (value > 1) value = ShowCursor(false);
     }
 }
 
@@ -1154,7 +1193,9 @@ RECT zwnd::WindowBackend::GetWindowRectangle()
 
 void zwnd::WindowBackend::SetWindowRectangle(RECT rect)
 {
-    SetWindowPos(_hwnd, 0, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, SWP_NOZORDER | SWP_ASYNCWINDOWPOS | (_activationDisabled ? SWP_NOACTIVATE : NULL));
+    RECT* rectPtr = new RECT();
+    *rectPtr = rect;
+    PostMessage(_hwnd, WM_APP_SET_WINDOW_RECT, NULL, (LPARAM)rectPtr);
 }
 
 int zwnd::WindowBackend::GetWidth()
@@ -1242,26 +1283,7 @@ void zwnd::WindowBackend::Restore()
 
 void zwnd::WindowBackend::SetDisplayType(WindowDisplayType displayType)
 {
-    int showFlag = SW_SHOWNORMAL;
-    switch (displayType)
-    {
-    case zwnd::WindowDisplayType::NORMAL: { showFlag = SW_SHOWNORMAL; break; }
-    case zwnd::WindowDisplayType::NORMAL_NOACTIVATE: { showFlag = SW_SHOWNA; break; }
-    case zwnd::WindowDisplayType::MINIMIZED: { showFlag = SW_SHOWMINIMIZED; break; }
-    case zwnd::WindowDisplayType::MAXIMIZED: { showFlag = SW_SHOWMAXIMIZED; break; }
-    case zwnd::WindowDisplayType::HIDDEN: { showFlag = SW_HIDE; break; }
-    }
-
-    if (!_initialShowWindowCallDone)
-        _insideInitialShowWindowCall = true;
-
-    ShowWindow(_hwnd, showFlag);
-
-    if (!_initialShowWindowCallDone)
-    {
-        _insideInitialShowWindowCall = false;
-        _initialShowWindowCallDone = true;
-    }
+    PostMessage(_hwnd, WM_APP_SET_WINDOW_DISPLAY, (int)displayType, NULL);
 }
 
 RECT zwnd::WindowBackend::GetMonitorRectAtScreenPoint(int x, int y)
@@ -1281,16 +1303,13 @@ RECT zwnd::WindowBackend::GetMonitorRectAtWindowPoint(int x, int y)
 
 void zwnd::WindowBackend::SetFullscreen(bool fullscreen)
 {
-    std::lock_guard<std::mutex> lock(_m_fullscreen);
-    if (_fullscreen == fullscreen)
-        return;
-    _fullscreenChanged = true;
-    _fullscreen = fullscreen;
+    _fullscreen.store(fullscreen);
+    PostMessage(_hwnd, WM_APP_SET_FULLSCREEN_STATE, fullscreen, NULL);
 }
 
 bool zwnd::WindowBackend::IsFullscreen()
 {
-    return _fullscreen;
+    return _fullscreen.load();
 }
 
 void zwnd::WindowBackend::SetResizingBorderMargins(RECT margins)

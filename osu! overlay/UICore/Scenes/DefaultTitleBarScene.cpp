@@ -17,6 +17,7 @@ void zcom::DefaultTitleBarScene::_Init(SceneOptionsBase* options)
     _titleBarHeight = opt.titleBarHeight;
     _captionHeight = opt.captionHeight;
     _tintIcon = !opt.windowIconResourceName;
+    _useCleartype = opt.useCleartype;
 
     // The following functions set up the default title bar look
     // See the function implementations for details on achieving
@@ -44,6 +45,8 @@ void zcom::DefaultTitleBarScene::_Init(SceneOptionsBase* options)
 void zcom::DefaultTitleBarScene::SetBackground(D2D1_COLOR_F color)
 {
     _canvas->SetBackgroundColor(color);
+    if (_titleLabel && _useCleartype)
+        _titleLabel->SetBackgroundColor(color);
 }
 
 void zcom::DefaultTitleBarScene::AddCloseButton()
@@ -142,14 +145,18 @@ void zcom::DefaultTitleBarScene::AddTitle(std::wstring title)
     _titleLabel->SetFontSize(12.0f);
     _titleLabel->SetFontColor(_activeItemTint);
     _titleLabel->SetBaseSize(_titleLabel->GetTextWidth() + 1, 29);
+    _titleLabel->SetHorizontalOffsetPixels(5);
     if (_iconImage)
-        _titleLabel->SetHorizontalOffsetPixels(29 + 5);
+        _titleLabel->SetHorizontalOffsetPixels(_titleLabel->GetHorizontalOffsetPixels() + 29);
     _titleLabel->SetHorizontalTextAlignment(TextAlignment::LEADING);
     _titleLabel->SetVerticalTextAlignment(Alignment::CENTER);
 
     // Enable ClearType
-    _titleLabel->IgnoreAlpha(true);
-    _titleLabel->SetBackgroundColor(_canvas->GetBackgroundColor());
+    if (_useCleartype)
+    {
+        _titleLabel->IgnoreAlpha(true);
+        _titleLabel->SetBackgroundColor(_canvas->GetBackgroundColor());
+    }
 
     _canvas->AddComponent(_titleLabel.get());
 }
