@@ -27,7 +27,7 @@ namespace zcom
 
     struct MenuParams
     {
-        RECT parentRect;
+        RECT parentRect = {};
         MenuTemplate::Menu menuTemplate;
         std::unique_ptr<AsyncEventSubscription<void>> closeRequestSubscription = nullptr;
         std::optional<EventEmitter<void>> fullCloseRequestEventEmitter = std::nullopt;
@@ -36,7 +36,155 @@ namespace zcom
 
     class MenuPanel : public Panel
     {
-#pragma region base_class
+        DEFINE_COMPONENT(MenuPanel, Panel)
+        DEFAULT_DESTRUCTOR(MenuPanel)
+    protected:
+        void Init(MenuParams params);
+
+    public:
+        void SetMaxWidth(int maxWidth)
+        {
+            if (_maxWidth != maxWidth)
+            {
+                _maxWidth = maxWidth;
+                _RearrangeMenuItems();
+                _CalculatePlacement();
+            }
+        }
+
+        void SetMinWidth(int minWidth)
+        {
+            if (_minWidth != minWidth)
+            {
+                _minWidth = minWidth;
+                _RearrangeMenuItems();
+                _CalculatePlacement();
+            }
+        }
+
+        void AddItem(std::unique_ptr<MenuItem> item)
+        {
+            Panel::AddItem(std::move(item));
+            _RearrangeMenuItems();
+            _CalculatePlacement();
+        }
+
+        MenuItem* GetItem(int index)
+        {
+            return (MenuItem*)Panel::GetItem(index);
+        }
+
+        size_t ItemCount() const
+        {
+            return Panel::ItemCount();
+        }
+
+        void ClearItems()
+        {
+            Panel::ClearItems();
+            _RearrangeMenuItems();
+            _CalculatePlacement();
+        }
+
+        void HandleCloseRequest();
+
+        void CloseWindow();
+
+        void OnChildMouseMove()
+        {
+            // Stop cheduled child menu closing
+            _childShouldHide = false;
+
+            // Highlight item representing child menu
+            for (auto& it : _items)
+            {
+                if (_childItemId.has_value() && ((MenuItem*)it.item)->GetId() == _childItemId.value())
+                {
+                    if (_hoveredItem)
+                        _hoveredItem->SetBackgroundColor(D2D1::ColorF(0, 0.0f));
+                    _hoveredItem = (MenuItem*)it.item;
+                    _hoveredItem->SetBackgroundColor(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.1f));
+                    break;
+                }
+            }
+        }
+
+        // Sends a full close request to the root menu
+        void FullClose()
+        {
+            _fullCloseRequestEventEmitter->InvokeAll();
+        }
+
+    private:
+        bool _childMenuShowing = false;
+        std::optional<MenuItem::Id> _childItemId = std::nullopt;
+        MenuItem* _hoveredItem = nullptr;
+
+        RECT _bounds = { 0, 0, 0, 0 };
+        // Parent menu or other source rect in virtual screen coordinates
+        RECT _parentRect = { 0, 0, 0, 0 };
+        int _maxWidth = 600;
+        int _minWidth = 70;
+
+        TimePoint _childHoverStartTime = 0;
+        std::optional<MenuItem::Id> _childMenuToShow = std::nullopt;
+        TimePoint _childHoverEndTime = 0;
+        bool _childShouldHide = false;
+
+        TimePoint _showTime = 0;
+        Duration _hoverToShowDuration = Duration(200, MILLISECONDS);
+
+        // Parent-child menu communication
+        // 
+        // Close request:
+        // - Parent menu sends a close request to its child when the child should close
+        // Full close request:
+        // - Any menu that encounters the need to close the entire menu chain, sends the full close
+        // - request to the base menu, which in turns closes and sends a close request to its child.
+        // - Only the base menu has the subscription, while every menu in the chain has the emitter
+        // Mouse move event:
+        // - Child menu emits the mouse move event to the parent when a mouse moves in its window
+        //
+
+        EventEmitter<void> _closeRequestEventEmitter;
+        std::unique_ptr<AsyncEventSubscription<void>> _closeRequestSubscription;
+        EventEmitter<void> _fullCloseRequestEventEmitter;
+        std::unique_ptr<AsyncEventSubscription<void>> _fullCloseRequestSubscription;
+        EventEmitter<void> _mouseMoveEventEmitter;
+        std::unique_ptr<AsyncEventSubscription<void>> _mouseMoveSubscription;
+        std::unique_ptr<AsyncEventSubscription<bool, zwnd::WindowMessage>> _parentWindowClickSubscription;
+
+        std::future<std::optional<zwnd::WindowId>> _OpenChildMenu(MenuItem::Id id);
+
+        void _AddHandlerToCanvas();
+
+        void _RearrangeMenuItems()
+        {
+            constexpr int MARGINS = 2;
+
+            _RecalculateLayout(GetWidth(), GetHeight());
+            int totalHeight = MARGINS;
+            int maxWidth = 0;
+            for (int i = 0; i < _items.size(); i++)
+            {
+                _items[i].item->SetOffsetPixels(MARGINS, totalHeight);
+                _items[i].item->SetBaseWidth(-MARGINS * 2);
+                totalHeight += _items[i].item->GetHeight();
+                int width = ((MenuItem*)_items[i].item)->CalculateWidth();
+                if (width > maxWidth)
+                    maxWidth = width;
+            }
+
+            if (maxWidth < _minWidth)
+                maxWidth = _minWidth;
+            if (maxWidth > _maxWidth)
+                maxWidth = _maxWidth;
+
+            SetBaseSize(maxWidth + MARGINS * 2, totalHeight + MARGINS);
+        }
+
+        void _CalculatePlacement();
+
     protected:
         void _OnUpdate() override
         {
@@ -219,173 +367,5 @@ namespace zcom
                 }
             }
         }
-
-    public:
-        const char* GetName() const override { return Name(); }
-        static const char* Name() { return "menu_panel"; }
-#pragma endregion
-
-    private:
-        bool _childMenuShowing = false;
-        std::optional<MenuItem::Id> _childItemId = std::nullopt;
-        MenuItem* _hoveredItem = nullptr;
-
-        RECT _bounds = { 0, 0, 0, 0 };
-        // Parent menu or other source rect in virtual screen coordinates
-        RECT _parentRect = { 0, 0, 0, 0 };
-        int _maxWidth = 600;
-        int _minWidth = 70;
-
-        TimePoint _childHoverStartTime = 0;
-        std::optional<MenuItem::Id> _childMenuToShow = std::nullopt;
-        TimePoint _childHoverEndTime = 0;
-        bool _childShouldHide = false;
-
-        TimePoint _showTime = 0;
-        Duration _hoverToShowDuration = Duration(200, MILLISECONDS);
-
-        // Parent-child menu communication
-        // 
-        // Close request:
-        // - Parent menu sends a close request to its child when the child should close
-        // Full close request:
-        // - Any menu that encounters the need to close the entire menu chain, sends the full close
-        // - request to the base menu, which in turns closes and sends a close request to its child.
-        // - Only the base menu has the subscription, while every menu in the chain has the emitter
-        // Mouse move event:
-        // - Child menu emits the mouse move event to the parent when a mouse moves in its window
-        //
-
-        EventEmitter<void> _closeRequestEventEmitter;
-        std::unique_ptr<AsyncEventSubscription<void>> _closeRequestSubscription;
-
-        EventEmitter<void> _fullCloseRequestEventEmitter;
-        std::unique_ptr<AsyncEventSubscription<void>> _fullCloseRequestSubscription;
-        
-        EventEmitter<void> _mouseMoveEventEmitter;
-        std::unique_ptr<AsyncEventSubscription<void>> _mouseMoveSubscription;
-
-        std::unique_ptr<AsyncEventSubscription<bool, zwnd::WindowMessage>> _parentWindowClickSubscription;
-
-
-    protected:
-        friend class Scene;
-        friend class Component;
-        MenuPanel(Scene* scene)
-          : Panel(scene),
-            _closeRequestEventEmitter(EventEmitterThreadMode::MULTITHREADED)
-        {}
-        void Init(MenuParams params);
-    public:
-        ~MenuPanel() {}
-        MenuPanel(MenuPanel&&) = delete;
-        MenuPanel& operator=(MenuPanel&&) = delete;
-        MenuPanel(const MenuPanel&) = delete;
-        MenuPanel& operator=(const MenuPanel&) = delete;
-
-        void SetMaxWidth(int maxWidth)
-        {
-            if (_maxWidth != maxWidth)
-            {
-                _maxWidth = maxWidth;
-                _RearrangeMenuItems();
-                _CalculatePlacement();
-            }
-        }
-
-        void SetMinWidth(int minWidth)
-        {
-            if (_minWidth != minWidth)
-            {
-                _minWidth = minWidth;
-                _RearrangeMenuItems();
-                _CalculatePlacement();
-            }
-        }
-
-        void AddItem(std::unique_ptr<MenuItem> item)
-        {
-            Panel::AddItem(std::move(item));
-            _RearrangeMenuItems();
-            _CalculatePlacement();
-        }
-
-        MenuItem* GetItem(int index)
-        {
-            return (MenuItem*)Panel::GetItem(index);
-        }
-
-        size_t ItemCount() const
-        {
-            return Panel::ItemCount();
-        }
-
-        void ClearItems()
-        {
-            Panel::ClearItems();
-            _RearrangeMenuItems();
-            _CalculatePlacement();
-        }
-
-        void HandleCloseRequest();
-
-        void CloseWindow();
-
-        void OnChildMouseMove()
-        {
-            // Stop cheduled child menu closing
-            _childShouldHide = false;
-
-            // Highlight item representing child menu
-            for (auto& it : _items)
-            {
-                if (_childItemId.has_value() && ((MenuItem*)it.item)->GetId() == _childItemId.value())
-                {
-                    if (_hoveredItem)
-                        _hoveredItem->SetBackgroundColor(D2D1::ColorF(0, 0.0f));
-                    _hoveredItem = (MenuItem*)it.item;
-                    _hoveredItem->SetBackgroundColor(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.1f));
-                    break;
-                }
-            }
-        }
-
-        // Sends a full close request to the root menu
-        void FullClose()
-        {
-            _fullCloseRequestEventEmitter->InvokeAll();
-        }
-
-    private:
-        std::future<std::optional<zwnd::WindowId>> _OpenChildMenu(MenuItem::Id id);
-
-        void _AddHandlerToCanvas();
-
-        void _RearrangeMenuItems()
-        {
-            constexpr int MARGINS = 2;
-
-            _RecalculateLayout(GetWidth(), GetHeight());
-            int totalHeight = MARGINS;
-            int maxWidth = 0;
-            for (int i = 0; i < _items.size(); i++)
-            {
-                _items[i].item->SetOffsetPixels(MARGINS, totalHeight);
-                _items[i].item->SetBaseWidth(-MARGINS * 2);
-                totalHeight += _items[i].item->GetHeight();
-                int width = ((MenuItem*)_items[i].item)->CalculateWidth();
-                if (width > maxWidth)
-                    maxWidth = width;
-            }
-
-            if (maxWidth < _minWidth)
-                maxWidth = _minWidth;
-            if (maxWidth > _maxWidth)
-                maxWidth = _maxWidth;
-
-            SetBaseSize(maxWidth + MARGINS * 2, totalHeight + MARGINS);
-        }
-
-        void _CalculatePlacement();
     };
 }

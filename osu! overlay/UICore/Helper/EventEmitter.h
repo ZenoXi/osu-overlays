@@ -76,11 +76,11 @@ public:
         _threadMode = mode;
     }
 
-    _SubscriptionType Subscribe(const std::function<_Ret(_Types...)>& handler);
+    [[nodiscard]] _SubscriptionType Subscribe(const std::function<_Ret(_Types...)>& handler);
 
     // Async subscription needs to be a pointer because the event object holds a reference to it
 
-    std::unique_ptr<_AsyncSubscriptionType> SubscribeAsync(const std::function<void(_Types...)>& syncHandler = nullptr);
+    [[nodiscard]] std::unique_ptr<_AsyncSubscriptionType> SubscribeAsync(const std::function<void(_Types...)>& syncHandler = nullptr);
 
     void InvokeAll(_Types... args)
     {
@@ -115,6 +115,8 @@ public:
         std::unique_lock<std::mutex> lock(_m_handlers, std::defer_lock);
         if (_threadMode == EventEmitterThreadMode::MULTITHREADED)
             lock.lock();
+
+        // TODO: an additional check for whether an invocation is already happening might be useful to prevent stack overflows
 
         _invoking.store(true);
         _invokingThreadId.store(std::this_thread::get_id());

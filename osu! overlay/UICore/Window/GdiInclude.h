@@ -3,6 +3,7 @@
 
 //  global compilation flag configuring windows sdk headers
 //  preventing inclusion of min and max macros clashing with <limits>
+#pragma warning( disable : 4005 )
 #define NOMINMAX 1
 
 //  override byte to prevent clashes with <cstddef>

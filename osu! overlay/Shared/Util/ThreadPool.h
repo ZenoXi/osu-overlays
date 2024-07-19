@@ -49,7 +49,7 @@ public:
         return _threads[index].get();
     }
 
-    int ThreadCount()
+    size_t ThreadCount()
     {
         return _threads.size();
     }

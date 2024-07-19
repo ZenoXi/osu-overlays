@@ -9,6 +9,11 @@ namespace zcom
 {
     class Slider : public Panel
     {
+        DEFINE_COMPONENT(Slider, Panel)
+        DEFAULT_DESTRUCTOR(Slider)
+    protected:
+        void Init();
+    
     public:
         void SetBodyComponent(Component* body);
         void SetBodyComponent(std::unique_ptr<Component> body);
@@ -22,14 +27,14 @@ namespace zcom
         void SetAnchorOffset(int offset);
         void SetInteractionAreaMargins(RECT margins);
 
-        void SetValue(float value);
+        void SetValue(float value, bool emitChangeEvent = true);
         float GetValue() const { return _currentValue; }
 
-        EventSubscription<void> SubscribeOnEnterInteractionArea(std::function<void()> handler) { return _onEnterInteractionArea->Subscribe(handler); }
-        EventSubscription<void> SubscribeOnLeaveInteractionArea(std::function<void()> handler) { return _onLeaveInteractionArea->Subscribe(handler); }
-        EventSubscription<void> SubscribeOnSliderPressed(std::function<void()> handler) { return _onSliderPressed->Subscribe(handler); }
-        EventSubscription<void> SubscribeOnSliderReleased(std::function<void()> handler) { return _onSliderReleased->Subscribe(handler); }
-        EventSubscription<void, float*> SubscribeOnValueChanged(std::function<void(float*)> handler) { return _onValueChanged->Subscribe(handler); }
+        EventSubscription<void, Slider*> SubscribeOnEnterInteractionArea(std::function<void(Slider*)> handler) { return _onEnterInteractionArea->Subscribe(handler); }
+        EventSubscription<void, Slider*> SubscribeOnLeaveInteractionArea(std::function<void(Slider*)> handler) { return _onLeaveInteractionArea->Subscribe(handler); }
+        EventSubscription<void, Slider*> SubscribeOnSliderPressed(std::function<void(Slider*)> handler) { return _onSliderPressed->Subscribe(handler); }
+        EventSubscription<void, Slider*> SubscribeOnSliderReleased(std::function<void(Slider*)> handler) { return _onSliderReleased->Subscribe(handler); }
+        EventSubscription<void, Slider*, float*> SubscribeOnValueChanged(std::function<void(Slider*, float*)> handler) { return _onValueChanged->Subscribe(handler); }
 
     private:
         std::unique_ptr<Dummy> _bodyPlaceholder = nullptr;
@@ -45,17 +50,16 @@ namespace zcom
 
         float _currentValue = 0.0f;
 
-        EventEmitter<void> _onEnterInteractionArea;
-        EventEmitter<void> _onLeaveInteractionArea;
-        EventEmitter<void> _onSliderPressed;
-        EventEmitter<void> _onSliderReleased;
-        EventEmitter<void, float*> _onValueChanged;
+        EventEmitter<void, Slider*> _onEnterInteractionArea;
+        EventEmitter<void, Slider*> _onLeaveInteractionArea;
+        EventEmitter<void, Slider*> _onSliderPressed;
+        EventEmitter<void, Slider*> _onSliderReleased;
+        EventEmitter<void, Slider*, float*> _onValueChanged;
 
         void _HandleMouseMove(int position);
         void _PositionAnchor();
         void _SetInsideInteractionArea(bool value);
 
-#pragma region base_class
         // Hide public panel methods
     private:
         using Panel::AddItem;
@@ -71,23 +75,8 @@ namespace zcom
         void _OnMouseLeave() override;
         EventTargets _OnLeftPressed(int x, int y) override;
         EventTargets _OnLeftReleased(int x, int y) override;
+        EventTargets _OnWheelUp(int x, int y) override;
+        EventTargets _OnWheelDown(int x, int y) override;
         void _OnResize(int width, int height) override;
-
-    public:
-        const char* GetName() const override { return Name(); }
-        static const char* Name() { return "slider"; }
-#pragma endregion
-
-    protected:
-        friend class Scene;
-        friend class Component;
-        Slider(Scene* scene) : Panel(scene) {}
-        void Init();
-    public:
-        ~Slider() {}
-        Slider(Slider&&) = delete;
-        Slider& operator=(Slider&&) = delete;
-        Slider(const Slider&) = delete;
-        Slider& operator=(const Slider&) = delete;
     };
 }

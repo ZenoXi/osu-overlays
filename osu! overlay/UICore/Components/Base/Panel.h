@@ -22,6 +22,8 @@ namespace zcom
         static std::string _NAME_() { return "shadow"; }
 
         PROP_Shadow() {}
+        PROP_Shadow(float offsetX, float offsetY, float blurStandardDeviation, D2D1_COLOR_F color)
+            : offsetX(offsetX), offsetY(offsetY), blurStandardDeviation(blurStandardDeviation), color(color) {}
         PROP_Shadow(const PROP_Shadow& other)
         {
             _CopyFields(other);
@@ -36,11 +38,387 @@ namespace zcom
         float offsetY = 0.0f;
         float blurStandardDeviation = 3.0f;
         D2D1_COLOR_F color = D2D1::ColorF(0, 0.75f);
+
+        PROP_Shadow& WithOffsetX(float offset) { offsetX = offset; return *this; }
+        PROP_Shadow& WithOffsetY(float offset) { offsetY = offset; return *this; }
+        PROP_Shadow& WithBlurStandardDeviation(float amount) { blurStandardDeviation = amount; return *this; }
+        PROP_Shadow& WithColor(D2D1_COLOR_F color) { this->color = color; return *this; }
     };
 
     class Panel : public Component
     {
-#pragma region base_class
+        DEFINE_COMPONENT(Panel, Component)
+    public:
+        ~Panel()
+        {
+            ClearItems();
+        }
+    protected:
+        void Init()
+        {
+            // By default allow iterating nested components
+            SetTabIndex(0);
+        }
+
+    public:
+        void AddItem(Component* item)
+        {
+            _AddItem(item, _items.size(), false);
+        }
+
+        void AddItem(std::unique_ptr<Component> item)
+        {
+            _AddItem(item.release(), _items.size(), true);
+        }
+
+        void InsertItem(Component* item, size_t position)
+        {
+            _AddItem(item, position, false);
+        }
+
+        void InsertItem(std::unique_ptr<Component> item, size_t position)
+        {
+            _AddItem(item.release(), position, true);
+        }
+
+        void RemoveItem(Component* item)
+        {
+            for (int i = 0; i < _items.size(); i++)
+            {
+                if (_items[i].item == item)
+                {
+                    if (_items[i].owned)
+                        delete _items[i].item;
+                    _items.erase(_items.begin() + i);
+                    ReindexTabOrder();
+                    if (_deferUpdates)
+                    {
+                        _updatesDeferred = true;
+                        return;
+                    }
+                    _RecalculateLayout(GetWidth(), GetHeight());
+                    if (GetMouseInsideArea())
+                        OnMouseMove(GetMousePosX(), GetMousePosY());
+                    return;
+                }
+            }
+        }
+
+        void RemoveItem(int index)
+        {
+            if (_items[index].owned)
+                delete _items[index].item;
+            _items.erase(_items.begin() + index);
+            ReindexTabOrder();
+            if (_deferUpdates)
+            {
+                _updatesDeferred = true;
+                return;
+            }
+            _RecalculateLayout(GetWidth(), GetHeight());
+            if (GetMouseInside())
+                OnMouseMove(GetMousePosX(), GetMousePosY());
+        }
+
+        size_t ItemCount() const
+        {
+            return _items.size();
+        }
+
+        Component* GetItem(int index)
+        {
+            return _items[index].item;
+        }
+
+        void ClearItems()
+        {
+            for (int i = 0; i < _items.size(); i++)
+            {
+                if (_items[i].owned)
+                {
+                    delete _items[i].item;
+                }
+            }
+            _items.clear();
+            _selectableItems.clear();
+            if (_deferUpdates)
+            {
+                _updatesDeferred = true;
+                return;
+            }
+            _RecalculateLayout(GetWidth(), GetHeight());
+            //OnMouseMove(GetMousePosX(), GetMousePosY());
+        }
+
+        // Calculates the offset from the top left corner of this panel to the top left corner of target child
+        // Performs a recursive DFS search; If the specified child is not found, returns nullopt
+        std::optional<std::pair<int, int>> FindChildRelativeOffset(Component* child)
+        {
+            return _FindChildRelativeOffset(this, child);
+        }
+
+    private:
+        std::optional<std::pair<int, int>> _FindChildRelativeOffset(Component* parent, Component* child)
+        {
+            auto children = parent->GetChildren();
+            for (auto item : children)
+            {
+                if (item == child)
+                    return std::make_pair(item->GetX(), item->GetY());
+
+                std::optional<std::pair<int, int>> result = _FindChildRelativeOffset(item, child);
+                if (result)
+                    return std::make_pair(item->GetX() + result.value().first, item->GetY() + result.value().second);
+            }
+            return std::nullopt;
+        }
+
+    public:
+
+        // Calling this function suppresses layout updates on item add/remove/layout change
+        // until 'ResumeLayoutUpdates()' is called, at which point the deferred updates are executed.
+        // Useful when doing lots of item manipulation, which causes many layout updates
+        // when only 1 is required at the end.
+        void DeferLayoutUpdates()
+        {
+            _deferUpdates = true;
+            _updatesDeferred = false;
+        }
+
+        // Enables reactive layout updates. Any deferred updates are executed, unless 'executePending' is false.
+        void ResumeLayoutUpdates(bool executePending = true)
+        {
+            _deferUpdates = false;
+            if (_updatesDeferred && executePending)
+            {
+                ExecuteSynchronously([=]() {
+                    _RecalculateLayout(GetWidth(), GetHeight());
+                    if (GetMouseInside())
+                        OnMouseMove(GetMousePosX(), GetMousePosY());
+                });
+            }
+            _updatesDeferred = false;
+        }
+
+        // When event fallthrough is enabled, the panel will not handle mouse events that don't hit any nested components
+        void EnableMouseEventFallthrough()
+        {
+            _fallthroughMouseEvents = true;
+
+            // If the mouse is currently holding the panel, and not a nested component,
+            // manually invoke mouse release, since the panel itself will be uninteractable
+            bool insideNestedComponent = false;
+            for (auto& item : _items)
+            {
+                if (item.item->GetMouseInside())
+                {
+                    insideNestedComponent = true;
+                    break;
+                }
+            }
+            if (!insideNestedComponent)
+            {
+                OnLeftReleased();
+                OnRightReleased();
+            }
+
+            // Invoke mouse move resending on parent component
+            _onLayoutChanged->InvokeAll();
+        }
+
+        void DisableMouseEventFallthrough()
+        {
+            _fallthroughMouseEvents = false;
+
+            // Invoke mouse move resending on parent component
+            _onLayoutChanged->InvokeAll();
+        }
+
+        void ReindexTabOrder()
+        {
+            _selectableItems.clear();
+            for (int i = 0; i < _items.size(); i++)
+            {
+                if (_items[i].item->GetTabIndex() != -1)
+                {
+                    _selectableItems.push_back(_items[i].item);
+                }
+            }
+
+            // Sort indices
+            std::sort(_selectableItems.begin(), _selectableItems.end(), [](Component* a, Component* b) { return a->GetTabIndex() < b->GetTabIndex(); });
+
+            // Remove duplicates
+            //for (int i = 1; i < _selectableItems.size(); i++)
+            //{
+            //    if (_selectableItems[i - 1]->GetTabIndex() == _selectableItems[i]->GetTabIndex())
+            //    {
+            //        _selectableItems.erase(_selectableItems.begin() + i);
+            //        i--;
+            //    }
+            //}
+        }
+
+        RECT GetPadding() const
+        {
+            return _padding;
+        }
+
+        void SetPadding(RECT padding)
+        {
+            if (_padding != padding)
+            {
+                _padding = padding;
+                if (_deferUpdates)
+                {
+                    _updatesDeferred = true;
+                    return;
+                }
+                _RecalculateLayout(GetWidth(), GetHeight());
+            }
+        }
+
+        int GetContentWidth() const
+        {
+            return _contentWidth;
+        }
+
+        int GetContentHeight() const
+        {
+            return _contentHeight;
+        }
+
+    protected:
+        struct Item
+        {
+            Component* item;
+            bool owned;
+            EventSubscription<void> layoutChangeHandler;
+            EventSubscription<void, Component*, bool> selectHandler;
+        };
+        std::vector<Item> _items;
+    private:
+        std::vector<Component*> _selectableItems;
+
+        // Child placement
+        RECT _padding = { 0, 0, 0, 0 };
+        int _contentWidth = 0;
+        int _contentHeight = 0;
+
+        // Auto child resize
+        bool _deferUpdates = false;
+        bool _updatesDeferred = false;
+
+        bool _fallthroughMouseEvents = false;
+
+    protected:
+        virtual void _AddItem(Component* item, size_t position, bool transferOwnership)
+        {
+            if (position > _items.size())
+                position = _items.size();
+
+            auto it = _items.begin() + position;
+            _items.insert(it, { item, transferOwnership });
+
+            // Add layout change handler
+            _items[position].layoutChangeHandler = item->SubscribeOnLayoutChanged([&, item]()
+            {
+                if (_deferUpdates)
+                {
+                    _updatesDeferred = true;
+                    return;
+                }
+                ExecuteSynchronously([=]() {
+                    _RecalculateLayout(GetWidth(), GetHeight());
+                    if (GetMouseInside())
+                        OnMouseMove(GetMousePosX(), GetMousePosY());
+                });
+            });
+
+            // Add selection event bubbling
+            // This is mainly done to enable scroll panels to scroll to nested selected components
+            _items[position].selectHandler = item->SubscribeOnSelected([&](zcom::Component* srcItem, bool reverse)
+            {
+                _onSelected->InvokeAll(srcItem, reverse);
+            });
+
+            ReindexTabOrder();
+            if (_deferUpdates)
+            {
+                _updatesDeferred = true;
+                return;
+            }
+            _RecalculateLayout(GetWidth(), GetHeight());
+            if (GetMouseInside())
+                OnMouseMove(GetMousePosX(), GetMousePosY());
+        }
+
+        virtual void _RecalculateLayout(int width, int height)
+        {
+            int widthWithoutPadding = GetWidth() - _padding.left - _padding.right;
+            int heightWithoutPadding = GetHeight() - _padding.top - _padding.bottom;
+
+            // Calculate item sizes and positions
+            int maxRightEdge = 0;
+            int maxBottomEdge = 0;
+            for (auto& _item : _items)
+            {
+                Component* item = _item.item;
+
+                int newWidth = (int)std::round(widthWithoutPadding * item->GetParentWidthPercent()) + item->GetBaseWidth();
+                int newHeight = (int)std::round(heightWithoutPadding * item->GetParentHeightPercent()) + item->GetBaseHeight();
+                if (newWidth < 0)
+                    newWidth = 0;
+                if (newHeight < 0)
+                    newHeight = 0;
+
+                int newPosX = 0;
+                if (item->GetHorizontalAlignment() == Alignment::START)
+                    newPosX = (int)std::round((widthWithoutPadding - newWidth) * item->GetHorizontalOffsetPercent());
+                else if (item->GetHorizontalAlignment() == Alignment::CENTER)
+                    newPosX = (widthWithoutPadding - newWidth) / 2;
+                else if (item->GetHorizontalAlignment() == Alignment::END)
+                    newPosX = (int)std::round((widthWithoutPadding - newWidth) * (1.0f - item->GetHorizontalOffsetPercent()));
+                newPosX += item->GetHorizontalOffsetPixels();
+                newPosX += _padding.left;
+
+                int newPosY = 0;
+                if (item->GetVerticalAlignment() == Alignment::START)
+                    newPosY = (int)std::round((heightWithoutPadding - newHeight) * item->GetVerticalOffsetPercent());
+                else if (item->GetVerticalAlignment() == Alignment::CENTER)
+                    newPosY = (heightWithoutPadding - newHeight) / 2;
+                else if (item->GetVerticalAlignment() == Alignment::END)
+                    newPosY = (int)std::round((heightWithoutPadding - newHeight) * (1.0f - item->GetVerticalOffsetPercent()));
+                newPosY += item->GetVerticalOffsetPixels();
+                newPosY += _padding.top;
+
+                item->SetPosition(newPosX, newPosY);
+                item->Resize(newWidth, newHeight);
+
+                if (newPosX + newWidth > maxRightEdge)
+                    maxRightEdge = newPosX + newWidth;
+                if (newPosY + newHeight > maxBottomEdge)
+                    maxBottomEdge = newPosY + newHeight;
+            }
+            _contentWidth = maxRightEdge + _padding.right;
+            _contentHeight = maxBottomEdge + _padding.bottom;
+
+            _SetWindowPositions();
+            InvokeRedraw();
+        }
+
+        virtual void _SetWindowPositions()
+        {
+            for (auto& _item : _items)
+            {
+                Component* item = _item.item;
+                item->SetWindowPosition(
+                    GetWindowX() + item->GetX(),
+                    GetWindowY() + item->GetY()
+                );
+            }
+        }
+
     protected:
         void _OnUpdate() override
         {
@@ -102,68 +480,89 @@ namespace zcom
                 {
                     ID2D1Effect* shadowEffect = nullptr;
                     g.target->CreateEffect(CLSID_D2D1Shadow, &shadowEffect);
-                    shadowEffect->SetInput(0, it.first);
-                    shadowEffect->SetValue(D2D1_SHADOW_PROP_COLOR, D2D1::Vector4F(prop.color.r, prop.color.g, prop.color.b, prop.color.a));
-                    shadowEffect->SetValue(D2D1_SHADOW_PROP_BLUR_STANDARD_DEVIATION, prop.blurStandardDeviation);
-
-                    if (it.second->GetOpacity() < 1.0f)
+                    if (shadowEffect)
                     {
+                        shadowEffect->SetInput(0, it.first);
+                        shadowEffect->SetValue(D2D1_SHADOW_PROP_COLOR, D2D1::Vector4F(prop.color.r, prop.color.g, prop.color.b, prop.color.a));
+                        shadowEffect->SetValue(D2D1_SHADOW_PROP_BLUR_STANDARD_DEVIATION, prop.blurStandardDeviation);
+
+                        if (it.second->GetOpacity() < 1.0f)
+                        {
 #ifdef CLSID_D2D1Opacity
-                        ID2D1Effect* opacityEffect = nullptr;
-                        g.target->CreateEffect(CLSID_D2D1Opacity, &opacityEffect);
-                        opacityEffect->SetValue(D2D1_OPACITY_PROP_OPACITY, it.second->GetOpacity());
+                            ID2D1Effect* opacityEffect = nullptr;
+                            g.target->CreateEffect(CLSID_D2D1Opacity, &opacityEffect);
+                            opacityEffect->SetValue(D2D1_OPACITY_PROP_OPACITY, it.second->GetOpacity());
 
-                        ID2D1Effect* compositeEffect = nullptr;
-                        g.target->CreateEffect(CLSID_D2D1Composite, &compositeEffect);
-                        compositeEffect->SetInputEffect(0, shadowEffect);
-                        compositeEffect->SetInputEffect(1, opacityEffect);
+                            ID2D1Effect* compositeEffect = nullptr;
+                            g.target->CreateEffect(CLSID_D2D1Composite, &compositeEffect);
+                            compositeEffect->SetInputEffect(0, shadowEffect);
+                            compositeEffect->SetInputEffect(1, opacityEffect);
 
-                        g.target->DrawImage(compositeEffect, D2D1::Point2F(it.second->GetX() + prop.offsetX, it.second->GetY() + prop.offsetY));
-                        compositeEffect->Release();
-                        opacityEffect->Release();
+                            g.target->DrawImage(compositeEffect, D2D1::Point2F(it.second->GetX() + prop.offsetX, it.second->GetY() + prop.offsetY));
+                            compositeEffect->Release();
+                            opacityEffect->Release();
 #else
-                        // Draw to separate render target and use 'DrawBitmap' with opacity
-                        ID2D1Image* stash = nullptr;
-                        ID2D1Bitmap1* contentBitmap = nullptr;
-                        g.target->CreateBitmap(
-                            D2D1::SizeU(GetWidth(), GetHeight()),
-                            nullptr,
-                            0,
-                            D2D1::BitmapProperties1(
-                                D2D1_BITMAP_OPTIONS_TARGET,
-                                { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
-                            ),
-                            &contentBitmap
-                        );
+                            // Draw to separate render target and use 'DrawBitmap' with opacity
+                            ID2D1Image* stash = nullptr;
+                            ID2D1Bitmap1* contentBitmap = nullptr;
+                            g.target->CreateBitmap(
+                                D2D1::SizeU(GetWidth(), GetHeight()),
+                                nullptr,
+                                0,
+                                D2D1::BitmapProperties1(
+                                    D2D1_BITMAP_OPTIONS_TARGET,
+                                    { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
+                                ),
+                                &contentBitmap
+                            );
 
-                        g.target->GetTarget(&stash);
-                        g.target->SetTarget(contentBitmap);
-                        g.target->Clear();
-                        g.target->DrawImage(shadowEffect, D2D1::Point2F(it.second->GetX() + prop.offsetX, it.second->GetY() + prop.offsetY));
-                        g.target->SetTarget(stash);
-                        stash->Release();
-                        g.target->DrawBitmap(contentBitmap, (const D2D1_RECT_F*)0, it.second->GetOpacity());
-
-                        contentBitmap->Release();
+                            if (contentBitmap)
+                            {
+                                g.target->GetTarget(&stash);
+                                g.target->SetTarget(contentBitmap);
+                                g.target->Clear();
+                                g.target->DrawImage(shadowEffect, D2D1::Point2F(it.second->GetX() + prop.offsetX, it.second->GetY() + prop.offsetY));
+                                g.target->SetTarget(stash);
+                                stash->Release();
+                                g.target->DrawBitmap(contentBitmap, (const D2D1_RECT_F*)0, it.second->GetOpacity());
+                                contentBitmap->Release();
+                            }
+                            else
+                            {
+                                // TODO: Logging
+                            }
 #endif
+                        }
+                        else
+                        {
+                            g.target->DrawImage(shadowEffect, D2D1::Point2F(it.second->GetX() + prop.offsetX, it.second->GetY() + prop.offsetY));
+                        }
+                        shadowEffect->Release();
                     }
                     else
                     {
-                        g.target->DrawImage(shadowEffect, D2D1::Point2F(it.second->GetX() + prop.offsetX, it.second->GetY() + prop.offsetY));
+                        // TODO: Logging
                     }
-                    shadowEffect->Release();
                 }
 
                 g.target->DrawBitmap(
                     it.first,
                     D2D1::RectF(
-                        it.second->GetX(),
-                        it.second->GetY(),
-                        it.second->GetX() + it.second->GetWidth(),
-                        it.second->GetY() + it.second->GetHeight()
+                        (FLOAT)it.second->GetX(),
+                        (FLOAT)it.second->GetY(),
+                        (FLOAT)(it.second->GetX() + it.second->GetWidth()),
+                        (FLOAT)(it.second->GetY() + it.second->GetHeight())
                     ),
                     it.second->GetOpacity()
                 );
+
+                // The flush here is necessary to avoid weird visual bugs.
+                // Specifically, window shadow does not render when the window is small enough
+                // and a different shadow is being drawn deep in the component tree.
+                // It's possible that it's a fault of the default shadow effect implementation,
+                // but there is no point in figuring that out, since just calling flush here
+                // works fine and has seemingly no performance impact.
+                g.target->Flush();
             }
         }
 
@@ -431,9 +830,9 @@ namespace zcom
 
         void _OnSelected(bool reverse) override
         {
-            for (int i = reverse ? _selectableItems.size() - 1 : 0;
-                         reverse ? i >= 0                      : i < _selectableItems.size();
-                         reverse ? i--                         : i++)
+            for (size_t i = reverse ? _selectableItems.size() - 1 : 0;
+                reverse ? i >= 0 : i < _selectableItems.size();
+                reverse ? i-- : i++)
             {
                 if (!_selectableItems[i]->GetVisible() || !_selectableItems[i]->GetActive())
                     continue;
@@ -485,10 +884,10 @@ namespace zcom
             // available item is found return null to signal end of tab selection.
             // 'Available' means visible, active, can be selected (returns !nullptr).
             bool searching = false;
-            
-            for (int i = reverse ? _selectableItems.size() - 1 : 0;
-                         reverse ? i >= 0                      : i < _selectableItems.size();
-                         reverse ? i--                         : i++)
+
+            for (size_t i = reverse ? _selectableItems.size() - 1 : 0;
+                reverse ? i >= 0 : i < _selectableItems.size();
+                reverse ? i-- : i++)
             {
                 if (!_selectableItems[i]->GetVisible() || !_selectableItems[i]->GetActive())
                     continue;
@@ -516,389 +915,6 @@ namespace zcom
                 return nullptr;
 
             return this;
-        }
-
-        const char* GetName() const override { return Name(); }
-        static const char* Name() { return "panel"; }
-#pragma endregion
-
-    protected:
-        virtual void _RecalculateLayout(int width, int height)
-        {
-            int widthWithoutPadding = GetWidth() - _padding.left - _padding.right;
-            int heightWithoutPadding = GetHeight() - _padding.top - _padding.bottom;
-
-            // Calculate item sizes and positions
-            int maxRightEdge = 0;
-            int maxBottomEdge = 0;
-            for (auto& _item : _items)
-            {
-                Component* item = _item.item;
-
-                int newWidth = (int)std::round(widthWithoutPadding * item->GetParentWidthPercent()) + item->GetBaseWidth();
-                int newHeight = (int)std::round(heightWithoutPadding * item->GetParentHeightPercent()) + item->GetBaseHeight();
-                if (newWidth < 1)
-                    newWidth = 1;
-                if (newHeight < 1)
-                    newHeight = 1;
-
-                int newPosX = 0;
-                if (item->GetHorizontalAlignment() == Alignment::START)
-                    newPosX = std::round((widthWithoutPadding - newWidth) * item->GetHorizontalOffsetPercent());
-                else if (item->GetHorizontalAlignment() == Alignment::CENTER)
-                    newPosX = (widthWithoutPadding - newWidth) / 2;
-                else if (item->GetHorizontalAlignment() == Alignment::END)
-                    newPosX = std::round((widthWithoutPadding - newWidth) * (1.0f - item->GetHorizontalOffsetPercent()));
-                newPosX += item->GetHorizontalOffsetPixels();
-                newPosX += _padding.left;
-
-                int newPosY = 0;
-                if (item->GetVerticalAlignment() == Alignment::START)
-                    newPosY = std::round((heightWithoutPadding - newHeight) * item->GetVerticalOffsetPercent());
-                else if (item->GetVerticalAlignment() == Alignment::CENTER)
-                    newPosY = (heightWithoutPadding - newHeight) / 2;
-                else if (item->GetVerticalAlignment() == Alignment::END)
-                    newPosY = std::round((heightWithoutPadding - newHeight) * (1.0f - item->GetVerticalOffsetPercent()));
-                newPosY += item->GetVerticalOffsetPixels();
-                newPosY += _padding.top;
-
-                item->SetPosition(newPosX, newPosY);
-                item->Resize(newWidth, newHeight);
-
-                if (newPosX + newWidth > maxRightEdge)
-                    maxRightEdge = newPosX + newWidth;
-                if (newPosY + newHeight > maxBottomEdge)
-                    maxBottomEdge = newPosY + newHeight;
-            }
-            _contentWidth = maxRightEdge + _padding.right;
-            _contentHeight = maxBottomEdge + _padding.bottom;
-
-            _SetWindowPositions();
-            InvokeRedraw();
-        }
-
-        virtual void _SetWindowPositions()
-        {
-            for (auto& _item : _items)
-            {
-                Component* item = _item.item;
-                item->SetWindowPosition(
-                    GetWindowX() + item->GetX(),
-                    GetWindowY() + item->GetY()
-                );
-            }
-        }
-
-        struct Item
-        {
-            Component* item;
-            bool owned;
-            EventSubscription<void> layoutChangeHandler;
-            EventSubscription<void, Component*, bool> selectHandler;
-        };
-        std::vector<Item> _items;
-    private:
-        std::vector<Component*> _selectableItems;
-
-        // Child placement
-        RECT _padding = { 0, 0, 0, 0 };
-        int _contentWidth = 0;
-        int _contentHeight = 0;
-
-        // Auto child resize
-        bool _deferUpdates = false;
-        bool _updatesDeferred = false;
-
-        bool _fallthroughMouseEvents = false;
-        
-
-    protected:
-        friend class Scene;
-        friend class Component;
-        Panel(Scene* scene) : Component(scene) {}
-        void Init()
-        {
-            // By default allow iterating nested components
-            SetTabIndex(0);
-        }
-    public:
-        ~Panel()
-        {
-            ClearItems();
-        }
-        Panel(Panel&&) = delete;
-        Panel& operator=(Panel&&) = delete;
-        Panel(const Panel&) = delete;
-        Panel& operator=(const Panel&) = delete;
-
-    protected:
-        virtual void _AddItem(Component* item, size_t position, bool transferOwnership)
-        {
-            if (position > _items.size())
-                position = _items.size();
-
-            auto it = _items.begin() + position;
-            _items.insert(it, { item, transferOwnership });
-
-            // Add layout change handler
-            _items[position].layoutChangeHandler = item->SubscribeOnLayoutChanged([&, item]()
-            {
-                if (_deferUpdates)
-                {
-                    _updatesDeferred = true;
-                    return;
-                }
-                ExecuteSynchronously([=]() {
-                    _RecalculateLayout(GetWidth(), GetHeight());
-                    if (GetMouseInside())
-                        OnMouseMove(GetMousePosX(), GetMousePosY());
-                });
-            });
-
-            // Add selection event bubbling
-            // This is mainly done to enable scroll panels to scroll to nested selected components
-            _items[position].selectHandler = item->SubscribeOnSelected([&](zcom::Component* srcItem, bool reverse)
-            {
-                _onSelected->InvokeAll(srcItem, reverse);
-            });
-
-            ReindexTabOrder();
-            if (_deferUpdates)
-            {
-                _updatesDeferred = true;
-                return;
-            }
-            _RecalculateLayout(GetWidth(), GetHeight());
-            if (GetMouseInside())
-                OnMouseMove(GetMousePosX(), GetMousePosY());
-        }
-
-    public:
-        void AddItem(Component* item)
-        {
-            _AddItem(item, _items.size(), false);
-        }
-
-        void AddItem(std::unique_ptr<Component> item)
-        {
-            _AddItem(item.release(), _items.size(), true);
-        }
-
-        void InsertItem(Component* item, size_t position)
-        {
-            _AddItem(item, position, false);
-        }
-
-        void InsertItem(std::unique_ptr<Component> item, size_t position)
-        {
-            _AddItem(item.release(), position, true);
-        }
-
-        void RemoveItem(Component* item)
-        {
-            for (int i = 0; i < _items.size(); i++)
-            {
-                if (_items[i].item == item)
-                {
-                    if (_items[i].owned)
-                        delete _items[i].item;
-                    _items.erase(_items.begin() + i);
-                    ReindexTabOrder();
-                    if (_deferUpdates)
-                    {
-                        _updatesDeferred = true;
-                        return;
-                    }
-                    _RecalculateLayout(GetWidth(), GetHeight());
-                    if (GetMouseInsideArea())
-                        OnMouseMove(GetMousePosX(), GetMousePosY());
-                    return;
-                }
-            }
-        }
-
-        void RemoveItem(int index)
-        {
-            if (_items[index].owned)
-                delete _items[index].item;
-            _items.erase(_items.begin() + index);
-            ReindexTabOrder();
-            if (_deferUpdates)
-            {
-                _updatesDeferred = true;
-                return;
-            }
-            _RecalculateLayout(GetWidth(), GetHeight());
-            if (GetMouseInside())
-                OnMouseMove(GetMousePosX(), GetMousePosY());
-        }
-
-        int ItemCount() const
-        {
-            return _items.size();
-        }
-
-        Component* GetItem(int index)
-        {
-            return _items[index].item;
-        }
-
-        void ClearItems()
-        {
-            for (int i = 0; i < _items.size(); i++)
-            {
-                if (_items[i].owned)
-                {
-                    delete _items[i].item;
-                }
-            }
-            _items.clear();
-            _selectableItems.clear();
-            if (_deferUpdates)
-            {
-                _updatesDeferred = true;
-                return;
-            }
-            _RecalculateLayout(GetWidth(), GetHeight());
-            //OnMouseMove(GetMousePosX(), GetMousePosY());
-        }
-
-        // Calculates the offset from the top left corner of this panel to the top left corner of target child
-        // Performs a recursive DFS search; If the specified child is not found, returns nullopt
-        std::optional<std::pair<int, int>> FindChildRelativeOffset(Component* child)
-        {
-            return _FindChildRelativeOffset(this, child);
-        }
-
-    private:
-        std::optional<std::pair<int, int>> _FindChildRelativeOffset(Component* parent, Component* child)
-        {
-            auto children = parent->GetChildren();
-            for (auto item : children)
-            {
-                if (item == child)
-                    return std::make_pair(item->GetX(), item->GetY());
-
-                std::optional<std::pair<int, int>> result = _FindChildRelativeOffset(item, child);
-                if (result)
-                    return std::make_pair(item->GetX() + result.value().first, item->GetY() + result.value().second);
-            }
-            return std::nullopt;
-        }
-
-    public:
-
-        // Calling this function suppresses layout updates on item add/remove/layout change
-        // until 'ResumeLayoutUpdates()' is called, at which point the deferred updates are executed.
-        // Useful when doing lots of item manipulation, which causes many layout updates
-        // when only 1 is required at the end.
-        void DeferLayoutUpdates()
-        {
-            _deferUpdates = true;
-            _updatesDeferred = false;
-        }
-
-        // Enables reactive layout updates. Any deferred updates are executed, unless 'executePending' is false.
-        void ResumeLayoutUpdates(bool executePending = true)
-        {
-            _deferUpdates = false;
-            if (_updatesDeferred && executePending)
-            {
-                ExecuteSynchronously([=]() {
-                    _RecalculateLayout(GetWidth(), GetHeight());
-                    if (GetMouseInside())
-                        OnMouseMove(GetMousePosX(), GetMousePosY());
-                });
-            }
-            _updatesDeferred = false;
-        }
-
-        // When event fallthrough is enabled, the panel will not handle mouse events that don't hit any nested components
-        void EnableMouseEventFallthrough()
-        {
-            _fallthroughMouseEvents = true;
-
-            // If the mouse is currently holding the panel, and not a nested component,
-            // manually invoke mouse release, since the panel itself will be uninteractable
-            bool insideNestedComponent = false;
-            for (auto& item : _items)
-            {
-                if (item.item->GetMouseInside())
-                {
-                    insideNestedComponent = true;
-                    break;
-                }
-            }
-            if (!insideNestedComponent)
-            {
-                OnLeftReleased();
-                OnRightReleased();
-            }
-
-            // Invoke mouse move resending on parent component
-            _onLayoutChanged->InvokeAll();
-        }
-
-        void DisableMouseEventFallthrough()
-        {
-            _fallthroughMouseEvents = false;
-
-            // Invoke mouse move resending on parent component
-            _onLayoutChanged->InvokeAll();
-        }
-
-        void ReindexTabOrder()
-        {
-            _selectableItems.clear();
-            for (int i = 0; i < _items.size(); i++)
-            {
-                if (_items[i].item->GetTabIndex() != -1)
-                {
-                    _selectableItems.push_back(_items[i].item);
-                }
-            }
-
-            // Sort indices
-            std::sort(_selectableItems.begin(), _selectableItems.end(), [](Component* a, Component* b) { return a->GetTabIndex() < b->GetTabIndex(); });
-
-            // Remove duplicates
-            //for (int i = 1; i < _selectableItems.size(); i++)
-            //{
-            //    if (_selectableItems[i - 1]->GetTabIndex() == _selectableItems[i]->GetTabIndex())
-            //    {
-            //        _selectableItems.erase(_selectableItems.begin() + i);
-            //        i--;
-            //    }
-            //}
-        }
-
-        RECT GetPadding() const
-        {
-            return _padding;
-        }
-
-        void SetPadding(RECT padding)
-        {
-            if (_padding != padding)
-            {
-                _padding = padding;
-                if (_deferUpdates)
-                {
-                    _updatesDeferred = true;
-                    return;
-                }
-                _RecalculateLayout(GetWidth(), GetHeight());
-            }
-        }
-
-        int GetContentWidth() const
-        {
-            return _contentWidth;
-        }
-
-        int GetContentHeight() const
-        {
-            return _contentHeight;
         }
     };
 }

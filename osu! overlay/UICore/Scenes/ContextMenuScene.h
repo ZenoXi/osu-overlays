@@ -14,20 +14,11 @@ namespace zcom
 
     class ContextMenuScene : public Scene
     {
-        std::unique_ptr<MenuPanel> _menuPanel = nullptr;
-
-    public:
-        ContextMenuScene(App* app, zwnd::Window* window);
-
-        const char* GetName() const { return "ContextMenuScene"; }
-        static const char* StaticName() { return "ContextMenuScene"; }
+        DEFINE_SCENE(ContextMenuScene, Scene)
+    protected:
+        void Init(SceneOptionsBase* options) override;
 
     private:
-        void _Init(SceneOptionsBase* options);
-        void _Uninit();
-        void _Focus();
-        void _Unfocus();
-        void _Update();
-        void _Resize(int width, int height, ResizeInfo info);
+        std::unique_ptr<MenuPanel> _menuPanel = nullptr;
     };
 }

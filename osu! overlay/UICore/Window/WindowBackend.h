@@ -31,7 +31,9 @@ namespace zwnd
         WM_APP_SET_CURSOR_VISIBILITY,
         WM_APP_SET_WINDOW_RECT,
         WM_APP_SET_WINDOW_DISPLAY,
-        WM_APP_SET_CURSOR_ICON
+        WM_APP_SET_CURSOR_ICON,
+        WM_APP_SET_FOCUS,
+        WM_APP_SET_WINDOW_INTERACTION
     };
 
     struct MessageWindowSize
@@ -123,7 +125,7 @@ namespace zwnd
         HCURSOR _prevCursor = 0;
         HCURSOR _cursor = 0;
 
-        RECT _borderThickness;
+        RECT _borderThickness = {};
 
         // Handlers
         std::vector<KeyboardEventHandler*> _keyboardHandlers;
@@ -179,6 +181,7 @@ namespace zwnd
         bool Minimized();
         void Minimize();
         void Restore();
+        void Focus();
 
         void SetDisplayType(WindowDisplayType displayType);
 
@@ -215,21 +218,21 @@ namespace zwnd
         bool _messageOnly = false;
 
         std::mutex _m_msg;
-        WindowMessage _sizeResult;
-        WindowMessage _moveResult;
-        WindowMessage _exitResult;
+        WindowMessage _sizeResult = {};
+        WindowMessage _moveResult = {};
+        WindowMessage _exitResult = {};
         std::queue<WindowMessage> _msgQueue;
 
         // Window width, updated only in the WM_SIZE messages
-        int _messageWidth;
+        int _messageWidth = 0;
         // Window height, updated only in the WM_SIZE messages
-        int _messageHeight;
+        int _messageHeight = 0;
         std::mutex _m_windowSize;
 
-        int _minWidth;
-        int _minHeight;
-        int _maxWidth;
-        int _maxHeight;
+        int _minWidth = 0;
+        int _minHeight = 0;
+        int _maxWidth = 0;
+        int _maxHeight = 0;
 
         // Should be set to true, when displaying the window for the first time using ShowWindow().
         // When this flag is set, WM_WINDOWPOSCHANGING and WM_SIZE won't use a mutex, since certain
@@ -240,13 +243,13 @@ namespace zwnd
 
         bool _maximized = false;
         bool _minimized = false;
-        RECT _windowedRect;
-        bool _windowedMaximized;
+        RECT _windowedRect = {};
+        bool _windowedMaximized = false;
 
         bool _activationDisabled = false;
 
-        RECT _last2Moves[2];
-        POINT _lastMouseMove;
+        RECT _last2Moves[2] = {};
+        POINT _lastMouseMove = {};
 
         // Flag that gets set to true when window sizing (or moving, but moving is irrelevant) starts
         bool _sizingStarted = false;
@@ -258,13 +261,13 @@ namespace zwnd
         bool _cursorInClientArea = false;
 
         std::mutex _m_hittest;
-        RECT _resizingBorderMargins;
-        RECT _clientAreaMargins;
-        int _titleBarHeight;
-        RECT _closeButtonRect;
-        RECT _minimizeButtonRect;
-        RECT _maximizeButtonRect;
-        RECT _winMenuButtonRect;
+        RECT _resizingBorderMargins = {};
+        RECT _clientAreaMargins = {};
+        int _titleBarHeight = 0;
+        RECT _closeButtonRect = {};
+        RECT _minimizeButtonRect = {};
+        RECT _maximizeButtonRect = {};
+        RECT _winMenuButtonRect = {};
         std::vector<RECT> _excludedCaptionRects;
     };
 
@@ -298,6 +301,7 @@ namespace zwnd
         bool Minimized() { return _wnd->Minimized(); }
         void Minimize() { _wnd->Minimize(); }
         void Restore() { _wnd->Restore(); }
+        void Focus() { _wnd->Focus(); }
 
         void SetDisplayType(WindowDisplayType displayType) { _wnd->SetDisplayType(displayType); }
 

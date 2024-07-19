@@ -25,14 +25,14 @@ class EventSubscription
 
 public:
     EventSubscription() {}
-    EventSubscription(_ThisType&& other)
+    EventSubscription(_ThisType&& other) noexcept
     {
         _subId = other._subId;
         _emitterRef = other._emitterRef;
         // Setting _subId to 0 is enough to make this object functionally useless
         other._subId = 0;
     }
-    _ThisType& operator=(_ThisType&& other)
+    _ThisType& operator=(_ThisType&& other) noexcept
     {
         _ReleaseSubscription();
         _subId = other._subId;

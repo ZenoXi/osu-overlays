@@ -11,13 +11,17 @@ void ResourceManagerOld::Init(std::string resourceFilePath, ID2D1DeviceContext* 
 {
     // Create 
     IWICImagingFactory* WICFactory;
-    CoCreateInstance
-    (
+    HRESULT hr = CoCreateInstance(
         CLSID_WICImagingFactory,
         NULL,
         CLSCTX_INPROC_SERVER,
         IID_PPV_ARGS(&WICFactory)
     );
+    if (!WICFactory)
+    {
+        // TODO: Logging
+        return;
+    }
 
     std::ifstream in(resourceFilePath);
     while (true)
@@ -32,11 +36,8 @@ void ResourceManagerOld::Init(std::string resourceFilePath, ID2D1DeviceContext* 
 
         if (!eof)
         {
-            HRESULT hr;
-
             IWICBitmapDecoder* decoder;
-            hr = WICFactory->CreateDecoderFromFilename
-            (
+            hr = WICFactory->CreateDecoderFromFilename(
                 resourcePathW.c_str(),
                 NULL,
                 GENERIC_READ,
@@ -49,8 +50,7 @@ void ResourceManagerOld::Init(std::string resourceFilePath, ID2D1DeviceContext* 
 
             IWICFormatConverter* converter;
             hr = WICFactory->CreateFormatConverter(&converter);
-            hr = converter->Initialize
-            (
+            hr = converter->Initialize(
                 source,
                 GUID_WICPixelFormat32bppPBGRA,
                 WICBitmapDitherTypeNone,
@@ -60,8 +60,7 @@ void ResourceManagerOld::Init(std::string resourceFilePath, ID2D1DeviceContext* 
             );
 
             ID2D1Bitmap* bitmap;
-            hr = target->CreateBitmapFromWicBitmap
-            (
+            hr = target->CreateBitmapFromWicBitmap(
                 converter,
                 NULL,
                 &bitmap
@@ -108,7 +107,11 @@ void ResourceManager::ReleaseResources()
 
 void ResourceManager::CoInit()
 {
-    CoInitialize(NULL);
+    HRESULT hr = CoInitialize(NULL);
+    if (hr != S_OK)
+    {
+        // TODO: Logging
+    }
 }
 
 void ResourceManager::CoUninit()
@@ -161,8 +164,7 @@ void ResourceManager::_InitImages(const std::vector<std::string>& resourceNames)
     HRESULT hr;
 
     IWICImagingFactory* WICFactory;
-    hr = CoCreateInstance
-    (
+    hr = CoCreateInstance(
         CLSID_WICImagingFactory,
         NULL,
         CLSCTX_INPROC_SERVER,
@@ -173,9 +175,8 @@ void ResourceManager::_InitImages(const std::vector<std::string>& resourceNames)
     if (hr == CO_E_NOTINITIALIZED)
     {
         coinit = true;
-        CoInitialize(NULL);
-        hr = CoCreateInstance
-        (
+        CoInit();
+        hr = CoCreateInstance(
             CLSID_WICImagingFactory,
             NULL,
             CLSCTX_INPROC_SERVER,
@@ -201,8 +202,7 @@ void ResourceManager::_InitImages(const std::vector<std::string>& resourceNames)
                 continue;
 
             IWICBitmapDecoder* decoder;
-            hr = WICFactory->CreateDecoderFromFilename
-            (
+            hr = WICFactory->CreateDecoderFromFilename(
                 resourcePathW.c_str(),
                 NULL,
                 GENERIC_READ,
@@ -215,8 +215,7 @@ void ResourceManager::_InitImages(const std::vector<std::string>& resourceNames)
 
             IWICFormatConverter* converter;
             hr = WICFactory->CreateFormatConverter(&converter);
-            hr = converter->Initialize
-            (
+            hr = converter->Initialize(
                 source,
                 GUID_WICPixelFormat32bppPBGRA,
                 WICBitmapDitherTypeNone,
@@ -226,8 +225,7 @@ void ResourceManager::_InitImages(const std::vector<std::string>& resourceNames)
             );
 
             ID2D1Bitmap* bitmap;
-            hr = _target->CreateBitmapFromWicBitmap
-            (
+            hr = _target->CreateBitmapFromWicBitmap(
                 converter,
                 NULL,
                 &bitmap

@@ -73,14 +73,18 @@ void zcom::Slider::SetInteractionAreaMargins(RECT margins)
     _interactionAreaMargins = margins;
 }
 
-void zcom::Slider::SetValue(float value)
+void zcom::Slider::SetValue(float value, bool emitChangeEvent)
 {
+    if (_currentValue == value)
+        return;
+
     if (value < 0.0f)
         value = 0.0f;
     if (value > 1.0f)
         value = 1.0f;
 
-    _onValueChanged->InvokeAll(&value);
+    if (emitChangeEvent)
+        _onValueChanged->InvokeAll(this, &value);
     _currentValue = value;
     _PositionAnchor();
 }
@@ -112,7 +116,7 @@ zcom::EventTargets zcom::Slider::_OnLeftPressed(int x, int y)
     if (_insideInteractionArea)
     {
         _holding = true;
-        _onSliderPressed->InvokeAll();
+        _onSliderPressed->InvokeAll(this);
         _HandleMouseMove(x);
     }
     return Panel::_OnLeftPressed(x, y);
@@ -123,9 +127,23 @@ zcom::EventTargets zcom::Slider::_OnLeftReleased(int x, int y)
     if (_holding)
     {
         _holding = false;
-        _onSliderReleased->InvokeAll();
+        _onSliderReleased->InvokeAll(this);
     }
     return Panel::_OnLeftReleased(x, y);
+}
+
+zcom::EventTargets zcom::Slider::_OnWheelUp(int x, int y)
+{
+    // TODO: FIX (remove these overrides in favor of simply always eating the event)
+    // Also rework post event handlers to allow modifying the EventTargets object in handler
+
+    // If event eating is set to true, assume that inner components don't need scroll events
+    return (GetEatScrollEvents() && _currentValue < 1.0f) ? EventTargets().Add(this, x, y) : Panel::_OnWheelUp(x, y);
+}
+
+zcom::EventTargets zcom::Slider::_OnWheelDown(int x, int y)
+{
+    return (GetEatScrollEvents() && _currentValue > 0.0f) ? EventTargets().Add(this, x, y) : Panel::_OnWheelDown(x, y);
 }
 
 void zcom::Slider::_OnResize(int width, int height)
@@ -148,7 +166,7 @@ void zcom::Slider::_HandleMouseMove(int position)
 void zcom::Slider::_PositionAnchor()
 {
     int maxPosition = GetWidth() - _startOffset - _endOffset;
-    int currentPosition = _currentValue * (maxPosition - 1);
+    int currentPosition = int(_currentValue * (maxPosition - 1));
 
     GetItem(1)->SetHorizontalOffsetPixels(_startOffset + currentPosition + _anchorOffset);
 }
@@ -160,7 +178,7 @@ void zcom::Slider::_SetInsideInteractionArea(bool value)
 
     _insideInteractionArea = value;
     if (_insideInteractionArea)
-        _onEnterInteractionArea->InvokeAll();
+        _onEnterInteractionArea->InvokeAll(this);
     else
-        _onLeaveInteractionArea->InvokeAll();
+        _onLeaveInteractionArea->InvokeAll(this);
 }

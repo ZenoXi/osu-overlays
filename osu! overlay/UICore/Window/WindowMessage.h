@@ -2,6 +2,8 @@
 
 #include <cstdint>
 
+#include "ResizeFlags.h"
+
 namespace zwnd
 {
     class WindowMessage
@@ -42,8 +44,8 @@ namespace zwnd
     class WindowSizeMessage
     {
     public:
-        int width;
-        int height;
+        int width = 0;
+        int height = 0;
         bool maximized = false;
         bool minimized = false;
         bool restored = false;
@@ -74,6 +76,37 @@ namespace zwnd
         }
 
         static const char* ID() { return "window_size"; }
+    };
+
+    class WindowSizeExMessage
+    {
+    public:
+        int width = 0;
+        int height = 0;
+        ResizeFlags flags;
+
+        WindowMessage Encode()
+        {
+            WindowMessage msg;
+            msg.id = ID();
+            *(int*)(msg.data + 0) = width;
+            *(int*)(msg.data + 4) = height;
+            *(ResizeFlags*)(msg.data + 8) = flags;
+            return msg;
+        }
+
+        bool Decode(WindowMessage msg)
+        {
+            if (msg.id != ID())
+                return false;
+
+            width = *(int*)(msg.data + 0);
+            height = *(int*)(msg.data + 4);
+            flags = *(ResizeFlags*)(msg.data + 8);
+            return true;
+        }
+
+        static const char* ID() { return "window_size_ex"; }
     };
 
     class WindowCloseMessage

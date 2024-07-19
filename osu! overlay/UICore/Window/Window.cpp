@@ -152,8 +152,10 @@ void zwnd::Window::_UninitScene(std::string name)
 
     zcom::Scene* scene = _activeScenes[index].get();
     scene->Uninit();
+    _nonClientAreaScene->ProcessDeletedScene(scene);
+
     _activeScenes.erase(_activeScenes.begin() + index);
-    _sceneChanged = true;
+    _UpdateSceneZIndices();
 }
 
 std::vector<zcom::Scene*> zwnd::Window::Scenes()
@@ -213,7 +215,11 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        _BuildMasterPanel()->OnMouseMove(x, y);
+        if (!_nonClientAreaScene->GetBasePanel()->GetMouseInside())
+            _nonClientAreaScene->GetBasePanel()->OnMouseEnter();
+        if (!_nonClientAreaScene->GetBasePanel()->GetMouseInsideArea())
+            _nonClientAreaScene->GetBasePanel()->OnMouseEnterArea();
+        _nonClientAreaScene->GetBasePanel()->OnMouseMove(x, y);
     }
     else if (msg.id == MouseEnterMessage::ID())
     {
@@ -221,11 +227,7 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
     }
     else if (msg.id == MouseLeaveMessage::ID())
     {
-        if (_TitleBarAvailable())
-            _titleBarScene->GetCanvas()->OnMouseLeave();
-        _nonClientAreaScene->GetCanvas()->OnMouseLeave();
-        for (auto& scene : _activeScenes)
-            scene->GetCanvas()->OnMouseLeave();
+        _nonClientAreaScene->GetBasePanel()->OnMouseLeave();
     }
     else if (msg.id == MouseLeftPressedMessage::ID())
     {
@@ -234,12 +236,11 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        auto masterPanel = _BuildMasterPanel();
-        zcom::EventTargets targets = masterPanel->OnLeftPressed(x, y);
+        zcom::EventTargets targets = _nonClientAreaScene->GetBasePanel()->OnLeftPressed(x, y);
 
         // Update selected item
         zcom::Component* mainTarget = targets.MainTarget();
-        for (auto component : masterPanel->GetAllChildren())
+        for (auto component : _nonClientAreaScene->GetBasePanel()->GetAllChildren())
             if (component != mainTarget && component->Selected())
                 component->OnDeselected();
         if (mainTarget != nullptr && !mainTarget->Selected() && mainTarget->GetSelectable())
@@ -252,7 +253,7 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        _BuildMasterPanel()->OnRightPressed(x, y);
+        _nonClientAreaScene->GetBasePanel()->OnRightPressed(x, y);
     }
     else if (msg.id == MouseLeftReleasedMessage::ID())
     {
@@ -261,7 +262,7 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        _BuildMasterPanel()->OnLeftReleased(x, y);
+        _nonClientAreaScene->GetBasePanel()->OnLeftReleased(x, y);
     }
     else if (msg.id == MouseRightReleasedMessage::ID())
     {
@@ -270,7 +271,7 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        _BuildMasterPanel()->OnRightReleased(x, y);
+        _nonClientAreaScene->GetBasePanel()->OnRightReleased(x, y);
     }
     else if (msg.id == MouseWheelUpMessage::ID())
     {
@@ -279,7 +280,7 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        _BuildMasterPanel()->OnWheelUp(x, y);
+        _nonClientAreaScene->GetBasePanel()->OnWheelUp(x, y);
     }
     else if (msg.id == MouseWheelDownMessage::ID())
     {
@@ -288,13 +289,24 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        _BuildMasterPanel()->OnWheelDown(x, y);
+        _nonClientAreaScene->GetBasePanel()->OnWheelDown(x, y);
     }
     else if (msg.id == KeyDownMessage::ID())
     {
         KeyDownMessage message{};
         message.Decode(msg);
-        keyboardManager.OnKeyDown(message.keyCode);
+        bool handled = keyboardManager.OnKeyDown(message.keyCode);
+        if (!handled)
+        {
+            // Advance selected element
+            bool reverse = keyboardManager.KeyState(VK_SHIFT);
+            zcom::Component* itemToSelect = _nonClientAreaScene->GetBasePanel()->IterateTab(reverse);
+            for (auto component : _nonClientAreaScene->GetBasePanel()->GetAllChildren())
+                if (component != itemToSelect && component->Selected())
+                    component->OnDeselected();
+            if (itemToSelect != nullptr)
+                itemToSelect->OnSelected(reverse);
+        }
     }
     else if (msg.id == KeyUpMessage::ID())
     {
@@ -342,7 +354,7 @@ void zwnd::Window::_MessageThread()
     while (!_scenesInited.load());
 
     // Add handlers
-    _window->AddKeyboardHandler(&keyboardManager);
+    //_window->AddKeyboardHandler(&keyboardManager);
 
     // Main window loop
     _window->ProcessMessages();
@@ -385,21 +397,33 @@ void zwnd::Window::_UIThread()
         __uuidof(IDWriteFactory),
         reinterpret_cast<IUnknown**>(&dwriteFactory)
     );
-    dwriteFactory->CreateTextFormat(
-        L"Calibri",
-        NULL,
-        DWRITE_FONT_WEIGHT_BOLD,
-        DWRITE_FONT_STYLE_NORMAL,
-        DWRITE_FONT_STRETCH_NORMAL,
-        20.0f,
-        L"en-us",
-        &dwriteTextFormat
-    );
+    if (dwriteFactory)
+    {
+        dwriteFactory->CreateTextFormat(
+            L"Calibri",
+            NULL,
+            DWRITE_FONT_WEIGHT_BOLD,
+            DWRITE_FONT_STYLE_NORMAL,
+            DWRITE_FONT_STRETCH_NORMAL,
+            20.0f,
+            L"en-us",
+            &dwriteTextFormat
+        );
+        if (!dwriteTextFormat)
+        {
+            // TODO: Logging
+        }
+    }
+    else
+    {
+        // TODO: Logging
+    }
 
     while (true)
     {
         _window->LockSize();
 
+        // TODO: these probably should be window/thread specific
         ztime::clock[CLOCK_GAME].Update();
         ztime::clock[CLOCK_MAIN].Update();
 
@@ -411,59 +435,34 @@ void zwnd::Window::_UIThread()
         {
             int newWidth = _windowSizeMessage->width;
             int newHeight = _windowSizeMessage->height;
-            zcom::ResizeInfo resizeInfo;
-            resizeInfo.windowMaximized = _windowSizeMessage->maximized;
-            resizeInfo.windowMinimized = _windowSizeMessage->minimized;
-            resizeInfo.windowRestored = _windowSizeMessage->restored;
-            RECT clientAreaMargins = _nonClientAreaScene->GetClientAreaMargins();
-            int titleBarHeight = _TitleBarAvailable() ? _titleBarScene->TitleBarSceneHeight() : 0;
+            ResizeFlags resizeFlags;
+            resizeFlags.windowMaximized = _windowSizeMessage->maximized;
+            resizeFlags.windowMinimized = _windowSizeMessage->minimized;
+            resizeFlags.windowRestored = _windowSizeMessage->restored;
 
             // Handle fullscreen change
             if (_fullscreenChanged)
             {
                 if (_fullscreenTargetValue)
-                    resizeInfo.windowFullscreened = true;
+                    resizeFlags.windowFullscreened = true;
                 else if (_window->Maximized())
-                    resizeInfo.windowMaximized = true;
+                    resizeFlags.windowMaximized = true;
                 else if (_window->Minimized())
-                    resizeInfo.windowMinimized = true;
+                    resizeFlags.windowMinimized = true;
                 else
-                    resizeInfo.windowRestored = true;
+                    resizeFlags.windowRestored = true;
 
                 _fullscreen = _fullscreenTargetValue;
                 _fullscreenChanged = false;
             }
 
-            // Resize regular scenes
-            for (auto& scene : _activeScenes)
-            {
-                if (!_fullscreen)
-                {
-                    scene->Resize(
-                        newWidth - clientAreaMargins.left - clientAreaMargins.right,
-                        newHeight - clientAreaMargins.top - clientAreaMargins.bottom - titleBarHeight,
-                        resizeInfo
-                    );
-                    scene->GetCanvas()->BasePanel()->SetWindowPosition(clientAreaMargins.left, clientAreaMargins.top + titleBarHeight);
-                }
-                else
-                {
-                    scene->Resize(newWidth, newHeight, resizeInfo);
-                    scene->GetCanvas()->BasePanel()->SetWindowPosition(0, 0);
-                }
-            }
-            // Resize title bar scene
-            if (_TitleBarAvailable())
-            {
-                ((zcom::Scene*)_titleBarScene.get())->Resize(
-                    newWidth - clientAreaMargins.left - clientAreaMargins.right,
-                    _titleBarScene->TitleBarSceneHeight(),
-                    resizeInfo
-                );
-                ((zcom::Scene*)_titleBarScene.get())->GetCanvas()->BasePanel()->SetWindowPosition(clientAreaMargins.left, clientAreaMargins.top);
-            }
-            // Resize non-client area scene
-            ((zcom::Scene*)_nonClientAreaScene.get())->Resize(newWidth, newHeight, resizeInfo);
+            _nonClientAreaScene->ProcessWindowResize(newWidth, newHeight, resizeFlags);
+
+            WindowSizeExMessage sizeExMsg;
+            sizeExMsg.width = newWidth;
+            sizeExMsg.height = newHeight;
+            sizeExMsg.flags = resizeFlags;
+            _windowMessageEvent->InvokeAll(sizeExMsg.Encode());
         }
 
         // Render frame
@@ -472,161 +471,68 @@ void zwnd::Window::_UIThread()
         // Pass title bar item and non-client area scene properties to underlying window thread
         _PassParamsToHitTest();
 
-        bool redraw = false;
-        if (_sceneChanged)
-        {
-            _sceneChanged = false;
-            redraw = true;
-
-            // TODO: Resend mouse move message (prefferably have a function in 'WindowBackend')
-        }
-
-        // Use a copy because the scene update functions can change the '_activeScenes' ordering
-        auto activeScenes = Scenes();
-
-        { // Updating scenes
-            for (auto& scene : activeScenes)
-                scene->Update();
-            if (_TitleBarAvailable())
-                ((zcom::Scene*)_titleBarScene.get())->Update();
-            ((zcom::Scene*)_nonClientAreaScene.get())->Update();
-        }
-
-        { // Redraw checking
-            for (auto& scene : activeScenes)
-            {
-                if (scene->Redraw())
-                {
-                    redraw = true;
-                    break;
-                }
-            }
-            if (!_fullscreen && _TitleBarAvailable() && ((zcom::Scene*)_titleBarScene.get())->Redraw())
-                redraw = true;
-            if (!_fullscreen && ((zcom::Scene*)_nonClientAreaScene.get())->Redraw())
-                redraw = true;
-        }
-
-        //std::cout << "Updated " << ++framecounter << '\n';
-        //redraw = true;
+        // Update and render the UI
+        _nonClientAreaScene->GetBasePanel()->Update();
+        bool redraw = _nonClientAreaScene->GetBasePanel()->Redraw();
         if (redraw)
         {
+            //SimpleTimer drawTimer;
+
             //if (_parentId.has_value())
             //    std::cout << "Redrawn (" << framecounter++ << ")\n";
             Graphics g = _window->gfx.GetGraphics();
             g.target->BeginDraw();
             g.target->Clear();
 
-            RECT clientAreaMargins = _nonClientAreaScene->GetClientAreaMargins();
-            D2D1_SIZE_F clientSize = {
-                (float)_window->GetWidth() - (clientAreaMargins.left + clientAreaMargins.right),
-                (float)_window->GetHeight() - (clientAreaMargins.top + clientAreaMargins.bottom)
-            };
-            if (_fullscreen)
+            _nonClientAreaScene->GetBasePanel()->Draw(g);
+            g.target->DrawBitmap(_nonClientAreaScene->GetBasePanel()->ContentImage());
+
+            if (dwriteFactory && dwriteTextFormat)
             {
-                clientSize = {
-                    (float)_window->GetWidth(),
-                    (float)_window->GetHeight()
-                };
-            }
+                // Display frame number while 'Ctrl + S + F' is held
+                if ((GetKeyState(VK_CONTROL) & 0x8000) &&
+                    (GetKeyState('S') & 0x8000) &&
+                    (GetKeyState('F') & 0x8000))
+                {
+                    IDWriteTextLayout* dwriteTextLayout = nullptr;
 
-            // Create bitmap for client area rendering
-            ID2D1Bitmap1* clientAreaBitmap = nullptr;
-            g.target->CreateBitmap(
-                D2D1::SizeU(clientSize.width, clientSize.height),
-                nullptr,
-                0,
-                D2D1::BitmapProperties1(
-                    D2D1_BITMAP_OPTIONS_TARGET,
-                    { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
-                ),
-                &clientAreaBitmap
-            );
-
-            // Set content bitmap as target
-            ID2D1Image* stash = nullptr;
-            g.target->GetTarget(&stash);
-            g.target->SetTarget(clientAreaBitmap);
-            g.target->Clear();
-
-            if (!_fullscreen && _TitleBarAvailable())
-            {
-                // Draw the title bar scene
-                if (((zcom::Scene*)_titleBarScene.get())->Redraw())
-                    ((zcom::Scene*)_titleBarScene.get())->Draw(g);
-                if (_titleBarScene->TitleBarSceneHeight() > 0)
-                    g.target->DrawBitmap(((zcom::Scene*)_titleBarScene.get())->ContentImage());
-            }
-
-            // Draw other scenes
-            for (auto& scene : activeScenes)
-            {
-                if (scene->Redraw())
-                    scene->Draw(g);
-                g.target->DrawBitmap(
-                    scene->ContentImage(),
-                    D2D1::RectF(
-                        0.0f,
-                        (_fullscreen || !_TitleBarAvailable()) ? 0.0f : _titleBarScene->TitleBarSceneHeight(),
-                        g.target->GetSize().width,
-                        g.target->GetSize().height
-                    )
-                );
-            }
-
-            // Unstash original target
-            g.target->SetTarget(stash);
-            stash->Release();
-
-            if (!_fullscreen)
-            {
-                // Draw non-client area scene
-                _nonClientAreaScene->SetClientAreaBitmap(clientAreaBitmap);
-                ((zcom::Scene*)_nonClientAreaScene.get())->Draw(g);
-
-                g.target->DrawBitmap(((zcom::Scene*)_nonClientAreaScene.get())->ContentImage());
-                clientAreaBitmap->Release();
-            }
-            else
-            {
-                // Draw client area
-                g.target->DrawBitmap(clientAreaBitmap);
-                clientAreaBitmap->Release();
-            }
-
-            //if (GetKeyState(VK_SPACE) & 0x8000)
-            //    g.target->Clear(D2D1::ColorF(0.2f, 0.2f, 0.2f, 0.8f));
-
-            // Display frame number while 'Ctrl + S + F' is held
-            if ((GetKeyState(VK_CONTROL) & 0x8000) &&
-                (GetKeyState('S') & 0x8000) &&
-                (GetKeyState('F') & 0x8000))
-            {
-                IDWriteTextLayout* dwriteTextLayout = nullptr;
-
-                std::wstringstream ss;
-                ss << framecounter++;
-                dwriteFactory->CreateTextLayout(
-                    ss.str().c_str(),
-                    ss.str().length(),
-                    dwriteTextFormat,
-                    100,
-                    30,
-                    &dwriteTextLayout
-                );
-
-                ID2D1SolidColorBrush* brush;
-                g.target->CreateSolidColorBrush(D2D1::ColorF(0.4f, 0.8f, 0.0f, 0.9f), &brush);
-                g.target->DrawTextLayout(D2D1::Point2F(5.0f, 5.0f), dwriteTextLayout, brush);
-
-                brush->Release();
-                dwriteTextLayout->Release();
+                    std::wstringstream ss;
+                    ss << framecounter++;
+                    dwriteFactory->CreateTextLayout(
+                        ss.str().c_str(),
+                        (UINT32)ss.str().length(),
+                        dwriteTextFormat,
+                        100,
+                        30,
+                        &dwriteTextLayout
+                    );
+                    if (dwriteTextLayout)
+                    {
+                        ID2D1SolidColorBrush* brush;
+                        g.target->CreateSolidColorBrush(D2D1::ColorF(0.4f, 0.8f, 0.0f, 0.9f), &brush);
+                        if (brush)
+                        {
+                            g.target->DrawTextLayout(D2D1::Point2F(5.0f, 5.0f), dwriteTextLayout, brush);
+                            brush->Release();
+                        }
+                        else
+                        {
+                            // TODO: Logging
+                        }
+                        dwriteTextLayout->Release();
+                    }
+                    else
+                    {
+                        // TODO: Logging
+                    }
+                }
             }
 
             // Update layered window
             _window->UpdateLayeredWindow();
 
             g.target->EndDraw();
+            //std::cout << drawTimer.MicrosElapsed() << "us\n";
         }
 
         _window->UnlockSize();
@@ -644,20 +550,27 @@ void zwnd::Window::_UIThread()
             break;
     }
 
+    // Uninit all scenes
     for (auto& scene : _activeScenes)
+    {
         scene->Uninit();
+        _nonClientAreaScene->ProcessDeletedScene(scene.get());
+    }
     _activeScenes.clear();
     if (_titleBarScene)
     {
         ((zcom::Scene*)_titleBarScene.get())->Uninit();
+        _nonClientAreaScene->ProcessDeletedTitleBarScene(_titleBarScene.get());
         _titleBarScene.reset();
     }
     ((zcom::Scene*)_nonClientAreaScene.get())->Uninit();
     _nonClientAreaScene.reset();
 
     // Release text rendering resources
-    dwriteTextFormat->Release();
-    dwriteFactory->Release();
+    if (dwriteTextFormat)
+        dwriteTextFormat->Release();
+    if (dwriteFactory)
+        dwriteFactory->Release();
 }
 
 void zwnd::Window::_PassParamsToHitTest()
@@ -707,47 +620,10 @@ void zwnd::Window::_PassParamsToHitTest()
     }
 }
 
-std::unique_ptr<zcom::Panel> zwnd::Window::_BuildMasterPanel()
+void zwnd::Window::_UpdateSceneZIndices()
 {
-    RECT margins = _nonClientAreaScene->GetClientAreaMargins();
-
-    std::unique_ptr<zcom::Panel> masterPanel = _nonClientAreaScene->CreatePanel();
-    masterPanel->Resize(Width(), Height());
-    masterPanel->DeferLayoutUpdates();
-    if (!_fullscreen)
-    {
-        zcom::Panel* panel = _nonClientAreaScene->GetCanvas()->BasePanel();
-        panel->SetX(0);
-        panel->SetY(0);
-        masterPanel->AddItem(panel);
-    }
-    for (auto& scene : _activeScenes)
-    {
-        zcom::Panel* panel = scene->GetCanvas()->BasePanel();
-        if (!_fullscreen)
-        {
-            panel->SetX(margins.left);
-            panel->SetY(margins.top + (_TitleBarAvailable() ? _titleBarScene->TitleBarSceneHeight() : 0));
-        }
-        else
-        {
-            panel->SetX(0);
-            panel->SetY(0);
-        }
-        masterPanel->AddItem(panel);
-    }
-    if (!_fullscreen && _TitleBarAvailable())
-    {
-        zcom::Panel* panel = _titleBarScene->GetCanvas()->BasePanel();
-        panel->SetX(margins.left);
-        panel->SetY(margins.top);
-        masterPanel->AddItem(panel);
-    }
-    for (int i = 0; i < masterPanel->ItemCount(); i++)
-        masterPanel->GetItem(i)->SetZIndex(i);
-    masterPanel->ResumeLayoutUpdates(false);
-
-    return masterPanel;
+    for (int i = 0; i < _activeScenes.size(); i++)
+        _activeScenes[i]->GetBasePanel()->SetZIndex(i);
 }
 
 bool zwnd::Window::_TitleBarAvailable()

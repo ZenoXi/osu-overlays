@@ -4,11 +4,7 @@
 
 #include <iostream>
 
-zcom::TooltipScene::TooltipScene(App* app, zwnd::Window* window)
-    : Scene(app, window)
-{}
-
-void zcom::TooltipScene::_Init(SceneOptionsBase* options)
+void zcom::TooltipScene::Init(SceneOptionsBase* options)
 {
     if (options)
     {
@@ -17,7 +13,7 @@ void zcom::TooltipScene::_Init(SceneOptionsBase* options)
     }
 
     _label = Create<Label>(L"-");
-    _label->SetMargins({ 3.0f, 3.0f, 3.0f, 3.0f });
+    _label->SetPadding({ 3.0f, 3.0f, 3.0f, 3.0f });
     _label->SetVerticalTextAlignment(zcom::Alignment::CENTER);
     _label->SetFont(L"Segoe UI");
     _label->SetFontSize(13.0f);
@@ -26,29 +22,15 @@ void zcom::TooltipScene::_Init(SceneOptionsBase* options)
     // Enable ClearType
     _label->IgnoreAlpha(true);
 
-    _canvas->AddComponent(_label.get());
-    _canvas->SetBackgroundColor(D2D1::ColorF(0));
-}
-
-void zcom::TooltipScene::_Uninit()
-{
-    _canvas->ClearComponents();
-}
-
-void zcom::TooltipScene::_Focus()
-{
-
-}
-
-void zcom::TooltipScene::_Unfocus()
-{
-
+    _basePanel->AddItem(_label.get());
+    _basePanel->SetBackgroundColor(D2D1::ColorF(0));
+    _basePanel->SubscribePostUpdate([=]() {
+        _Update();
+    }).Detach();
 }
 
 void zcom::TooltipScene::_Update()
 {
-    _canvas->Update();
-
     if (_showRequestSubscription)
     {
         _showRequestSubscription->HandlePendingEvents([&](const TooltipParams& params) {
@@ -61,15 +43,15 @@ void zcom::TooltipScene::_Update()
             _label->SetWordWrap(false);
             _label->SetText(params.text);
             float textWidth = _label->GetTextWidth();
-            int labelWidth = ceilf(textWidth);
+            int labelWidth = (int)ceilf(textWidth);
             if (labelWidth > params.maxWidth)
                 labelWidth = params.maxWidth;
             _label->Resize(labelWidth, 1);
             _label->SetWordWrap(true);
             textWidth = _label->GetTextWidth();
-            labelWidth = ceilf(textWidth);
+            labelWidth = (int)ceilf(textWidth);
             float textHeight = _label->GetTextHeight();
-            int labelHeight = ceilf(textHeight);
+            int labelHeight = (int)ceilf(textHeight);
             _label->SetBaseSize(labelWidth, labelHeight);
             _label->NotifyLayoutChanged();
 
@@ -107,9 +89,4 @@ void zcom::TooltipScene::_Update()
             });
         });
     }
-}
-
-void zcom::TooltipScene::_Resize(int width, int height, ResizeInfo info)
-{
-
 }

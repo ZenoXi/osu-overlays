@@ -46,6 +46,22 @@ namespace zcom
         Alignment value;
     };
 
+    class FlexMarginBefore : public Property
+    {
+    public:
+        static std::string _NAME_() { return "flex_margin_before"; }
+        FlexMarginBefore(int value = 0) : value(value) {}
+        int value;
+    };
+
+    class FlexMarginAfter : public Property
+    {
+    public:
+        static std::string _NAME_() { return "flex_margin_after"; }
+        FlexMarginAfter(int value = 0) : value(value) {}
+        int value;
+    };
+
     enum class FlexDirection
     {
         DOWN,
@@ -56,6 +72,15 @@ namespace zcom
 
     class FlexPanel : public Panel
     {
+        DEFINE_COMPONENT(FlexPanel, Panel)
+        DEFAULT_DESTRUCTOR(FlexPanel)
+    protected:
+        void Init(FlexDirection direction)
+        {
+            Panel::Init();
+            _direction = direction;
+        }
+
     public:
         void SetSpacing(int spacing)
         {
@@ -109,36 +134,19 @@ namespace zcom
         {
             SetWidthFixed(true);
             SetParentWidthPercent(1.0f);
+            SetBaseWidth(0);
         }
         void FillContainerHeight()
         {
             SetHeightFixed(true);
             SetParentHeightPercent(1.0f);
+            SetBaseHeight(0);
         }
         void FillContainerSize()
         {
             FillContainerWidth();
             FillContainerHeight();
         }
-
-    protected:
-        friend class Scene;
-        friend class Component;
-        FlexPanel(Scene* scene) : Panel(scene) {}
-        void Init(FlexDirection direction)
-        {
-            Panel::Init();
-            _direction = direction;
-        }
-    public:
-        ~FlexPanel() {}
-        FlexPanel(FlexPanel&&) = delete;
-        FlexPanel& operator=(FlexPanel&&) = delete;
-        FlexPanel(const FlexPanel&) = delete;
-        FlexPanel& operator=(const FlexPanel&) = delete;
-
-    protected:
-        void _RecalculateLayout(int width, int height) override;
 
     private:
         FlexDirection _direction = FlexDirection::DOWN;
@@ -147,12 +155,7 @@ namespace zcom
         bool _widthFixed = false;
         bool _heightFixed = false;
 
-#pragma region base_class
     protected:
-
-    public:
-        const char* GetName() const override { return Name(); }
-        static const char* Name() { return "flex_panel"; }
-#pragma endregion
+        void _RecalculateLayout(int width, int height) override;
     };
 }

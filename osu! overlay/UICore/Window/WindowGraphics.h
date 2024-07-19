@@ -32,7 +32,7 @@ namespace zwnd
         ComPtr<IDXGISurface1> p_Surface;
         ComPtr<ID2D1Bitmap1> p_Bitmap;
     public:
-        RECT _windowRect;
+        RECT _windowRect = {};
 
         WindowGraphics() {};
         void Initialize(HWND* hwnd_t);

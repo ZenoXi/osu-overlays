@@ -5,14 +5,42 @@
 #include <list>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <atomic>
 
-#include "Window/DisplayWindow.h"
 #include "Window/Graphics.h"
 #include "Window/CursorIcon.h"
 #include "Window/MouseEventHandler.h"
 #include "Helper/EventEmitter.h"
 #include "Helper/Time.h"
+#include "Helper/CollectionsHelper.h"
+
+// Component boilerplate. All components except Canvas should have this exact class setup
+#define DEFINE_COMPONENT(component_name, parent) \
+public: \
+const char* GetName() const override { return Name(); } \
+static const char* Name() { return #component_name; } \
+protected: \
+friend class Scene; \
+friend class Component; \
+component_name(Scene* scene) : parent(scene) {} \
+public: \
+component_name(component_name&&) = delete; \
+component_name& operator=(component_name&&) = delete; \
+component_name(const component_name&) = delete; \
+component_name& operator=(const component_name&) = delete; \
+private:
+
+#define DEFAULT_DESTRUCTOR(component_name) \
+public: \
+~component_name() {} \
+private:
+
+#define DEFAULT_INIT \
+protected: \
+void Init() {} \
+private:
+
 
 namespace zcom
 {
@@ -141,10 +169,10 @@ namespace zcom
 
         // Adds specified function to queue of pending actions, which get executed
         // in the component thread right before the component update function
-        void ExecuteSynchronously(std::function<void()>&& func)
+        void ExecuteSynchronously(std::function<void()>&& func, Duration delay = Duration(0))
         {
             std::lock_guard<std::mutex> lock(_m_pendingActions);
-            _pendingActions.push_back(std::move(func));
+            _pendingActions.push_back({ std::move(func), ztime::Main() + delay });
         }
 
         // A shorthand to check whether the given coordinates represent the special invalid position
@@ -206,6 +234,7 @@ namespace zcom
     private:
         bool _visible = true;
         bool _interactable = true;
+        bool _eatScrollEvents = false;
 
         // Rendering
         bool _ignoreAlpha = false;
@@ -240,9 +269,15 @@ namespace zcom
 
         // Other properties
         std::unordered_map<std::string, std::unique_ptr<Property>> _properties;
+        std::unordered_set<std::string> _tags;
 
         // Synchronous execution
-        std::vector<std::function<void()>> _pendingActions;
+        struct PendingAction
+        {
+            std::function<void()> action;
+            TimePoint executionTime;
+        };
+        std::vector<PendingAction> _pendingActions;
         std::mutex _m_pendingActions;
 
         // Mouse events
@@ -269,6 +304,7 @@ namespace zcom
         EventEmitter<void, Component*, bool> _onSelected;
         EventEmitter<void, Component*> _onDeselected;
         EventEmitter<void, Component*, Graphics> _onDraw;
+        EventEmitter<void, Component*, Graphics> _preContentDraw;
 
         // Post default handling
         EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int, int, int> _postMouseMove;
@@ -278,7 +314,9 @@ namespace zcom
         EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postRightReleased;
         EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postWheelUp;
         EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postWheelDown;
+        EventEmitter<void> _postUpdate;
         EventEmitter<void, Component*, Graphics> _postDraw;
+        EventEmitter<void, Component*, Graphics> _postContentDraw;
 
         // Layout events
         EventEmitter<void> _onLayoutChanged;
@@ -412,6 +450,7 @@ namespace zcom
         bool GetActive() const { return _active; }
         bool GetVisible() const { return _visible; }
         bool GetInteractable() const { return _interactable; }
+        bool GetEatScrollEvents() const { return _eatScrollEvents; }
 
         void SetX(int x)
         {
@@ -513,6 +552,12 @@ namespace zcom
                 OnRightReleased();
             }
             _interactable = interactable;
+        }
+        // If set to true, the default scroll event handler (if not overridden) will set this component as the main event target,
+        // usually preventing scrolling of the parent components
+        void SetEatScrollEvents(bool eat)
+        {
+            _eatScrollEvents = eat;
         }
 
         // Rendering
@@ -706,6 +751,22 @@ namespace zcom
             _redraw = true;
         }
 
+        // Apply application defined tag. Tags are a simpler version of properties, mainly for development convenience
+        void AddTag(std::string tag)
+        {
+            _tags.insert(tag);
+        }
+
+        bool HasTag(std::string tag)
+        {
+            return _tags.count(tag) > 0;
+        }
+
+        void RemoveTag(std::string tag)
+        {
+            _tags.erase(tag);
+        }
+
         // Mouse events
         EventTargets OnMouseMove(int x, int y)
         {
@@ -783,7 +844,7 @@ namespace zcom
         }
         EventTargets OnLeftPressed(int x, int y)
         {
-            if (!_active)
+            if (!_active || _mouseLeftClicked)
                 return EventTargets();
 
             // Correct mouse position if it doesn't match click position
@@ -798,7 +859,7 @@ namespace zcom
         }
         EventTargets OnLeftReleased(int x = std::numeric_limits<int>::min(), int y = std::numeric_limits<int>::min())
         {
-            if (!_active)
+            if (!_active || !_mouseLeftClicked)
                 return EventTargets();
 
             // Correct mouse position if it doesn't match release position
@@ -813,7 +874,7 @@ namespace zcom
         }
         EventTargets OnRightPressed(int x, int y)
         {
-            if (!_active)
+            if (!_active || _mouseRightClicked)
                 return EventTargets();
 
             // Correct mouse position if it doesn't match click position
@@ -828,7 +889,7 @@ namespace zcom
         }
         EventTargets OnRightReleased(int x = std::numeric_limits<int>::min(), int y = std::numeric_limits<int>::min())
         {
-            if (!_active)
+            if (!_active || !_mouseRightClicked)
                 return EventTargets();
 
             // Correct mouse position if it doesn't match release position
@@ -895,8 +956,8 @@ namespace zcom
         virtual EventTargets _OnRightPressed(int x, int y) { return EventTargets().Add(this, x, y); }
         virtual EventTargets _OnLeftReleased(int x = std::numeric_limits<int>::min(), int y = std::numeric_limits<int>::min()) { return EventTargets().Add(this, x, y); }
         virtual EventTargets _OnRightReleased(int x = std::numeric_limits<int>::min(), int y = std::numeric_limits<int>::min()) { return EventTargets().Add(this, x, y); }
-        virtual EventTargets _OnWheelUp(int x, int y) { return EventTargets(); }
-        virtual EventTargets _OnWheelDown(int x, int y) { return EventTargets(); }
+        virtual EventTargets _OnWheelUp(int x, int y) { return _eatScrollEvents ? EventTargets().Add(this, x, y) : EventTargets(); }
+        virtual EventTargets _OnWheelDown(int x, int y) { return _eatScrollEvents ? EventTargets().Add(this, x, y) : EventTargets(); }
         virtual void _OnSelected(bool reverse) {}
         virtual void _OnDeselected() {}
     public:
@@ -907,99 +968,111 @@ namespace zcom
         int GetMousePosX() const { return _mousePosX; }
         int GetMousePosY() const { return _mousePosY; }
 
-        EventSubscription<void, Component*, int, int, int, int> SubscribeOnMouseMove(std::function<void(Component*, int, int, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, int, int, int, int> SubscribeOnMouseMove(std::function<void(Component*, int, int, int, int)> handler)
         {
             return _onMouseMove->Subscribe(handler);
         }
-        EventSubscription<void, Component*> SubscribeOnMouseEnter(std::function<void(Component*)> handler)
+        [[nodiscard]] EventSubscription<void, Component*> SubscribeOnMouseEnter(std::function<void(Component*)> handler)
         {
             return _onMouseEnter->Subscribe(handler);
         }
-        EventSubscription<void, Component*> SubscribeOnMouseLeave(std::function<void(Component*)> handler)
+        [[nodiscard]] EventSubscription<void, Component*> SubscribeOnMouseLeave(std::function<void(Component*)> handler)
         {
             return _onMouseLeave->Subscribe(handler);
         }
-        EventSubscription<void, Component*> SubscribeOnMouseEnterArea(std::function<void(Component*)> handler)
+        [[nodiscard]] EventSubscription<void, Component*> SubscribeOnMouseEnterArea(std::function<void(Component*)> handler)
         {
             return _onMouseEnterArea->Subscribe(handler);
         }
-        EventSubscription<void, Component*> SubscribeOnMouseLeaveArea(std::function<void(Component*)> handler)
+        [[nodiscard]] EventSubscription<void, Component*> SubscribeOnMouseLeaveArea(std::function<void(Component*)> handler)
         {
             return _onMouseLeaveArea->Subscribe(handler);
         }
-        EventSubscription<void, Component*, int, int> SubscribeOnLeftPressed(std::function<void(Component*, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, int, int> SubscribeOnLeftPressed(std::function<void(Component*, int, int)> handler)
         {
             return _onLeftPressed->Subscribe(handler);
         }
-        EventSubscription<void, Component*, int, int> SubscribeOnRightPressed(std::function<void(Component*, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, int, int> SubscribeOnRightPressed(std::function<void(Component*, int, int)> handler)
         {
             return _onRightPressed->Subscribe(handler);
         }
-        EventSubscription<void, Component*, int, int> SubscribeOnLeftReleased(std::function<void(Component*, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, int, int> SubscribeOnLeftReleased(std::function<void(Component*, int, int)> handler)
         {
             return _onLeftReleased->Subscribe(handler);
         }
-        EventSubscription<void, Component*, int, int> SubscribeOnRightReleased(std::function<void(Component*, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, int, int> SubscribeOnRightReleased(std::function<void(Component*, int, int)> handler)
         {
             return _onRightReleased->Subscribe(handler);
         }
-        EventSubscription<void, Component*, int, int> SubscribeOnWheelUp(std::function<void(Component*, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, int, int> SubscribeOnWheelUp(std::function<void(Component*, int, int)> handler)
         {
             return _onWheelUp->Subscribe(handler);
         }
-        EventSubscription<void, Component*, int, int> SubscribeOnWheelDown(std::function<void(Component*, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, int, int> SubscribeOnWheelDown(std::function<void(Component*, int, int)> handler)
         {
             return _onWheelDown->Subscribe(handler);
         }
-        EventSubscription<void, Component*, bool> SubscribeOnSelected(std::function<void(Component*, bool)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, bool> SubscribeOnSelected(std::function<void(Component*, bool)> handler)
         {
             return _onSelected->Subscribe(handler);
         }
-        EventSubscription<void, Component*> SubscribeOnDeselected(std::function<void(Component*)> handler)
+        [[nodiscard]] EventSubscription<void, Component*> SubscribeOnDeselected(std::function<void(Component*)> handler)
         {
             return _onDeselected->Subscribe(handler);
         }
-        EventSubscription<void, Component*, Graphics> SubscribeOnDraw(std::function<void(Component*, Graphics)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, Graphics> SubscribeOnDraw(std::function<void(Component*, Graphics)> handler)
         {
             return _onDraw->Subscribe(handler);
         }
+        [[nodiscard]] EventSubscription<void, Component*, Graphics> SubscribePreContentDraw(std::function<void(Component*, Graphics)> handler)
+        {
+            return _preContentDraw->Subscribe(handler);
+        }
 
-        EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int, int, int> SubscribePostMouseMove(std::function<void(Component*, std::vector<EventTargets::Params>, int, int, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int, int, int> SubscribePostMouseMove(std::function<void(Component*, std::vector<EventTargets::Params>, int, int, int, int)> handler)
         {
             return _postMouseMove->Subscribe(handler);
         }
-        EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostLeftPressed(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostLeftPressed(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
         {
             return _postLeftPressed->Subscribe(handler);
         }
-        EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostRightPressed(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostRightPressed(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
         {
             return _postRightPressed->Subscribe(handler);
         }
-        EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostLeftReleased(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostLeftReleased(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
         {
             return _postLeftReleased->Subscribe(handler);
         }
-        EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostRightReleased(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostRightReleased(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
         {
             return _postRightReleased->Subscribe(handler);
         }
-        EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostWheelUp(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostWheelUp(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
         {
             return _postWheelUp->Subscribe(handler);
         }
-        EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostWheelDown(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostWheelDown(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
         {
             return _postWheelDown->Subscribe(handler);
         }
-        EventSubscription<void, Component*, Graphics> SubscribePostDraw(std::function<void(Component*, Graphics)> handler)
+        [[nodiscard]] EventSubscription<void> SubscribePostUpdate(std::function<void()> handler)
+        {
+            return _postUpdate->Subscribe(handler);
+        }
+        [[nodiscard]] EventSubscription<void, Component*, Graphics> SubscribePostDraw(std::function<void(Component*, Graphics)> handler)
         {
             return _postDraw->Subscribe(handler);
+        }
+        [[nodiscard]] EventSubscription<void, Component*, Graphics> SubscribePostContentDraw(std::function<void(Component*, Graphics)> handler)
+        {
+            return _postContentDraw->Subscribe(handler);
         }
 
         // Layout events
 
-        EventSubscription<void> SubscribeOnLayoutChanged(std::function<void()> handler)
+        [[nodiscard]] EventSubscription<void> SubscribeOnLayoutChanged(std::function<void()> handler)
         {
             return _onLayoutChanged->Subscribe(handler);
         }
@@ -1023,11 +1096,10 @@ namespace zcom
             // TODO: This safeguard is not always necessary, so it would make sense to provide
             // the ability to disable this behavior for a component (or maybe opt-in)
             std::unique_lock<std::mutex> lock(_m_pendingActions);
-            std::vector<std::function<void()>> pendingActionsCopy = _pendingActions;
-            _pendingActions.clear();
+            std::vector<PendingAction> pendingActionsToExecute = zutil::Extract(_pendingActions, [](const PendingAction& action) { return action.executionTime <= ztime::Main(); });
             lock.unlock();
-            for (auto& action : pendingActionsCopy)
-                action();
+            for (auto& action : pendingActionsToExecute)
+                action.action();
 
             // Show hover text
             if (_hoverWaiting && (ztime::Main() - _hoverStart) >= _hoverTextDelay)
@@ -1037,13 +1109,14 @@ namespace zcom
             }
 
             _OnUpdate();
+            _postUpdate->InvokeAll();
         }
 
         // If this function returns true, the 'Draw()' function should be called
         // to redraw any visual changes
         virtual bool Redraw()
         {
-            return _redraw || !_canvas || _Redraw();
+            return _redraw || (!_canvas && _width != 0 && _height != 0) || _Redraw();
         }
 
         virtual void InvokeRedraw()
@@ -1106,8 +1179,15 @@ namespace zcom
                         ),
                         &contentBitmap
                     );
-                    g.target->GetTarget(&stash);
-                    g.target->SetTarget(contentBitmap);
+                    if (contentBitmap)
+                    {
+                        g.target->GetTarget(&stash);
+                        g.target->SetTarget(contentBitmap);
+                    }
+                    else
+                    {
+                        // TODO: Logging
+                    }
                 }
 
                 // Draw background
@@ -1121,8 +1201,90 @@ namespace zcom
                     );
                 }
 
+
                 // Draw component
+                _preContentDraw->InvokeAll(this, g);
                 _OnDraw(g);
+                _postContentDraw->InvokeAll(this, g);
+
+                if (rounding > 0.0f)
+                {
+                    if (contentBitmap)
+                    {
+                        // Round corners
+                        ID2D1Bitmap1* opacityMask = nullptr;
+                        g.target->CreateBitmap(
+                            D2D1::SizeU(_width, _height),
+                            nullptr,
+                            0,
+                            D2D1::BitmapProperties1(
+                                D2D1_BITMAP_OPTIONS_TARGET,
+                                { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
+                            ),
+                            &opacityMask
+                        );
+                        if (opacityMask)
+                        {
+                            g.target->SetTarget(opacityMask);
+                            g.target->Clear();
+
+                            D2D1_ROUNDED_RECT roundedrect{};
+                            roundedrect.radiusX = _cornerRounding;
+                            roundedrect.radiusY = _cornerRounding;
+                            roundedrect.rect.left = 0;
+                            roundedrect.rect.top = 0;
+                            roundedrect.rect.right = (float)_width;
+                            roundedrect.rect.bottom = (float)_height;
+                            ID2D1SolidColorBrush* opacityBrush;
+                            g.target->CreateSolidColorBrush(D2D1::ColorF(0), &opacityBrush);
+                            if (opacityBrush)
+                            {
+                                g.target->FillRoundedRectangle(roundedrect, opacityBrush);
+                                opacityBrush->Release();
+                            }
+                            else
+                            {
+                                // TODO: Logging
+                            }
+
+                            g.target->SetTarget(stash);
+                            stash->Release();
+
+                            ID2D1BitmapBrush* bitmapBrush;
+                            g.target->CreateBitmapBrush(
+                                contentBitmap,
+                                D2D1::BitmapBrushProperties(
+                                    D2D1_EXTEND_MODE_CLAMP,
+                                    D2D1_EXTEND_MODE_CLAMP,
+                                    D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR
+                                ),
+                                &bitmapBrush
+                            );
+                            if (bitmapBrush)
+                            {
+                                g.target->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
+                                g.target->FillOpacityMask(opacityMask, bitmapBrush, D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
+                                g.target->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
+                                g.target->Flush();
+                                bitmapBrush->Release();
+                            }
+                            else
+                            {
+                                // TODO: Logging
+                            }
+                            opacityMask->Release();
+                        }
+                        else
+                        {
+                            // TODO: Logging
+                        }
+                        contentBitmap->Release();
+                    }
+                    else
+                    {
+                        // TODO: Logging
+                    }
+                }
 
                 // Draw border
                 if (_borderVisible)
@@ -1146,6 +1308,10 @@ namespace zcom
                         }
                         borderBrush->Release();
                     }
+                    else
+                    {
+                        // TODO: Logging
+                    }
                 }
                 if (_selected)
                 {
@@ -1168,58 +1334,10 @@ namespace zcom
                         }
                         borderBrush->Release();
                     }
-                }
-
-                if (rounding > 0.0f)
-                {
-                    // Round corners
-                    ID2D1Bitmap1* opacityMask = nullptr;
-                    g.target->CreateBitmap(
-                        D2D1::SizeU(_width, _height),
-                        nullptr,
-                        0,
-                        D2D1::BitmapProperties1(
-                            D2D1_BITMAP_OPTIONS_TARGET,
-                            { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
-                        ),
-                        &opacityMask
-                    );
-                    g.target->SetTarget(opacityMask);
-                    g.target->Clear();
-
-                    D2D1_ROUNDED_RECT roundedrect{};
-                    roundedrect.radiusX = _cornerRounding;
-                    roundedrect.radiusY = _cornerRounding;
-                    roundedrect.rect.left = 0;
-                    roundedrect.rect.top = 0;
-                    roundedrect.rect.right = (float)_width;
-                    roundedrect.rect.bottom = (float)_height;
-                    ID2D1SolidColorBrush* opacityBrush;
-                    g.target->CreateSolidColorBrush(D2D1::ColorF(0), &opacityBrush);
-                    g.target->FillRoundedRectangle(roundedrect, opacityBrush);
-                    opacityBrush->Release();
-
-                    g.target->SetTarget(stash);
-                    stash->Release();
-
-                    ID2D1BitmapBrush* bitmapBrush;
-                    g.target->CreateBitmapBrush(
-                        contentBitmap,
-                        D2D1::BitmapBrushProperties(
-                            D2D1_EXTEND_MODE_CLAMP,
-                            D2D1_EXTEND_MODE_CLAMP,
-                            D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR
-                        ),
-                        &bitmapBrush
-                    );
-
-                    g.target->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
-                    g.target->FillOpacityMask(opacityMask, bitmapBrush, D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
-                    g.target->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
-                    g.target->Flush();
-                    bitmapBrush->Release();
-                    opacityMask->Release();
-                    contentBitmap->Release();
+                    else
+                    {
+                        // TODO: Logging
+                    }
                 }
 
                 // If inactive, gray out the canvas
@@ -1237,27 +1355,43 @@ namespace zcom
                         &grayscaleBitmap
                     );
 
-                    ID2D1Effect* grayscaleEffect;
-                    g.target->CreateEffect(CLSID_D2D1Grayscale, &grayscaleEffect);
-                    grayscaleEffect->SetInput(0, _canvas);
-                    ID2D1Effect* brightnessEffect;
-                    g.target->CreateEffect(CLSID_D2D1Brightness, &brightnessEffect);
-                    brightnessEffect->SetInputEffect(0, grayscaleEffect);
-                    brightnessEffect->SetValue(D2D1_BRIGHTNESS_PROP_WHITE_POINT, D2D1::Vector2F(1.0f, 0.6f));
-                    brightnessEffect->SetValue(D2D1_BRIGHTNESS_PROP_BLACK_POINT, D2D1::Vector2F(1.0f, 0.6f));
+                    if (grayscaleBitmap)
+                    {
+                        ID2D1Effect* grayscaleEffect;
+                        g.target->CreateEffect(CLSID_D2D1Grayscale, &grayscaleEffect);
+                        ID2D1Effect* brightnessEffect;
+                        g.target->CreateEffect(CLSID_D2D1Brightness, &brightnessEffect);
+                        if (grayscaleEffect && brightnessEffect)
+                        {
+                            grayscaleEffect->SetInput(0, _canvas);
+                            brightnessEffect->SetInputEffect(0, grayscaleEffect);
+                            brightnessEffect->SetValue(D2D1_BRIGHTNESS_PROP_WHITE_POINT, D2D1::Vector2F(1.0f, 0.6f));
+                            brightnessEffect->SetValue(D2D1_BRIGHTNESS_PROP_BLACK_POINT, D2D1::Vector2F(1.0f, 0.6f));
 
-                    g.target->GetTarget(&stash);
-                    g.target->SetTarget(grayscaleBitmap);
-                    g.target->Clear();
-                    g.target->DrawImage(brightnessEffect);
-                    g.target->SetTarget(stash);
-                    g.target->Clear();
-                    g.target->DrawBitmap(grayscaleBitmap);
+                            g.target->GetTarget(&stash);
+                            g.target->SetTarget(grayscaleBitmap);
+                            g.target->Clear();
+                            g.target->DrawImage(brightnessEffect);
+                            g.target->SetTarget(stash);
+                            g.target->Clear();
+                            g.target->DrawBitmap(grayscaleBitmap);
 
-                    stash->Release();
-                    brightnessEffect->Release();
-                    grayscaleEffect->Release();
-                    grayscaleBitmap->Release();
+                            stash->Release();
+                            if (brightnessEffect)
+                                brightnessEffect->Release();
+                            if (grayscaleEffect)
+                                grayscaleEffect->Release();
+                        }
+                        else
+                        {
+                            // TODO: Logging
+                        }
+                        grayscaleBitmap->Release();
+                    }
+                    else
+                    {
+                        // TODO: Logging
+                    }
                 }
 
                 // Invoke post draw handlers

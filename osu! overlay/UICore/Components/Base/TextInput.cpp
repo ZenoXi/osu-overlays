@@ -6,7 +6,8 @@
 void zcom::TextInput::_OnSelected(bool reverse)
 {
     _scene->GetWindow()->keyboardManager.SetExclusiveHandler(this);
-    GetKeyboardState(_keyStates);
+    BOOL result = GetKeyboardState(_keyStates);
+    // TODO: Logging
 
     _initialText = _textLabel->GetText();
 }
@@ -20,5 +21,5 @@ void zcom::TextInput::_OnDeselected()
         _textLabel->SetText(_initialText);
 
     _textLabel->SetSelectionStart(0);
-    _textLabel->SetSelectionLength(0);
+    _textLabel->SetSelectionEnd(0);
 }

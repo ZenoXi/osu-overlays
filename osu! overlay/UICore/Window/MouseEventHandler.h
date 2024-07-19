@@ -2,8 +2,6 @@
 
 class MouseEventHandler
 {
-    //friend class DisplayWindow;
-
 protected:
     bool _mouseInside = false;
     bool _mouseLeftClicked = false;

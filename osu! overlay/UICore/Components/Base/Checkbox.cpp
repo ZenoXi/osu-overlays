@@ -3,12 +3,14 @@
 #include "Scenes/Scene.h"
 #include "Window/Window.h"
 
-void zcom::Checkbox::Checked(bool checked)
+void zcom::Checkbox::Checked(bool checked, bool emitChangeEvent)
 {
     if (_checked == checked)
-    return;
+        return;
 
     _checked = checked;
+    if (emitChangeEvent)
+        _onStateChanged->InvokeAll(_checked);
     InvokeRedraw();
 }
 
@@ -63,8 +65,15 @@ void zcom::Checkbox::_OnDraw(Graphics g)
         rrect.rect = { 5.0f, 5.0f, size.width - 5.0f, size.height - 5.0f };
         ID2D1SolidColorBrush* brush = nullptr;
         g.target->CreateSolidColorBrush(finalCheckColor, &brush);
-        g.target->FillRoundedRectangle(rrect, brush);
-        brush->Release();
+        if (brush)
+        {
+            g.target->FillRoundedRectangle(rrect, brush);
+            brush->Release();
+        }
+        else
+        {
+            // TODO: Logging
+        }
     }
     else
     {
@@ -72,15 +81,21 @@ void zcom::Checkbox::_OnDraw(Graphics g)
         D2D1_RECT_F rect = { 5.0f, 5.0f, size.width - 5.0f, size.height - 5.0f };
         ID2D1SolidColorBrush* brush = nullptr;
         g.target->CreateSolidColorBrush(finalCheckColor, &brush);
-        g.target->FillRectangle(rect, brush);
-        brush->Release();
+        if (brush)
+        {
+            g.target->FillRectangle(rect, brush);
+            brush->Release();
+        }
+        else
+        {
+            // TODO: Logging
+        }
     }
 }
 
 zcom::EventTargets zcom::Checkbox::_OnLeftPressed(int x, int y)
 {
     Checked(!Checked());
-    _onStateChanged->InvokeAll(Checked());
     InvokeRedraw();
     return EventTargets().Add(this, x, y);
 }
@@ -90,7 +105,6 @@ bool zcom::Checkbox::_OnKeyDown(BYTE vkCode)
     if (vkCode == VK_RETURN)
     {
         Checked(!Checked());
-        _onStateChanged->InvokeAll(Checked());
         return true;
     }
     return false;

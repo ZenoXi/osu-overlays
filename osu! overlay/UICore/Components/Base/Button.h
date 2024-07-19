@@ -26,203 +26,26 @@ namespace zcom
 
     class Button : public Component, public KeyboardEventHandler
     {
-#pragma region base_class
+        DEFINE_COMPONENT(Button, Component)
+        DEFAULT_DESTRUCTOR(Button)
     protected:
-        bool _Redraw() override
-        {
-            return _text->Redraw()
-                || _image->Redraw()
-                || _imageHovered->Redraw()
-                || _imageClicked->Redraw();
-        }
-
-        void _OnDraw(Graphics g) override
-        {
-            // Update images
-            if (_image->Redraw())
-                _image->Draw(g);
-            if (_imageHovered->Redraw())
-                _imageHovered->Draw(g);
-            if (_imageClicked->Redraw())
-                _imageClicked->Draw(g);
-
-            D2D1_COLOR_F color;
-            zcom::Image* image = nullptr;
-            if (GetMouseLeftClicked())
-            {
-                if (GetMouseInsideArea())
-                {
-                    color = _colorClicked;
-                    image = _imageClicked.get();
-                }
-                else
-                {
-                    color = _color;
-                    image = _image.get();
-                }
-            }
-            else
-            {
-                if (GetMouseInside())
-                {
-                    color = _colorHovered;
-                    image = _imageHovered.get();
-                }
-                else
-                {
-                    color = _color;
-                    image = _image.get();
-                }
-            }
-            // Draw button color
-            ID2D1SolidColorBrush* brush;
-            g.target->CreateSolidColorBrush(color, &brush);
-            g.target->FillRectangle
-            (
-                D2D1::RectF(0, 0, g.target->GetSize().width, g.target->GetSize().height),
-                brush
-            );
-            brush->Release();
-
-            // Draw button image
-            if (image && image->GetImage())
-                g.target->DrawBitmap(image->ContentImage());
-
-            // Draw button text
-            g.target->DrawBitmap(
-                _text->Draw(g),
-                D2D1::RectF(
-                    _text->GetX(),
-                    _text->GetY(),
-                    _text->GetX() + _text->GetWidth(),
-                    _text->GetY() + _text->GetHeight()
-                )
-            );
-        }
-
-        void _OnResize(int width, int height) override
-        {
-            _text->Resize(width, height);
-            _image->Resize(width, height);
-            _imageHovered->Resize(width, height);
-            _imageClicked->Resize(width, height);
-        }
-
-        void _OnMouseEnter() override
-        {
-            InvokeRedraw();
-        }
-
-        void _OnMouseLeave() override
-        {
-            InvokeRedraw();
-        }
-
-        void _OnMouseEnterArea() override
-        {
-            InvokeRedraw();
-        }
-
-        void _OnMouseLeaveArea() override
-        {
-            InvokeRedraw();
-        }
-
-        EventTargets _OnLeftPressed(int x, int y) override
-        {
-            if (_activation == ButtonActivation::PRESS || _activation == ButtonActivation::PRESS_AND_RELEASE)
-            {
-                _activated = true;
-                _onActivated->InvokeAll();
-            }
-            InvokeRedraw();
-            return EventTargets().Add(this, x, y);
-        }
-
-        EventTargets _OnLeftReleased(int x, int y) override
-        {
-            if (GetMouseInsideArea())
-            {
-                if (_activation == ButtonActivation::RELEASE || _activation == ButtonActivation::PRESS_AND_RELEASE)
-                {
-                    _activated = true;
-                    _onActivated->InvokeAll();
-                }
-            }
-            InvokeRedraw();
-            return EventTargets().Add(this, x, y);
-        }
-
-        void _OnSelected(bool reverse) override;
-
-        void _OnDeselected() override;
-
-        bool _OnHotkey(int id) override
-        {
-            return false;
-        }
-
-        bool _OnKeyDown(BYTE vkCode) override
-        {
-            if (vkCode == VK_RETURN)
-            {
-                _onActivated->InvokeAll();
-                return true;
-            }
-            return false;
-        }
-
-        bool _OnKeyUp(BYTE vkCode) override
-        {
-            return false;
-        }
-
-        bool _OnChar(wchar_t ch) override
-        {
-            return false;
-        }
-
-    public:
-        const char* GetName() const override { return Name(); }
-        static const char* Name() { return "button"; }
-#pragma endregion
-
-    private:
-        bool _activated = false;
-        ButtonActivation _activation = ButtonActivation::RELEASE;
-        EventEmitter<void> _onActivated;
-
-        bool _hovered = false;
-
-        std::unique_ptr<Label> _text = nullptr;
-        std::unique_ptr<zcom::Image> _image = nullptr;
-        std::unique_ptr<zcom::Image> _imageHovered = nullptr;
-        std::unique_ptr<zcom::Image> _imageClicked = nullptr;
-        D2D1_COLOR_F _color = D2D1::ColorF(0, 0.0f);
-        D2D1_COLOR_F _colorHovered = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.1f);
-        D2D1_COLOR_F _colorClicked = D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.1f);
-
-    protected:
-        friend class Scene;
-        friend class Component;
-        Button(Scene* scene) : Component(scene) {}
         void Init(std::wstring text, ButtonPreset preset)
         {
             SetDefaultCursor(zwnd::CursorIcon::HAND);
             SetSelectable(true);
 
-            _text = Create<Label>(text);
+            _text = Create<zcom::Label>(text);
             _text->SetSize(GetWidth(), GetHeight());
             _text->SetHorizontalTextAlignment(TextAlignment::CENTER);
             _text->SetVerticalTextAlignment(Alignment::CENTER);
 
-            _image = Create<zcom::Image>();
+            _image = Create<Image>();
             _image->SetSize(GetWidth(), GetHeight());
             _image->SetPlacement(ImagePlacement::FIT);
-            _imageHovered = Create<zcom::Image>();
+            _imageHovered = Create<Image>();
             _imageHovered->SetSize(GetWidth(), GetHeight());
             _imageHovered->SetPlacement(ImagePlacement::FIT);
-            _imageClicked = Create<zcom::Image>();
+            _imageClicked = Create<Image>();
             _imageClicked->SetSize(GetWidth(), GetHeight());
             _imageClicked->SetPlacement(ImagePlacement::FIT);
 
@@ -241,13 +64,8 @@ namespace zcom
         {
             Init(L"", ButtonPreset::DEFAULT);
         }
-    public:
-        ~Button() {}
-        Button(Button&&) = delete;
-        Button& operator=(Button&&) = delete;
-        Button(const Button&) = delete;
-        Button& operator=(const Button&) = delete;
 
+    public:
         void SetButtonImageAll(ID2D1Bitmap* image)
         {
             _image->SetImage(image);
@@ -395,9 +213,187 @@ namespace zcom
             return value;
         }
 
-        Label* Text()
+        Label* Label()
         {
             return _text.get();
+        }
+
+    private:
+        bool _activated = false;
+        ButtonActivation _activation = ButtonActivation::RELEASE;
+        EventEmitter<void> _onActivated;
+
+        bool _hovered = false;
+
+        std::unique_ptr<zcom::Label> _text = nullptr;
+        std::unique_ptr<Image> _image = nullptr;
+        std::unique_ptr<Image> _imageHovered = nullptr;
+        std::unique_ptr<Image> _imageClicked = nullptr;
+        D2D1_COLOR_F _color = D2D1::ColorF(0, 0.0f);
+        D2D1_COLOR_F _colorHovered = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.1f);
+        D2D1_COLOR_F _colorClicked = D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.1f);
+
+    protected:
+        bool _Redraw() override
+        {
+            return _text->Redraw()
+                || _image->Redraw()
+                || _imageHovered->Redraw()
+                || _imageClicked->Redraw();
+        }
+
+        void _OnDraw(Graphics g) override
+        {
+            // Update images
+            if (_image->Redraw())
+                _image->Draw(g);
+            if (_imageHovered->Redraw())
+                _imageHovered->Draw(g);
+            if (_imageClicked->Redraw())
+                _imageClicked->Draw(g);
+
+            D2D1_COLOR_F color;
+            zcom::Image* image = nullptr;
+            if (GetMouseLeftClicked())
+            {
+                if (GetMouseInsideArea())
+                {
+                    color = _colorClicked;
+                    image = _imageClicked.get();
+                }
+                else
+                {
+                    color = _color;
+                    image = _image.get();
+                }
+            }
+            else
+            {
+                // TODO: Bug - after releasing the left button, if cursor is outside of button and isn't moved, the button stays with hovered visuals
+                if (GetMouseInside())
+                {
+                    color = _colorHovered;
+                    image = _imageHovered.get();
+                }
+                else
+                {
+                    color = _color;
+                    image = _image.get();
+                }
+            }
+            // Draw button color
+            ID2D1SolidColorBrush* brush;
+            g.target->CreateSolidColorBrush(color, &brush);
+            if (brush)
+            {
+                g.target->FillRectangle
+                (
+                    D2D1::RectF(0, 0, g.target->GetSize().width, g.target->GetSize().height),
+                    brush
+                );
+                brush->Release();
+            }
+            else
+            {
+                // TODO: Logging
+            }
+
+            // Draw button image
+            if (image && image->GetImage())
+                g.target->DrawBitmap(image->ContentImage());
+
+            // Draw button text
+            g.target->DrawBitmap(
+                _text->Draw(g),
+                D2D1::RectF(
+                    (FLOAT)_text->GetX(),
+                    (FLOAT)_text->GetY(),
+                    (FLOAT)(_text->GetX() + _text->GetWidth()),
+                    (FLOAT)(_text->GetY() + _text->GetHeight())
+                )
+            );
+        }
+
+        void _OnResize(int width, int height) override
+        {
+            _text->Resize(width, height);
+            _image->Resize(width, height);
+            _imageHovered->Resize(width, height);
+            _imageClicked->Resize(width, height);
+        }
+
+        void _OnMouseEnter() override
+        {
+            InvokeRedraw();
+        }
+
+        void _OnMouseLeave() override
+        {
+            InvokeRedraw();
+        }
+
+        void _OnMouseEnterArea() override
+        {
+            InvokeRedraw();
+        }
+
+        void _OnMouseLeaveArea() override
+        {
+            InvokeRedraw();
+        }
+
+        EventTargets _OnLeftPressed(int x, int y) override
+        {
+            if (_activation == ButtonActivation::PRESS || _activation == ButtonActivation::PRESS_AND_RELEASE)
+            {
+                _activated = true;
+                _onActivated->InvokeAll();
+            }
+            InvokeRedraw();
+            return EventTargets().Add(this, x, y);
+        }
+
+        EventTargets _OnLeftReleased(int x, int y) override
+        {
+            if (GetMouseInsideArea())
+            {
+                if (_activation == ButtonActivation::RELEASE || _activation == ButtonActivation::PRESS_AND_RELEASE)
+                {
+                    _activated = true;
+                    _onActivated->InvokeAll();
+                }
+            }
+            InvokeRedraw();
+            return EventTargets().Add(this, x, y);
+        }
+
+        void _OnSelected(bool reverse) override;
+
+        void _OnDeselected() override;
+
+        bool _OnHotkey(int id) override
+        {
+            return false;
+        }
+
+        bool _OnKeyDown(BYTE vkCode) override
+        {
+            if (vkCode == VK_RETURN)
+            {
+                _onActivated->InvokeAll();
+                return true;
+            }
+            return false;
+        }
+
+        bool _OnKeyUp(BYTE vkCode) override
+        {
+            return false;
+        }
+
+        bool _OnChar(wchar_t ch) override
+        {
+            return false;
         }
     };
 }

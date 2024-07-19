@@ -21,6 +21,14 @@ class App;
 
 namespace zwnd
 {
+    struct ResizeInfo
+    {
+        bool windowMaximized = false;
+        bool windowMinimized = false;
+        bool windowRestored = false;
+        bool windowFullscreened = false;
+    };
+
     class Window
     {
     public: // Initialization
@@ -169,19 +177,16 @@ namespace zwnd
         // Finds an active scene with the specified name and returns its index (or null if not found)
         int _GetSceneIndex(std::string name);
     private:
+        // A special scene used for managing scene layout and rendering behind title bar and client area
+        std::unique_ptr<zcom::DefaultNonClientAreaScene> _nonClientAreaScene;
+        // A special scene containing the title bar. Its customization allows for custom title bars
+        std::unique_ptr<zcom::DefaultTitleBarScene> _titleBarScene;
         // All currently active scenes
         // The scenes are drawn on top of each other, starting with the index 0
         // This means that the bottom-most scene is at index 0 and top-most scene is at the end of the vector
         std::vector<std::unique_ptr<zcom::Scene>> _activeScenes;
         // Scenes which are set to be uninitialized at the end of the frame
         std::deque<std::string> _scenesToUninitialize;
-        // A special scene containing the title bar. Its customization allows for custom title bars
-        std::unique_ptr<zcom::DefaultTitleBarScene> _titleBarScene;
-        // A special scene containing the non client area and its parameters
-        // Used to render behind the title bar and client area
-        std::unique_ptr<zcom::DefaultNonClientAreaScene> _nonClientAreaScene;
-        // Set to true when any change to '_activeScenes' list occurs
-        bool _sceneChanged = true;
 
     private: // Fullscreen
         // In fullscreen mode title bar and non client area is not drawn
@@ -234,6 +239,7 @@ namespace zwnd
         void _PassParamsToHitTest();
         // Returns a panel containing main panels from all scenes, in screen space
         std::unique_ptr<zcom::Panel> _BuildMasterPanel();
+        void _UpdateSceneZIndices();
         bool _TitleBarAvailable();
     };
 
@@ -242,17 +248,24 @@ namespace zwnd
     // /////////////////// //
 
     template<class _Scene>
-    void Window::LoadTitleBarScene(zcom::SceneOptionsBase* opt)
+    void Window::LoadNonClientAreaScene(zcom::SceneOptionsBase* opt)
     {
-        _titleBarScene = std::make_unique<_Scene>(_app, this);
-        ((zcom::Scene*)_titleBarScene.get())->Init(opt);
+        _nonClientAreaScene = std::make_unique<_Scene>();
+        ((zcom::Scene*)_nonClientAreaScene.get())->SetApp(_app);
+        ((zcom::Scene*)_nonClientAreaScene.get())->SetWindow(this);
+        ((zcom::Scene*)_nonClientAreaScene.get())->SetBasePanel(nullptr);
+        ((zcom::Scene*)_nonClientAreaScene.get())->Init(opt);
     }
 
     template<class _Scene>
-    void Window::LoadNonClientAreaScene(zcom::SceneOptionsBase* opt)
+    void Window::LoadTitleBarScene(zcom::SceneOptionsBase* opt)
     {
-        _nonClientAreaScene = std::make_unique<_Scene>(_app, this);
-        ((zcom::Scene*)_nonClientAreaScene.get())->Init(opt);
+        _titleBarScene = std::make_unique<_Scene>();
+        ((zcom::Scene*)_titleBarScene.get())->SetApp(_app);
+        ((zcom::Scene*)_titleBarScene.get())->SetWindow(this);
+        zcom::Panel* basePanel = _nonClientAreaScene->ProcessCreatedTitleBarScene(_titleBarScene.get());
+        ((zcom::Scene*)_titleBarScene.get())->SetBasePanel(basePanel);
+        ((zcom::Scene*)_titleBarScene.get())->Init(opt);
     }
 
     template<class _Scene>
@@ -264,11 +277,15 @@ namespace zwnd
     template<class _Scene>
     void Window::InitScene(zcom::SceneOptionsBase* opt)
     {
-        auto scene = std::make_unique<_Scene>(_app, this);
+        auto scene = std::make_unique<_Scene>();
+        ((zcom::Scene*)scene.get())->SetApp(_app);
+        ((zcom::Scene*)scene.get())->SetWindow(this);
+        zcom::Panel* basePanel = _nonClientAreaScene->ProcessCreatedScene(scene.get());
+        ((zcom::Scene*)scene.get())->SetBasePanel(basePanel);
         ((zcom::Scene*)scene.get())->Init(opt);
 
         _activeScenes.insert(_activeScenes.begin(), std::move(scene));
-        _sceneChanged = true;
+        _UpdateSceneZIndices();
     }
 
     template<class _Scene>
@@ -282,9 +299,17 @@ namespace zwnd
             if (it != _scenesToUninitialize.end())
                 _scenesToUninitialize.erase(it);
 
-            scene->Uninit();
-            scene->Init(opt);
-            _sceneChanged = true;
+            // Recreate scene object in place
+            ((zcom::Scene*)scene.get())->Uninit(opt);
+            zcom::Panel* basePanel = _nonClientAreaScene->ProcessRecreatedScene(scene.get());
+            scene->~_Scene();
+            new (scene) _Scene();
+            ((zcom::Scene*)scene.get())->SetApp(_app);
+            ((zcom::Scene*)scene.get())->SetWindow(this);
+            ((zcom::Scene*)scene.get())->SetBasePanel(basePanel);
+            ((zcom::Scene*)scene.get())->Init(opt);
+
+            _UpdateSceneZIndices();
         }
         else
         {
@@ -311,7 +336,7 @@ namespace zwnd
         auto sceneSPtr = std::move(_activeScenes[index]);
         _activeScenes.erase(_activeScenes.begin() + index);
         _activeScenes.push_back(std::move(sceneSPtr));
-        _sceneChanged = true;
+        _UpdateSceneZIndices();
         return true;
     }
 
@@ -328,7 +353,7 @@ namespace zwnd
         auto sceneSPtr = std::move(_activeScenes[index]);
         _activeScenes.erase(_activeScenes.begin() + index);
         _activeScenes.insert(_activeScenes.begin(), std::move(sceneSPtr));
-        _sceneChanged = true;
+        _UpdateSceneZIndices();
         return true;
     }
 
@@ -344,7 +369,7 @@ namespace zwnd
             return true;
 
         std::swap(_activeScenes[index], _activeScenes[index + 1]);
-        _sceneChanged = true;
+        _UpdateSceneZIndices();
         return true;
     }
 
@@ -360,7 +385,7 @@ namespace zwnd
             return true;
 
         std::swap(_activeScenes[index], _activeScenes[index - 1]);
-        _sceneChanged = true;
+        _UpdateSceneZIndices();
         return true;
     }
 
@@ -380,7 +405,7 @@ namespace zwnd
         auto sceneSPtr = std::move(_activeScenes[sceneIndex]);
         _activeScenes.erase(_activeScenes.begin() + sceneIndex);
         _activeScenes.insert(_activeScenes.begin() + behindSceneIndex, std::move(sceneSPtr));
-        _sceneChanged = true;
+        _UpdateSceneZIndices();
         return true;
     }
 
@@ -400,7 +425,7 @@ namespace zwnd
         auto sceneSPtr = std::move(_activeScenes[sceneIndex]);
         _activeScenes.erase(_activeScenes.begin() + sceneIndex);
         _activeScenes.insert(_activeScenes.begin() + inFrontSceneIndex + 1, std::move(sceneSPtr));
-        _sceneChanged = true;
+        _UpdateSceneZIndices();
         return true;
     }
 

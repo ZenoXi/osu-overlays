@@ -4,6 +4,7 @@
 
 void zcom::MenuItem::Init()
 {
+    _GenerateId();
     _separator = true;
 
     SetBaseHeight(3);
@@ -12,12 +13,13 @@ void zcom::MenuItem::Init()
 
 void zcom::MenuItem::Init(std::wstring text, std::function<void(bool)> onClick)
 {
+    _GenerateId();
     _onClick = onClick;
 
     _label = Create<Label>(text);
     _label->Resize(GetWidth() - 50, GetHeight());
     _label->SetVerticalTextAlignment(zcom::Alignment::CENTER);
-    _label->SetMargins({ 5.0f });
+    _label->SetPadding({ 5.0f });
     _label->SetCutoff(L"...");
     _label->SetFont(L"Segoe UI");
     _label->SetFontSize(13.0f);

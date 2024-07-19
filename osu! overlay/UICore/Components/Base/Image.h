@@ -37,6 +37,14 @@ namespace zcom
 
     class Image : public Component
     {
+        DEFINE_COMPONENT(Image, Component)
+        DEFAULT_DESTRUCTOR(Image)
+    protected:
+        void Init(ID2D1Bitmap* image = nullptr)
+        {
+            _image = image;
+        }
+
     public:
         void SetImage(ID2D1Bitmap* image)
         {
@@ -203,26 +211,9 @@ namespace zcom
             return _tintColor;
         }
 
-    protected:
-        friend class Scene;
-        friend class Component;
-        Image(Scene* scene) : Component(scene) {}
-        void Init(ID2D1Bitmap* image = nullptr)
-        {
-            _image = image;
-        }
-    public:
-        ~Image()
-        {
-        }
-        Image(Image&&) = delete;
-        Image& operator=(Image&&) = delete;
-        Image(const Image&) = delete;
-        Image& operator=(const Image&) = delete;
-
     private:
         ID2D1Bitmap* _image = nullptr;
-        RECT_F _sourceRect = { 0.0f, 0.0f, std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
+        RECT_F _sourceRect = {0.0f, 0.0f, std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
         RECT_F _targetRect = { -1.0f, -1.0f, -1.0f, -1.0f };
         ImagePlacement _placement = ImagePlacement::NONE;
         float _offsetX = 0.0f;
@@ -233,7 +224,6 @@ namespace zcom
         float _imageOpacity = 1.0f;
         D2D1_COLOR_F _tintColor = D2D1::ColorF(1.0f, 1.0f, 1.0f);
 
-#pragma region base_class
     protected:
         void _OnDraw(Graphics g) override
         {
@@ -282,7 +272,7 @@ namespace zcom
                 }
                 float width = targetRect.right - targetRect.left;
                 float height = targetRect.bottom - targetRect.top;
-                destRect = { left, top, left + width, top + height };
+                destRect = { left, top, left + width, top + height};
             }
             else if (_placement == ImagePlacement::FIT)
             {
@@ -418,40 +408,54 @@ namespace zcom
                 // Create tint effect
                 ID2D1Effect* tintEffect = nullptr;
                 HRESULT hr = g.target->CreateEffect(CLSID_CustomTintEffect, &tintEffect);
-                tintEffect->SetInput(0, _image);
-                D2D1_VECTOR_4F premultiplied = { _tintColor.r, _tintColor.g, _tintColor.b, _tintColor.a };
-                premultiplied.x *= premultiplied.w;
-                premultiplied.y *= premultiplied.w;
-                premultiplied.z *= premultiplied.w;
-                tintEffect->SetValue(CUSTOM_TINT_PROP_COLOR, premultiplied);
+                if (tintEffect)
+                {
+                    tintEffect->SetInput(0, _image);
+                    D2D1_VECTOR_4F premultiplied = { _tintColor.r, _tintColor.g, _tintColor.b, _tintColor.a };
+                    premultiplied.x *= premultiplied.w;
+                    premultiplied.y *= premultiplied.w;
+                    premultiplied.z *= premultiplied.w;
+                    tintEffect->SetValue(CUSTOM_TINT_PROP_COLOR, premultiplied);
 
-                ID2D1Image* stash = nullptr;
-                g.target->GetTarget(&stash);
+                    ID2D1Image* stash = nullptr;
+                    g.target->GetTarget(&stash);
 
-                // Draw to separate render target and use 'DrawBitmap' for scaling/placement
-                ID2D1Bitmap1* contentBitmap = nullptr;
-                g.target->CreateBitmap(
-                    D2D1::SizeU((UINT32)_image->GetSize().width, (UINT32)_image->GetSize().height),
-                    nullptr,
-                    0,
-                    D2D1::BitmapProperties1(
-                        D2D1_BITMAP_OPTIONS_TARGET,
-                        { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
-                    ),
-                    &contentBitmap
-                );
-                g.target->SetTarget(contentBitmap);
-                g.target->Clear();
-                g.target->DrawImage(tintEffect);
-                g.target->SetTarget(stash);
-                stash->Release();
-                // Flush here (before DrawBitmap) because otherwise some bullshit interaction causes things rendered to the
-                // content bitmap to sometimes not show up (ONLY  when usiNG D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC!!@.!?!?!?2!)
-                g.target->Flush();
-                g.target->DrawBitmap(contentBitmap, destRect, _imageOpacity, D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC, srcRect);
+                    // Draw to separate render target and use 'DrawBitmap' for scaling/placement
+                    ID2D1Bitmap1* contentBitmap = nullptr;
+                    g.target->CreateBitmap(
+                        D2D1::SizeU((UINT32)_image->GetSize().width, (UINT32)_image->GetSize().height),
+                        nullptr,
+                        0,
+                        D2D1::BitmapProperties1(
+                            D2D1_BITMAP_OPTIONS_TARGET,
+                            { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
+                        ),
+                        &contentBitmap
+                    );
+                    if (contentBitmap)
+                    {
+                        g.target->SetTarget(contentBitmap);
+                        g.target->Clear();
+                        g.target->DrawImage(tintEffect);
+                        g.target->SetTarget(stash);
+                        stash->Release();
+                        // Flush here (before DrawBitmap) because otherwise some bullshit interaction causes things rendered to the
+                        // content bitmap to sometimes not show up (ONLY  when usiNG D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC!!@.!?!?!?2!)
+                        g.target->Flush();
+                        g.target->DrawBitmap(contentBitmap, destRect, _imageOpacity, D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC, srcRect);
 
-                contentBitmap->Release();
-                tintEffect->Release();
+                        contentBitmap->Release();
+                    }
+                    else
+                    {
+                        // TODO: Logging
+                    }
+                    tintEffect->Release();
+                }
+                else
+                {
+                    // TODO: Logging
+                }
             }
             else
             {
@@ -459,10 +463,5 @@ namespace zcom
                 g.target->DrawBitmap(_image, destRect, _imageOpacity, D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC, srcRect);
             }
         }
-
-    public:
-        const char* GetName() const override { return Name(); }
-        static const char* Name() { return "image"; }
-#pragma endregion
     };
 }

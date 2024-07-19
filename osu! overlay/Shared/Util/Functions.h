@@ -12,8 +12,8 @@
 // Helper structs
 struct LineFunc
 {
-    float k;
-    float b;
+    float k = 0;
+    float b = 0;
     bool vertical = false;
 
     float ValueY(float x) const { return k * x + b; }

@@ -32,8 +32,8 @@ std::string exer_str_until(std::string& str, char tc = ' ');
 template<size_t Count>
 void split_str(const std::string& str, std::array<std::string, Count>& output, char split, bool ignoreEmpty)
 {
-    int beginIndex = 0;
-    for (int count = 0; count < output.size(); count++)
+    size_t beginIndex = 0;
+    for (size_t count = 0; count < output.size(); count++)
     {
         // Find start point
         if (ignoreEmpty)
@@ -44,7 +44,7 @@ void split_str(const std::string& str, std::array<std::string, Count>& output, c
         if (count == output.size() - 1)
             break;
 
-        for (int i = beginIndex; i < str.length(); i++)
+        for (size_t i = beginIndex; i < str.length(); i++)
         {
             if (str[i] == split)
             {
@@ -60,8 +60,8 @@ void split_str(const std::string& str, std::array<std::string, Count>& output, c
 template<size_t Count>
 void split_wstr(const std::wstring& str, std::array<std::wstring, Count>& output, wchar_t split, bool ignoreEmpty)
 {
-    int beginIndex = 0;
-    for (int count = 0; count < output.size(); count++)
+    size_t beginIndex = 0;
+    for (size_t count = 0; count < output.size(); count++)
     {
         // Find start point
         if (ignoreEmpty)
@@ -72,7 +72,7 @@ void split_wstr(const std::wstring& str, std::array<std::wstring, Count>& output
         if (count == output.size() - 1)
             break;
 
-        for (int i = beginIndex; i < str.length(); i++)
+        for (size_t i = beginIndex; i < str.length(); i++)
         {
             if (str[i] == split)
             {

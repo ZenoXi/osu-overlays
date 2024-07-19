@@ -14,31 +14,34 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
     {
         // Input properties
 
-        int baseSizeAlong;
-        int baseSizePerp;
-        float parentSizeRatioAlong;
-        float parentSizeRatioPerp;
-        int offsetAlong;
-        int offsetPerp;
-        float offsetRatioAlong;
-        float offsetRatioPerp;
-        Alignment alignmentAlong;
-        Alignment alignmentPerp;
+        int baseSizeAlong = 0;
+        int baseSizePerp = 0;
+        float parentSizeRatioAlong = 0;
+        float parentSizeRatioPerp = 0;
+        int offsetAlong = 0;
+        int offsetPerp = 0;
+        float offsetRatioAlong = 0;
+        float offsetRatioPerp = 0;
+        Alignment alignmentAlong = Alignment::START;
+        Alignment alignmentPerp = Alignment::START;
         std::optional<float> flexGrow = std::nullopt;
         std::optional<float> flexShrink = std::nullopt;
         std::optional<int> flexMaxSize = std::nullopt;
         std::optional<int> flexMinSize = std::nullopt;
         std::optional<Alignment> flexAlign = std::nullopt;
+        int flexMarginBefore = 0;
+        int flexMarginAfter = 0;
 
         // Output properties
 
-        int calculatedSizeAlong;
-        int sizeAlong;
-        int sizePerp;
-        int posAlong;
-        int posPerp;
+        int calculatedSizeAlong = 0;
+        int sizeAlong = 0;
+        int sizePerp = 0;
+        int posAlong = 0;
+        int posPerp = 0;
 
         // Other
+        bool first = false;
         bool last = false;
     };
 
@@ -75,6 +78,8 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
         FlexMaxSize flexMaxSizeProp = item->GetProperty<FlexMaxSize>();
         FlexMinSize flexMinSizeProp = item->GetProperty<FlexMinSize>();
         FlexAlign flexAlignProp = item->GetProperty<FlexAlign>();
+        FlexMarginBefore flexMarginBeforeProp = item->GetProperty<FlexMarginBefore>();
+        FlexMarginAfter flexMarginAfterProp = item->GetProperty<FlexMarginAfter>();
         if (flexGrowProp.valid)
             layoutDescs[i].flexGrow = flexGrowProp.ratio;
         if (flexShrinkProp.valid)
@@ -85,7 +90,13 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
             layoutDescs[i].flexMinSize = flexMinSizeProp.value;
         if (flexAlignProp.valid)
             layoutDescs[i].flexAlign = flexAlignProp.value;
+        if (flexMarginBeforeProp.valid)
+            layoutDescs[i].flexMarginBefore = flexMarginBeforeProp.value;
+        if (flexMarginAfterProp.valid)
+            layoutDescs[i].flexMarginAfter = flexMarginAfterProp.value;
 
+        if (i == 0)
+            layoutDescs[i].first = true;
         if (i == visibleItems.size() - 1)
             layoutDescs[i].last = true;
     }
@@ -116,7 +127,7 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
         {
             item.calculatedSizeAlong = (int)std::round(item.parentSizeRatioAlong * sizeWithoutPaddingAlong) + item.baseSizeAlong;
             item.sizeAlong = item.calculatedSizeAlong; // Will be overwritten if flex grow/shrink is applied
-            totalCalculatedSizeAlong += item.calculatedSizeAlong + (!item.last ? _spacing : 0);
+            totalCalculatedSizeAlong += item.calculatedSizeAlong + (!item.last ? _spacing : 0) + item.flexMarginBefore + item.flexMarginAfter;
             flexGrowRatioSum += item.flexGrow.value_or(0.0f);
             flexShrinkRatioSum += item.flexShrink.value_or(0.0f);
         }
@@ -163,7 +174,7 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
     // Offset along flex direction
     int layoutSizeAlong = 0;
     for (auto& item : layoutDescs)
-        layoutSizeAlong += item.sizeAlong + (!item.last ? _spacing : 0);
+        layoutSizeAlong += item.sizeAlong + (!item.last ? _spacing : 0) + item.flexMarginBefore + item.flexMarginAfter;
     int offset = 0;
     int reversedStartPos = 0;
     if (reversedFlex)
@@ -176,10 +187,10 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
     for (auto& item : layoutDescs)
     {
         if (!reversedFlex)
-            item.posAlong = offset;
+            item.posAlong = offset + item.flexMarginBefore;
         else
-            item.posAlong = reversedStartPos - offset - item.sizeAlong;
-        offset += item.sizeAlong + _spacing;
+            item.posAlong = reversedStartPos - offset - item.flexMarginBefore - item.sizeAlong;
+        offset += item.sizeAlong + _spacing + item.flexMarginBefore + item.flexMarginAfter;
     }
     // Offset perpendicular to flex direction
     int layoutSizePerp = sizeWithoutPaddingPerp;

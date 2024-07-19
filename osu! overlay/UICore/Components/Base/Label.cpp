@@ -6,7 +6,7 @@
 void zcom::Label::_OnSelected(bool reverse)
 {
     _scene->GetWindow()->keyboardManager.SetExclusiveHandler(this);
-    GetKeyboardState(_keyStates);
+    BOOL result = GetKeyboardState(_keyStates);
 }
 
 void zcom::Label::_OnDeselected()
@@ -17,7 +17,7 @@ void zcom::Label::_OnDeselected()
     {
         _selecting = false;
         _selectionStart = 0;
-        _selectionLength = 0;
+        _selectionEnd = 0;
         InvokeRedraw();
     }
 }

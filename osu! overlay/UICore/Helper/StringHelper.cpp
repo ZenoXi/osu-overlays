@@ -130,7 +130,7 @@ int64_t str_to_int(const std::string& str, int base)
     if (nums.size() == 0) return 0;
 
     // Combine digits into a number
-    size_t size = nums.size();
+    int size = (int)nums.size();
     int64_t mult = 1;
     int64_t fnum = 0;
 
@@ -230,7 +230,7 @@ std::string extract_str_until(const std::string& str, char tc)
 
 void erase_str_until(std::string& str, char tc)
 {
-    int l = extract_str_until(str, tc).length();
+    size_t l = extract_str_until(str, tc).length();
 
     str.erase(str.begin(), str.begin() + l);
     while (str[0] == tc) {

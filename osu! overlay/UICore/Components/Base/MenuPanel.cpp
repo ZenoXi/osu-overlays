@@ -12,6 +12,7 @@
 
 void zcom::MenuPanel::Init(MenuParams params)
 {
+    _closeRequestEventEmitter = EventEmitter<void>(EventEmitterThreadMode::MULTITHREADED);
     Panel::Init();
 
     SetBackgroundColor(D2D1::ColorF(0.05f, 0.05f, 0.05f));

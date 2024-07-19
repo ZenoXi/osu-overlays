@@ -1,4 +1,5 @@
 #pragma once
+#pragma warning( disable : 26815 )
 
 #include "WindowsEx.h"
 #include "WindowDisplayType.h"

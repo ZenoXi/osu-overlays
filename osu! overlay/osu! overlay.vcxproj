@@ -135,6 +135,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <AdditionalIncludeDirectories>$(SolutionDir)include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -147,7 +148,8 @@
       <Command>xcopy /y /d "$(ProjectDir)build\$(Configuration)\$(TargetFileName)" "$(SolutionDir)output\$(Configuration)\"
 xcopy /y /d "$(SolutionDir)bin\$(Configuration)\*.dll" "$(SolutionDir)output\$(Configuration)\"
 xcopy /y /d /s "$(ProjectDir)Resources" "$(SolutionDir)output\$(Configuration)\Resources\"
-xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Configuration)\"</Command>
+xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Configuration)\"
+xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Configuration)\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -161,6 +163,7 @@ xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Conf
       <LanguageStandard>stdcpp17</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <AdditionalIncludeDirectories>$(SolutionDir)include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -175,15 +178,26 @@ xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Conf
       <Command>xcopy /y /d "$(ProjectDir)build\$(Configuration)\$(TargetFileName)" "$(SolutionDir)output\$(Configuration)\"
 xcopy /y /d "$(SolutionDir)bin\$(Configuration)\*.dll" "$(SolutionDir)output\$(Configuration)\"
 xcopy /y /d /s "$(ProjectDir)Resources" "$(SolutionDir)output\$(Configuration)\Resources\"
-xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Configuration)\"</Command>
+xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Configuration)\"
+xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Configuration)\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="ComboBar\ComboBarParameterPanel.cpp" />
+    <ClCompile Include="ComboBar\ComboBarScene.cpp" />
+    <ClCompile Include="CursorTrail\CursorTrailEffect.cpp" />
+    <ClCompile Include="CursorTrail\CursorTrailParameterPanel.cpp" />
+    <ClCompile Include="CursorTrail\CursorTrailScene.cpp" />
+    <ClCompile Include="FontLoader\FontLoader.cpp" />
     <ClCompile Include="osu! overlay.cpp" />
-    <ClCompile Include="Shared\Options.cpp" />
+    <ClCompile Include="OsuDataProvider\DataProviderSetupScene.cpp" />
+    <ClCompile Include="OsuDataProvider\easywsclient.cpp" />
+    <ClCompile Include="OsuDataProvider\GameState.cpp" />
     <ClCompile Include="Shared\Util\Functions.cpp" />
     <ClCompile Include="Shared\Util\Navigation.cpp" />
-    <ClCompile Include="SmokeSim\ColorSelectorScene.cpp" />
+    <ClCompile Include="SimplePPCounter\SimplePPCounterParameterPanel.cpp" />
+    <ClCompile Include="SimplePPCounter\SimplePPCounterScene.cpp" />
+    <ClCompile Include="Shared\Scenes\ColorSelectorScene.cpp" />
     <ClCompile Include="SmokeSim\SmokeSimParameterPanel.cpp" />
     <ClCompile Include="SmokeSim\SmokeSimScene.cpp" />
     <ClCompile Include="UICore\App.cpp" />
@@ -199,7 +213,9 @@ xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Conf
     <ClCompile Include="UICore\Components\Base\ScrollPanel.cpp" />
     <ClCompile Include="UICore\Components\Base\Slider.cpp" />
     <ClCompile Include="UICore\Components\Base\TextInput.cpp" />
+    <ClCompile Include="UICore\Components\Base\Toggle.cpp" />
     <ClCompile Include="UICore\D2DEffects\TintEffect.cpp" />
+    <ClCompile Include="UICore\Helper\Config.cpp" />
     <ClCompile Include="UICore\Helper\ResourceManager.cpp" />
     <ClCompile Include="UICore\Helper\StringHelper.cpp" />
     <ClCompile Include="UICore\Helper\Time.cpp" />
@@ -210,21 +226,46 @@ xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Conf
     <ClCompile Include="UICore\Scenes\Scene.cpp" />
     <ClCompile Include="UICore\Scenes\TestScene.cpp" />
     <ClCompile Include="UICore\Scenes\TooltipScene.cpp" />
-    <ClCompile Include="UICore\Window\DisplayWindow.cpp" />
     <ClCompile Include="UICore\Window\Window.cpp" />
     <ClCompile Include="UICore\Window\WindowBackend.cpp" />
     <ClCompile Include="UICore\Window\WindowGraphics.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Shared\Options.h" />
+    <ClInclude Include="ComboBar\ComboBarConfig.h" />
+    <ClInclude Include="ComboBar\ComboBarParameterPanel.h" />
+    <ClInclude Include="ComboBar\ComboBarScene.h" />
+    <ClInclude Include="CursorTrail\CursorTrailConfig.h" />
+    <ClInclude Include="CursorTrail\CursorTrailEffect.h" />
+    <ClInclude Include="CursorTrail\CursorTrailParameterPanel.h" />
+    <ClInclude Include="CursorTrail\CursorTrailScene.h" />
+    <ClInclude Include="FontLoader\Common.h" />
+    <ClInclude Include="FontLoader\FontLoader.h" />
+    <ClInclude Include="OsuDataProvider\Context.h" />
+    <ClInclude Include="OsuDataProvider\DataProvider.h" />
+    <ClInclude Include="OsuDataProvider\DataProviderConfig.h" />
+    <ClInclude Include="OsuDataProvider\DataProviderSetupScene.h" />
+    <ClInclude Include="OsuDataProvider\easywsclient.hpp" />
+    <ClInclude Include="OsuDataProvider\GameState.h" />
+    <ClInclude Include="OsuDataProvider\json.hpp" />
+    <ClInclude Include="OsuDataProvider\WsClientWrapper.h" />
+    <ClInclude Include="Shared\Components\ColorSliderInputGroup.h" />
+    <ClInclude Include="Shared\Components\LoadingAnimation.h" />
+    <ClInclude Include="Shared\Components\NumberParameterInput.h" />
+    <ClInclude Include="Shared\Components\SectionHeader.h" />
+    <ClInclude Include="Shared\Styles\Styles.h" />
     <ClInclude Include="Shared\Util\Color.h" />
     <ClInclude Include="Shared\Util\Constants.h" />
     <ClInclude Include="Shared\Util\Functions.h" />
     <ClInclude Include="Shared\Util\Navigation.h" />
+    <ClInclude Include="Shared\Util\Streams.h" />
     <ClInclude Include="Shared\Util\ThreadPool.h" />
-    <ClInclude Include="Shared\Util\ValueOrDefault.h" />
-    <ClInclude Include="SmokeSim\ColorSelectorScene.h" />
+    <ClInclude Include="SimplePPCounter\SimplePPCounterConfig.h" />
+    <ClInclude Include="SimplePPCounter\SimplePPCounterParameterPanel.h" />
+    <ClInclude Include="SimplePPCounter\SimplePPCounterScene.h" />
+    <ClInclude Include="Shared\Scenes\ColorSelectorScene.h" />
+    <ClInclude Include="SmokeSim\SmokeSimConfig.h" />
     <ClInclude Include="SmokeSim\SmokeSimParameterPanel.h" />
+    <ClInclude Include="SmokeSim\SmokeSimParams.h" />
     <ClInclude Include="SmokeSim\SmokeSimScene.h" />
     <ClInclude Include="SmokeSim\SmokeSimType.h" />
     <ClInclude Include="UICore\App.h" />
@@ -245,10 +286,15 @@ xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Conf
     <ClInclude Include="UICore\Components\Base\ScrollPanel.h" />
     <ClInclude Include="UICore\Components\Base\Slider.h" />
     <ClInclude Include="UICore\Components\Base\TextInput.h" />
+    <ClInclude Include="UICore\Components\Base\Toggle.h" />
     <ClInclude Include="UICore\Components\ComHelper.h" />
     <ClInclude Include="UICore\Components\Custom\DitheredBackground.h" />
     <ClInclude Include="UICore\D2DEffects\TintEffect.h" />
+    <ClInclude Include="UICore\Helper\AnimationHelper.h" />
     <ClInclude Include="UICore\Helper\BinarySearchIterator.h" />
+    <ClInclude Include="UICore\Helper\CollectionsHelper.h" />
+    <ClInclude Include="UICore\Helper\Config.h" />
+    <ClInclude Include="UICore\Helper\ConfigValue.h" />
     <ClInclude Include="UICore\Helper\decimal.h" />
     <ClInclude Include="UICore\Helper\EventEmitter.h" />
     <ClInclude Include="UICore\Helper\EventSubscription.h" />
@@ -266,7 +312,6 @@ xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Conf
     <ClInclude Include="UICore\Scenes\TooltipParams.h" />
     <ClInclude Include="UICore\Scenes\TooltipScene.h" />
     <ClInclude Include="UICore\Window\CursorIcon.h" />
-    <ClInclude Include="UICore\Window\DisplayWindow.h" />
     <ClInclude Include="UICore\Window\DragDropEventHandler.h" />
     <ClInclude Include="UICore\Window\FileDropHandler.h" />
     <ClInclude Include="UICore\Window\GdiInclude.h" />
@@ -275,6 +320,7 @@ xcopy /y /d /s "$(ProjectDir)UICore\TintEffect.cso" "$(SolutionDir)output\$(Conf
     <ClInclude Include="UICore\Window\KeyboardManager.h" />
     <ClInclude Include="UICore\Window\MouseEventHandler.h" />
     <ClInclude Include="UICore\Window\MouseManager.h" />
+    <ClInclude Include="UICore\Window\ResizeFlags.h" />
     <ClInclude Include="UICore\Window\Window.h" />
     <ClInclude Include="UICore\Window\WindowBackend.h" />
     <ClInclude Include="UICore\Window\WindowDisplayType.h" />

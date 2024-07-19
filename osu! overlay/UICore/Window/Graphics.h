@@ -15,6 +15,9 @@
 #include <vector>
 #include <string>
 
+#include <wrl/client.h>
+using namespace Microsoft::WRL;
+
 struct Graphics
 {
     ID2D1DeviceContext* target = nullptr;

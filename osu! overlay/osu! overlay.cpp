@@ -1,7 +1,7 @@
 
 #include "Window/WindowsEx.h"
-//#include <WinSock2.h>
-//#include <conio.h>
+#include <WinSock2.h>
+#include <conio.h>
 // Necessary for clsid's to work when creating custom effects
 #include <Mmsystem.h>
 
@@ -17,6 +17,15 @@
 
 int WINAPI main(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT)
 {
+    // Enable networking
+    WSADATA wsaData;
+    int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
+    if (result != 0)
+    {
+        std::cout << "WSAStartup failed\n";
+        // TODO: Logging
+    }
+
     App app(hInst);
 
     std::optional<zwnd::WindowId> id = app.CreateTopWindow(
@@ -33,6 +42,7 @@ int WINAPI main(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT)
             zcom::DefaultTitleBarSceneOptions opt;
             opt.windowIconResourceName = "cursor_icon";
             opt.windowTitle = L"Overlay engine";
+            opt.darkMode = true;
             wnd->LoadTitleBarScene<zcom::DefaultTitleBarScene>(&opt);
             wnd->LoadStartingScene<zcom::EntryScene>(nullptr);
         }

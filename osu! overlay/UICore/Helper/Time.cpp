@@ -16,9 +16,9 @@ TimePoint ztime::Game()
 std::string TimeToString(TimePoint time, TimeStringFormat format)
 {
     std::stringstream timeStr;
-    int h = time.GetTime(HOURS);
-    int m = time.GetTime(MINUTES) % 60;
-    int s = time.GetTime(SECONDS) % 60;
+    int64_t h = time.GetTime(HOURS);
+    int64_t m = time.GetTime(MINUTES) % 60;
+    int64_t s = time.GetTime(SECONDS) % 60;
     if (h > 0) timeStr << h << ":";
     if (m < 10) timeStr << "0" << m << ":";
     else timeStr << m << ":";

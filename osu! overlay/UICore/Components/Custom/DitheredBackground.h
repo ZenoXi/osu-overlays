@@ -27,7 +27,7 @@ namespace zcom
             );
 
             // Gnerate source data
-            auto sourceData = std::make_unique<float[]>(GetWidth() * GetHeight());
+            auto sourceData = std::make_unique<float[]>((size_t)GetWidth() * GetHeight());
             float lColor = 0.2f;
             float rColor = 0.0f;
             for (int y = 0; y < GetHeight(); y++)
@@ -40,14 +40,14 @@ namespace zcom
             }
 
             // Dither
-            auto ditheredData = std::make_unique<unsigned char[]>(GetWidth() * GetHeight() * 4);
+            auto ditheredData = std::make_unique<unsigned char[]>((size_t)GetWidth() * GetHeight() * 4);
 
             std::mt19937 engine;
             std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
             int ditherRange = 0;
 
-            for (int i = 0; i < GetWidth() * GetHeight(); i++)
+            for (int i = 0; i < (size_t)GetWidth() * GetHeight(); i++)
             {
                 float srcColor = sourceData[i];
                 // Normalize to 0.0-255.0 range
@@ -58,7 +58,7 @@ namespace zcom
                 float weight = (srcColor - lowerValue) / (1.0f + ditherRange * 2);
 
                 float finalColor;
-                if (i < GetWidth() * GetHeight() / 2)
+                if (i < (size_t)GetWidth() * GetHeight() / 2)
                 {
                     finalColor = std::roundf(srcColor);
                 }

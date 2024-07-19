@@ -21,7 +21,7 @@ namespace zcom
         int maxWidth = 600;
         std::optional<Rect> mouseMovementBounds = std::nullopt;
         // Makes the tooltip non-transparent, allowing interaction (e.g. selecting the text)
-        // *NOT YET IMPLEMENTED*
+        // TODO: *NOT YET IMPLEMENTED*
         bool interactable = false;
 
         // If a tooltip with the same display id is attempted to be shown while one is already visible, the attempt will be ignored

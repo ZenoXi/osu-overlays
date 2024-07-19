@@ -9,6 +9,8 @@
 #include "Helper/Time.h"
 #include "Helper/decimal.h"
 
+#include <iostream>
+
 #define MAX_DEC_PRECISION 7
 
 typedef dec::decimal<MAX_DEC_PRECISION> NumberInputValue;
@@ -17,6 +19,11 @@ namespace zcom
 {
     class NumberInput : public TextInput
     {
+        DEFINE_COMPONENT(NumberInput, TextInput)
+        DEFAULT_DESTRUCTOR(NumberInput)
+    protected:
+        void Init();
+
     public:
         NumberInputValue GetValue() const
         {
@@ -43,13 +50,14 @@ namespace zcom
             return _maxValue;
         }
 
-        void SetValue(NumberInputValue value)
+        void SetValue(NumberInputValue value, bool emitChangeEvent = true)
         {
             if (value == _value)
                 return;
 
             _value = value;
-            _valueChangedEvent->InvokeAll(_value);
+            if (emitChangeEvent)
+                _valueChangedEvent->InvokeAll(_value);
             _BoundValue();
             _UpdateText();
         }
@@ -98,26 +106,10 @@ namespace zcom
             _BoundValue();
         }
 
-        EventSubscription<void, NumberInputValue> AddOnValueChanged(std::function<void(NumberInputValue)> handler)
+        EventSubscription<void, NumberInputValue> SubscribeOnValueChanged(std::function<void(NumberInputValue)> handler)
         {
             return _valueChangedEvent->Subscribe(handler);
         }
-
-
-    protected:
-        friend class Scene;
-        friend class Component;
-        NumberInput(Scene* scene) : TextInput(scene) {}
-        void Init();
-    public:
-        ~NumberInput()
-        {
-
-        }
-        NumberInput(NumberInput&&) = delete;
-        NumberInput& operator=(NumberInput&&) = delete;
-        NumberInput(const NumberInput&) = delete;
-        NumberInput& operator=(const NumberInput&) = delete;
 
     private:
         NumberInputValue _value;
@@ -130,7 +122,7 @@ namespace zcom
 
         EventEmitter<void, NumberInputValue> _valueChangedEvent;
 
-    private:
+
         void _UpdateValue()
         {
             SetValue(NumberInputValue(wstring_to_string(Text()->GetText())));
@@ -140,7 +132,8 @@ namespace zcom
         {
             std::ostringstream ss;
             ss << _value;
-            std::wstring str = string_to_wstring(ss.str());
+            std::string s = ss.str();
+            std::wstring str = std::wstring(s.begin(), s.end());
 
             // Cut off unnecessary decimal points
             if (_precision == 0)
@@ -161,7 +154,6 @@ namespace zcom
                 SetValue(_maxValue);
         }
 
-#pragma region base_class
     protected:
         void _OnDeselected() override
         {
@@ -182,10 +174,5 @@ namespace zcom
             SetValue(_value - _stepSize);
             return EventTargets().Add(this, x, y);
         }
-
-    public:
-        const char* GetName() const override { return Name(); }
-        static const char* Name() { return "number_input"; }
-#pragma endregion
     };
 }

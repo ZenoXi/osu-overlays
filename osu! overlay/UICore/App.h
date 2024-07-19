@@ -4,7 +4,8 @@
 #include "Window/Window.h"
 #include "Helper/Handle.h"
 #include "Helper/EventEmitter.h"
-#include "Shared/Options.h"
+#include "Helper/Config.h"
+#include "OsuDataProvider/DataProvider.h"
 
 #include <mutex>
 #include <optional>
@@ -78,5 +79,6 @@ private:
     std::atomic<bool> _closeThread;
 
 public:
-    Options options;
+    Config config;
+    osu::DataProvider dataProvider;
 };

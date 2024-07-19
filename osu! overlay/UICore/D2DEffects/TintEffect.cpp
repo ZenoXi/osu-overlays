@@ -15,6 +15,8 @@
 CustomTintEffect::CustomTintEffect()
 {
     _refCount = 1;
+    _drawInfo = nullptr;
+    _inputRect = {};
 }
 
 HRESULT CustomTintEffect::Register(_In_ ID2D1Factory1* pFactory)
@@ -135,7 +137,7 @@ IFACEMETHODIMP CustomTintEffect::Initialize(
     fin.seekg(0, std::ios::beg);
     fin.read(data, size);
 
-    HRESULT hr = pContextInternal->LoadPixelShader(GUID_CustomTintShader, (BYTE*)data, size);
+    HRESULT hr = pContextInternal->LoadPixelShader(GUID_CustomTintShader, (BYTE*)data, (UINT32)size);
     if (SUCCEEDED(hr))
         hr = pTransformGraph->SetSingleTransformNode(this);
 

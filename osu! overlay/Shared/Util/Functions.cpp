@@ -96,8 +96,8 @@ Pos2D<float> point_in_direction(Pos2D<float> originPos, float direction, float d
         return originPos;
     }
     else {
-        float x = distance / sqrt(1.0f + pow(tanf(direction), 2));
-        float y = distance / sqrt(1.0f + pow(1.0f / tanf(direction), 2));
+        float x = distance / (float)sqrt(1.0f + pow(tanf(direction), 2));
+        float y = distance / (float)sqrt(1.0f + pow(1.0f / tanf(direction), 2));
         //float x = 0.0f;
         //float y = 0.0f;
 

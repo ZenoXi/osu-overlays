@@ -6,9 +6,10 @@
 
 #include "Shared/Util/ThreadPool.h"
 #include "Shared/Util/Navigation.h"
-#include "Shared/Util/ValueOrDefault.h"
 
 #include "SmokeSimType.h"
+#include "SmokeSimParams.h"
+#include "SmokeSimConfig.h"
 
 #include "CudaSmokeSim/CudaSmokeSim.h"
 #pragma comment (lib, "CudaSmokeSim.lib")
@@ -24,37 +25,10 @@ namespace zcom
 
     class SmokeSimScene : public Scene
     {
-    public:
-        struct SimParams
-        {
-            zutil::ValueOrDefault<int> trailWidth = zutil::ValueOrDefault<int>(10);
-            zutil::ValueOrDefault<int> trailEdgeFadeRange = zutil::ValueOrDefault<int>(8);
-            zutil::ValueOrDefault<float> trailDensity = zutil::ValueOrDefault<float>(0.7f);
-            zutil::ValueOrDefault<int> trailWindWidth = zutil::ValueOrDefault<int>(10);
-            zutil::ValueOrDefault<float> trailWindSpeed = zutil::ValueOrDefault<float>(0.2f);
-            zutil::ValueOrDefault<float> cursorTemp = zutil::ValueOrDefault<float>(0.4f);
-
-            zutil::ValueOrDefault<int> trailColor = zutil::ValueOrDefault<int>(0xFF888888);
-            zutil::ValueOrDefault<float> trailVelocityDiffusion = zutil::ValueOrDefault<float>(0.0f);
-            zutil::ValueOrDefault<float> trailDensityDiffusion = zutil::ValueOrDefault<float>(0.0f);
-            zutil::ValueOrDefault<float> trailTemperatureDiffusion = zutil::ValueOrDefault<float>(6.0f);
-            zutil::ValueOrDefault<float> trailDensityReductionRate = zutil::ValueOrDefault<float>(0.15f);
-            zutil::ValueOrDefault<float> trailTemperatureReductionRate = zutil::ValueOrDefault<float>(0.05f);
-
-            zutil::ValueOrDefault<int> smokeColor = zutil::ValueOrDefault<int>(0xFF888888);
-            zutil::ValueOrDefault<int> brushWidth = zutil::ValueOrDefault<int>(14);
-            zutil::ValueOrDefault<int> brushEdgeFadeRange = zutil::ValueOrDefault<int>(6);
-            zutil::ValueOrDefault<float> smokeDensity = zutil::ValueOrDefault<float>(1.0f);
-            zutil::ValueOrDefault<int> cursorWindWidth = zutil::ValueOrDefault<int>(14);
-            zutil::ValueOrDefault<float> cursorWindSpeed = zutil::ValueOrDefault<float>(0.2f);
-            zutil::ValueOrDefault<int> slowdownPersistenceDurationMs = zutil::ValueOrDefault<int>(250);
-
-            zutil::ValueOrDefault<float> smokeVelocityDiffusion = zutil::ValueOrDefault<float>(0.0f);
-            zutil::ValueOrDefault<float> smokeDensityDiffusion = zutil::ValueOrDefault<float>(0.0f);
-            zutil::ValueOrDefault<float> smokeDensityReductionRate = zutil::ValueOrDefault<float>(0.02f);
-
-            zutil::ValueOrDefault<int> smokeKeyCode = zutil::ValueOrDefault<int>('C');
-        };
+        DEFINE_SCENE(SmokeSimScene, Scene)
+    protected:
+        void Init(SceneOptionsBase* options) override;
+        void Uninit() override;
 
     private:
         struct Cell
@@ -71,7 +45,7 @@ namespace zcom
             float flow;
             float velocityX;
             float velocityY;
-
+            
             float newPressure;
             float newVelocityX;
             float newVelocityY;
@@ -108,8 +82,8 @@ namespace zcom
         //float _velocityPullRate = 0.2f;
         //float _velocityFrictionKoeff = 0.001f;
 
-        SmokeSimType _simType;
-        SimParams _simParams;
+        SmokeSimType _simType = SmokeSimType::CURSOR_TRAIL;
+        SmokeSimParams _simParams = {};
 
         int prevMouseX = 0;
         int prevMouseY = 0;
@@ -151,9 +125,8 @@ namespace zcom
 
         CudaSmokeSim_Context* cuda_ctx = nullptr;
 
-        TimePoint _lastParamUpdate = TimePoint(0);
-        Duration _paramUpdateInterval = Duration(250, MILLISECONDS);
-        void _UpdateParameters(bool force = false);
+        std::unique_ptr<AsyncEventSubscription<void, std::optional<std::pair<std::wstring, std::wstring>>>> _configValueChangedEvent = nullptr;
+        void _UpdateParameters();
 
         float _Clamp(const float value, const float lowerBound, const float upperBound)
         {
@@ -164,18 +137,7 @@ namespace zcom
             return value;
         }
 
-    public:
-        SmokeSimScene(App* app, zwnd::Window* window);
-
-        const char* GetName() const { return "SmokeSimScene"; }
-        static const char* StaticName() { return "SmokeSimScene"; }
-
-    private:
-        void _Init(SceneOptionsBase* options);
-        void _Uninit();
-        void _Focus();
-        void _Unfocus();
         void _Update();
-        void _Resize(int width, int height, ResizeInfo info);
+        void _Draw(Component* panel, Graphics g);
     };
 }

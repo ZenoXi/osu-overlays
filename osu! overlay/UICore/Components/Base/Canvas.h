@@ -10,8 +10,30 @@
 
 namespace zcom
 {
+    //class Canvas : public Panel
+    //{
+    //public:
+    //    const char* GetName() const override { return Name(); }
+    //    static const char* Name() { return "Canvas"; }
+
+    //    Canvas() : Panel(nullptr) {}
+    //    ~Canvas() {}
+    //    Canvas(Canvas&&) = delete;
+    //    Canvas& operator=(Canvas&&) = delete;
+    //    Canvas(const Canvas&) = delete;
+    //    Canvas& operator=(const Canvas&) = delete;
+
+    //    static std::unique_ptr<Panel> CreatePanelForScene(Scene* scene)
+    //    {
+    //        return std::unique_ptr<Panel>(new Panel(scene));
+    //        //Panel* panel = new Panel(scene);
+    //        //AddItem(std::unique_ptr<Panel>(panel));
+    //        //return panel;
+    //    }
+    //};
+
     // Base storage for all components
-    class Canvas : public KeyboardEventHandler
+    class Canvas2 : public KeyboardEventHandler
     {
         EventEmitter<bool, const EventTargets*> _mouseMoveHandlers;
         EventEmitter<bool, const EventTargets*> _leftPressedHandlers;
@@ -30,17 +52,17 @@ namespace zcom
         std::unique_ptr<Panel> _panel;
 
     public:
-        Canvas(std::unique_ptr<Panel> panel, int width, int height) : _panel(std::move(panel))
+        Canvas2(std::unique_ptr<Panel> panel, int width, int height) : _panel(std::move(panel))
         {
             _panel->SetSize(width, height);
             _panel->SetBackgroundColor(D2D1::ColorF(0, 0));
             _panel->SetSelectedBorderColor(D2D1::ColorF(0, 0.0f));
         }
-        ~Canvas() {}
-        Canvas(Canvas&&) = delete;
-        Canvas& operator=(Canvas&&) = delete;
-        Canvas(const Canvas&) = delete;
-        Canvas& operator=(const Canvas&) = delete;
+        ~Canvas2() {}
+        Canvas2(Canvas2&&) = delete;
+        Canvas2& operator=(Canvas2&&) = delete;
+        Canvas2(const Canvas2&) = delete;
+        Canvas2& operator=(const Canvas2&) = delete;
 
         void AddComponent(Component* comp)
         {
@@ -57,7 +79,7 @@ namespace zcom
             _panel->RemoveItem(index);
         }
 
-        int ComponentCount() const
+        size_t ComponentCount() const
         {
             return _panel->ItemCount();
         }

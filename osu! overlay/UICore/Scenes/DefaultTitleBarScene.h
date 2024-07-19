@@ -23,12 +23,16 @@ namespace zcom
         bool showIcon = true;
         int titleBarHeight = 30;
         int captionHeight = 30;
+        bool darkMode = false;
         // When true, forces the title label to be opaque
         bool useCleartype = true;
     };
 
     class DefaultTitleBarScene : public Scene
     {
+        DEFINE_SCENE(DefaultTitleBarScene, Scene)
+    protected:
+        void Init(SceneOptionsBase* options) override;
     public:
         void SetBackground(D2D1_COLOR_F color);
         void AddCloseButton();
@@ -38,8 +42,8 @@ namespace zcom
         void AddTitle(std::wstring title);
         void AddMenuButton(std::wstring name);
 
-        void SubscribeToWindowStateChanges();
-        void HandleWindowStateChanges();
+        void SubscribeToWindowMessages();
+        void HandleWindowMessages();
 
         // The physical height of the title bar scene
         virtual int TitleBarSceneHeight();
@@ -49,9 +53,6 @@ namespace zcom
         virtual RECT WindowMenuButtonRect();
         // Returns a list of rects (in title bar scene coordinates) which should not be considered as caption area
         virtual std::vector<RECT> ExcludedCaptionRects();
-
-    public:
-        DefaultTitleBarScene(App* app, zwnd::Window* window);
 
     protected:
         std::unique_ptr<Button> _closeButton = nullptr;
@@ -64,21 +65,11 @@ namespace zcom
         int _titleBarHeight = 0;
         int _captionHeight = 0;
         bool _tintIcon = true;
+        bool _darkMode = false;
         bool _useCleartype = true;
 
-        D2D1_COLOR_F _activeItemTint = D2D1::ColorF(0);
-        D2D1_COLOR_F _inactiveItemTint = D2D1::ColorF(0.5f, 0.5f, 0.5f);
-        std::unique_ptr<AsyncEventSubscription<bool, zwnd::WindowMessage>> _windowActivationSubscription;
-
-    private:
-        void _Init(SceneOptionsBase* options);
-        void _Uninit();
-        void _Focus();
-        void _Unfocus();
-        void _Update();
-        void _Resize(int width, int height, ResizeInfo info);
-    public:
-        const char* GetName() const { return StaticName(); }
-        static const char* StaticName() { return "title_bar"; }
+        D2D1_COLOR_F _activeItemTint = D2D1::ColorF(0x000000);
+        D2D1_COLOR_F _inactiveItemTint = D2D1::ColorF(0x808080);
+        std::unique_ptr<AsyncEventSubscription<bool, zwnd::WindowMessage>> _windowMessageSubscription;
     };
 }

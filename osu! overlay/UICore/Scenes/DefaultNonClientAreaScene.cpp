@@ -1,38 +1,9 @@
 #include "App.h" // App.h and Window.h must be included first
 #include "Window/Window.h"
 #include "DefaultNonClientAreaScene.h"
+#include "DefaultTitleBarScene.h"
 
-zcom::DefaultNonClientAreaScene::DefaultNonClientAreaScene(App* app, zwnd::Window* window)
-    : Scene(app, window)
-{}
-
-RECT zcom::DefaultNonClientAreaScene::GetResizingBorderWidths()
-{
-    return _resizingBorderWidths;
-}
-
-RECT zcom::DefaultNonClientAreaScene::GetClientAreaMargins()
-{
-    // TODO: These don't work when maximizing a window
-    return _clientAreaMargins;
-}
-
-void zcom::DefaultNonClientAreaScene::SetClientAreaBitmap(ID2D1Bitmap* clientAreaBitmap)
-{
-    _clientAreaBitmap = clientAreaBitmap;
-}
-
-void zcom::DefaultNonClientAreaScene::SetTitleBarBitmap(ID2D1Bitmap* titleBarBitmap)
-{
-    _titleBarBitmap = titleBarBitmap;
-}
-
-void zcom::DefaultNonClientAreaScene::SetContentBitmap(ID2D1Bitmap* contentBitmap)
-{
-    _contentBitmap = contentBitmap;
-}
-
-void zcom::DefaultNonClientAreaScene::_Init(SceneOptionsBase* options)
+void zcom::DefaultNonClientAreaScene::Init(SceneOptionsBase* options)
 {
     DefaultNonClientAreaSceneOptions opt;
     if (options)
@@ -44,28 +15,101 @@ void zcom::DefaultNonClientAreaScene::_Init(SceneOptionsBase* options)
     _drawWindowBorder = opt.drawWindowBorder;
 
     _windowActivationSubscription = _window->SubscribeToWindowMessages(nullptr);
+
+    // Initialize primordial panel containing entire UI layout
+    _nonClientAreaPanel = Create<Panel>();
+    _basePanel = _nonClientAreaPanel.get();
+
+    _clientAreaPanel = Create<Panel>();
+    _clientAreaPanel->SetParentSizePercent(1.0f, 1.0f);
+    _UpdateClientAreaShadow();
+    _contentPanel = Create<Panel>();
+    _contentPanel->SetParentSizePercent(1.0f, 1.0f);
+    _contentPanel->SetVerticalAlignment(Alignment::END);
+
+    _clientAreaPanel->AddItem(_contentPanel.get());
+
+    _basePanel->AddItem(_clientAreaPanel.get());
+    _basePanel->SubscribePostUpdate([=]() {
+        _Update();
+    }).Detach();
+    _basePanel->SubscribePostDraw([=](Component*, Graphics g) {
+        _Draw(g);
+    }).Detach();
 }
 
-void zcom::DefaultNonClientAreaScene::_Uninit()
+void zcom::DefaultNonClientAreaScene::ProcessWindowResize(int newWidth, int newHeight, zwnd::ResizeFlags flags)
 {
-    _canvas->ClearComponents();
-    GetWindow()->Backend().Graphics()->ReleaseResource((IUnknown**)&_ccanvas);
+    bool fullscreen = flags.windowFullscreened;
+    RECT finalClientAreaMargins = !fullscreen ? _clientAreaMargins : RECT{ 0, 0, 0, 0 };
+    int finalTitleBarHeight = !fullscreen && _titleBarScene ? _titleBarScene->TitleBarSceneHeight() : 0;
+
+    _basePanel->DeferLayoutUpdates();
+    _clientAreaPanel->DeferLayoutUpdates();
+
+    _basePanel->SetPadding(finalClientAreaMargins);
+    if (_titleBarPanel)
+        _titleBarPanel->SetBaseHeight(finalTitleBarHeight);
+    _contentPanel->SetBaseHeight(-finalTitleBarHeight);
+
+    // Do layout update using Resize, because automatic one waits until next frame
+    _clientAreaPanel->ResumeLayoutUpdates(false);
+    _basePanel->ResumeLayoutUpdates(false);
+    _basePanel->Resize(newWidth, newHeight);
 }
 
-void zcom::DefaultNonClientAreaScene::_Focus()
+zcom::Panel* zcom::DefaultNonClientAreaScene::ProcessCreatedTitleBarScene(DefaultTitleBarScene* titleBarScene)
 {
+    _titleBarScene = titleBarScene;
+    _titleBarPanel = CreatePanelForScene(titleBarScene);
+    _titleBarPanel->SetParentWidthPercent(1.0f);
 
+    _clientAreaPanel->AddItem(_titleBarPanel.get());
+    return _titleBarPanel.get();
 }
 
-void zcom::DefaultNonClientAreaScene::_Unfocus()
+void zcom::DefaultNonClientAreaScene::ProcessDeletedTitleBarScene(DefaultTitleBarScene* titleBarScene)
 {
+    _clientAreaPanel->RemoveItem(_titleBarPanel.get());
+    _titleBarPanel.reset();
+}
 
+zcom::Panel* zcom::DefaultNonClientAreaScene::ProcessCreatedScene(Scene* scene)
+{
+    auto panel = CreatePanelForScene(scene);
+    panel->SetParentSizePercent(1.0f, 1.0f);
+    Panel* rawPtr = panel.get();
+    _contentPanel->AddItem(std::move(panel));
+    return rawPtr;
+}
+
+zcom::Panel* zcom::DefaultNonClientAreaScene::ProcessRecreatedScene(Scene* scene)
+{
+    _contentPanel->RemoveItem(scene->GetBasePanel());
+    auto panel = CreatePanelForScene(scene);
+    panel->SetParentSizePercent(1.0f, 1.0f);
+    Panel* rawPtr = panel.get();
+    _contentPanel->AddItem(std::move(panel));
+    return rawPtr;
+}
+
+void zcom::DefaultNonClientAreaScene::ProcessDeletedScene(Scene* scene)
+{
+    _contentPanel->RemoveItem(scene->GetBasePanel());
+}
+
+RECT zcom::DefaultNonClientAreaScene::GetResizingBorderWidths()
+{
+    return _resizingBorderWidths;
+}
+
+RECT zcom::DefaultNonClientAreaScene::GetClientAreaMargins()
+{
+    return _clientAreaMargins;
 }
 
 void zcom::DefaultNonClientAreaScene::_Update()
 {
-    _canvas->Update();
-
     if (_windowActivationSubscription)
     {
         _windowActivationSubscription->HandlePendingEvents([=](zwnd::WindowMessage message) {
@@ -76,109 +120,55 @@ void zcom::DefaultNonClientAreaScene::_Update()
                 if (msg.activationType == zwnd::WindowActivateMessage::ACTIVATED || msg.activationType == zwnd::WindowActivateMessage::CLICK_ACTIVATED)
                 {
                     _borderColor = D2D1::ColorF(0.3f, 0.3f, 0.3f, 0.6f);
-                    _shadowColor = D2D1::Vector4F(0.0f, 0.0f, 0.0f, 0.4f);
-                    _redraw = true;
+                    _shadowColor = D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.6f);
                 }
                 else
                 {
                     _borderColor = D2D1::ColorF(0.3f, 0.3f, 0.3f, 0.3f);
-                    _shadowColor = D2D1::Vector4F(0.0f, 0.0f, 0.0f, 0.2f);
-                    _redraw = true;
+                    _shadowColor = D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.2f);
                 }
+                _UpdateClientAreaShadow();
+                _basePanel->InvokeRedraw();
             }
-            });
+        });
     }
 }
 
-bool zcom::DefaultNonClientAreaScene::_Redraw()
+void zcom::DefaultNonClientAreaScene::_Draw(Graphics g)
 {
-    return _redraw || !_ccanvas || _canvas->Redraw();
-}
-
-ID2D1Bitmap* zcom::DefaultNonClientAreaScene::_Draw(Graphics g)
-{
-    _redraw = false;
-
-    // Create _ccanvas
-    if (!_ccanvas)
-    {
-        g.target->CreateBitmap(
-            D2D1::SizeU(_canvas->GetWidth(), _canvas->GetHeight()),
-            nullptr,
-            0,
-            D2D1::BitmapProperties1(
-                D2D1_BITMAP_OPTIONS_TARGET,
-                { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
-            ),
-            &_ccanvas
-        );
-        g.refs->push_back({ (IUnknown**)&_ccanvas, "Default non client area scene common canvas" });
-    }
-
-    RECT clientAreaMargins = GetClientAreaMargins();
-
-    ID2D1Image* stash;
-    g.target->GetTarget(&stash);
-    g.target->SetTarget(_ccanvas);
-    g.target->Clear();
-
-    if (_drawWindowShadow)
-    {
-        // Draw client area shadow
-        ID2D1Effect* shadowEffect = nullptr;
-        g.target->CreateEffect(CLSID_D2D1Shadow, &shadowEffect);
-        shadowEffect->SetInput(0, _clientAreaBitmap);
-        shadowEffect->SetValue(D2D1_SHADOW_PROP_COLOR, _shadowColor);
-        shadowEffect->SetValue(D2D1_SHADOW_PROP_BLUR_STANDARD_DEVIATION, 3.0f);
-        g.target->DrawImage(shadowEffect, D2D1::Point2F(clientAreaMargins.left, clientAreaMargins.top));
-        shadowEffect->Release();
-    }
-
-    // Draw content bitmap to window
-    g.target->DrawBitmap(
-        _clientAreaBitmap,
-        D2D1::RectF(
-            clientAreaMargins.left,
-            clientAreaMargins.top,
-            _canvas->GetWidth() - clientAreaMargins.right,
-            _canvas->GetHeight() - clientAreaMargins.bottom
-        )
-    );
-
     if (_drawWindowBorder)
     {
         // Draw window border
         ID2D1SolidColorBrush* borderBrush;
         g.target->CreateSolidColorBrush(_borderColor, &borderBrush);
-        D2D1_RECT_F borderRect = {
-            clientAreaMargins.left - 0.5f,
-            clientAreaMargins.top - 0.5f,
-            _canvas->GetWidth() - (clientAreaMargins.right - 0.5f),
-            _canvas->GetHeight() - (clientAreaMargins.bottom - 0.5f)
-        };
-        g.target->DrawRectangle(borderRect, borderBrush);
-        borderBrush->Release();
+        if (borderBrush)
+        {
+            D2D1_RECT_F borderRect = {
+                _clientAreaMargins.left - 0.5f,
+                _clientAreaMargins.top - 0.5f,
+                _basePanel->GetWidth() - (_clientAreaMargins.right - 0.5f),
+                _basePanel->GetHeight() - (_clientAreaMargins.bottom - 0.5f)
+            };
+            g.target->DrawRectangle(borderRect, borderBrush);
+            borderBrush->Release();
+        }
+        else
+        {
+            // TODO: Logging
+        }
     }
-
-    // Draw scene elements
-    if (_canvas->Redraw())
-        _canvas->Draw(g);
-    g.target->DrawBitmap(_canvas->ContentImage());
-
-    // Unstash
-    g.target->SetTarget(stash);
-    stash->Release();
-
-    return _ccanvas;
 }
 
-ID2D1Bitmap* zcom::DefaultNonClientAreaScene::_Image()
+void zcom::DefaultNonClientAreaScene::_UpdateClientAreaShadow()
 {
-    return _ccanvas;
-}
-
-void zcom::DefaultNonClientAreaScene::_Resize(int width, int height, ResizeInfo info)
-{
-    GetWindow()->Backend().Graphics()->ReleaseResource((IUnknown**)&_ccanvas);
-    _redraw = true;
+    if (_drawWindowShadow)
+    {
+        PROP_Shadow prop;
+        prop.color = _shadowColor;
+        _clientAreaPanel->SetProperty(prop);
+    }
+    else
+    {
+        _clientAreaPanel->RemoveProperty<PROP_Shadow>();
+    }
 }

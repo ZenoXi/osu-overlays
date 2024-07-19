@@ -1,3 +1,6 @@
+// EXTERNAL MODIFICATION
+#pragma warning( disable : 26495 )
+
 /////////////////////////////////////////////////////////////////////////////
 // Name:        decimal.h
 // Purpose:     Decimal data type support, for COBOL-like fixed-point

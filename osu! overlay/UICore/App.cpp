@@ -2,11 +2,11 @@
 
 App::App(HINSTANCE hinst)
     : _hinst(hinst)
-    , options(L"config")
+    , config(L"config")
     , _windowCreatedEvent(EventEmitterThreadMode::MULTITHREADED)
     , _windowClosedEvent(EventEmitterThreadMode::MULTITHREADED)
 {
-    options.LoadOptions();
+    config.LoadConfig();
     _messageWindow = std::make_unique<zwnd::Window>(_hinst);
     _windowCleaningThread = std::thread(&App::_RemoveUnusedWindows, this);
 }

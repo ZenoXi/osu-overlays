@@ -38,7 +38,7 @@ zwnd::WindowBackend::WindowBackend(HINSTANCE hInst, WindowProperties props, HWND
     _messageHeight = props.initialHeight;
     _activationDisabled = props.disableWindowActivation;
 
-    OleInitialize(NULL);
+    HRESULT hr = OleInitialize(NULL);
 
     _cursor = LoadCursor(NULL, IDC_ARROW);
     WNDCLASSEX wc = {
@@ -59,7 +59,7 @@ zwnd::WindowBackend::WindowBackend(HINSTANCE hInst, WindowProperties props, HWND
     RegisterClassEx(&wc);
 
     // Calculate initial window size
-    RECT workRect;
+    RECT workRect = {};
     if (props.ignoreTaskbarForPlacement)
     {
         workRect.left = 0;
@@ -128,7 +128,7 @@ zwnd::WindowBackend::WindowBackend(HINSTANCE hInst, WindowProperties props, HWND
     );
 
     _fileDropHandler = std::make_unique<FileDropHandler>(_hwnd);
-    HRESULT hr = RegisterDragDrop(_hwnd, _fileDropHandler.get());
+    hr = RegisterDragDrop(_hwnd, _fileDropHandler.get());
 
     if (props.disableWindowAnimations)
     {
@@ -239,7 +239,11 @@ void zwnd::WindowBackend::LockSize()
 
 void zwnd::WindowBackend::UnlockSize()
 {
+    // Disable not-locked mutex warning
+#pragma warning( push )
+#pragma warning( disable : 26110 )
     _m_windowSize.unlock();
+#pragma warning( pop )
 }
 
 void zwnd::WindowBackend::UpdateLayeredWindow()
@@ -317,7 +321,7 @@ void zwnd::WindowBackend::ProcessQueueMessages(std::function<void(WindowMessage)
     // Create a copy of the queue and process the messages without blocking the message thread
     // Not doing this leads to a deadlock when trying to create a child window from the UI thread
     std::unique_lock<std::mutex> lock(_m_msg);
-    auto msgQueueCopy = _msgQueue;
+    std::queue<WindowMessage> msgQueueCopy = _msgQueue;
     while (!_msgQueue.empty())
         _msgQueue.pop();
     lock.unlock();
@@ -377,7 +381,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
         if (_messageOnly)
         {
-            RAWINPUTDEVICE Rid[1];
+            RAWINPUTDEVICE Rid[1] = {};
             Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
             Rid[0].usUsage = HID_USAGE_GENERIC_MOUSE;
             Rid[0].dwFlags = RIDEV_INPUTSINK;
@@ -392,7 +396,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_NCACTIVATE:
     {
-        WindowActivateMessage message;
+        WindowActivateMessage message = {};
         message.activationType = wParam == TRUE ? WindowActivateMessage::ACTIVATED : WindowActivateMessage::DEACTIVATED;
         _m_msg.lock();
         _msgQueue.push(message.Encode());
@@ -418,8 +422,8 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_ACTIVATE:
     {
-        WindowActivateMessage message;
-        message.activationType = wParam;
+        WindowActivateMessage message = {};
+        message.activationType = (int)wParam;
         _m_msg.lock();
         _msgQueue.push(message.Encode());
         _m_msg.unlock();
@@ -561,7 +565,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
             int deltaY = raw->data.mouse.lLastY;
             //std::cout << _hwnd << " - " << deltaX << ":" << deltaY << '\n';
 
-            MouseInputMessage message;
+            MouseInputMessage message = {};
             message.deltaX = deltaX;
             message.deltaY = deltaY;
             _m_msg.lock();
@@ -591,7 +595,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
         {
             if (!_mouseInWindow)
             {
-                TRACKMOUSEEVENT ev;
+                TRACKMOUSEEVENT ev = {};
                 ev.cbSize = sizeof(TRACKMOUSEEVENT);
                 ev.dwFlags = TME_LEAVE;
                 ev.hwndTrack = hWnd;
@@ -613,7 +617,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
             }
         }
 
-        MouseMoveMessage moveMsg;
+        MouseMoveMessage moveMsg = {};
         moveMsg.x = x;
         moveMsg.y = y;
         _msgQueue.push(moveMsg.Encode());
@@ -644,7 +648,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     {
         SetCapture(_hwnd);
 
-        MouseLeftPressedMessage message;
+        MouseLeftPressedMessage message = {};
         message.x = GET_X_LPARAM(lParam);
         message.y = GET_Y_LPARAM(lParam);
         _m_msg.lock();
@@ -656,7 +660,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     {
         ReleaseCapture();
 
-        MouseLeftReleasedMessage message;
+        MouseLeftReleasedMessage message = {};
         message.x = GET_X_LPARAM(lParam);
         message.y = GET_Y_LPARAM(lParam);
         _m_msg.lock();
@@ -666,7 +670,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_RBUTTONDOWN:
     {
-        MouseRightPressedMessage message;
+        MouseRightPressedMessage message = {};
         message.x = GET_X_LPARAM(lParam);
         message.y = GET_Y_LPARAM(lParam);
         _m_msg.lock();
@@ -676,7 +680,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_RBUTTONUP:
     {
-        MouseRightReleasedMessage message;
+        MouseRightReleasedMessage message = {};
         message.x = GET_X_LPARAM(lParam);
         message.y = GET_Y_LPARAM(lParam);
         _m_msg.lock();
@@ -690,7 +694,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_NCLBUTTONDOWN:
     {
-        NonClientMouseLeftPressedMessage message;
+        NonClientMouseLeftPressedMessage message = {};
         message.x = GET_X_LPARAM(lParam);
         message.y = GET_Y_LPARAM(lParam);
         _m_msg.lock();
@@ -700,7 +704,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_NCLBUTTONUP:
     {
-        NonClientMouseLeftReleasedMessage message;
+        NonClientMouseLeftReleasedMessage message = {};
         message.x = GET_X_LPARAM(lParam);
         message.y = GET_Y_LPARAM(lParam);
         _m_msg.lock();
@@ -710,7 +714,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_NCRBUTTONDOWN:
     {
-        NonClientMouseRightPressedMessage message;
+        NonClientMouseRightPressedMessage message = {};
         message.x = GET_X_LPARAM(lParam);
         message.y = GET_Y_LPARAM(lParam);
         _m_msg.lock();
@@ -720,7 +724,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_NCRBUTTONUP:
     {
-        NonClientMouseRightReleasedMessage message;
+        NonClientMouseRightReleasedMessage message = {};
         message.x = GET_X_LPARAM(lParam);
         message.y = GET_Y_LPARAM(lParam);
         _m_msg.lock();
@@ -733,17 +737,17 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
         int x = GET_X_LPARAM(lParam);
         int y = GET_Y_LPARAM(lParam);
 
-        WindowMessage message;
+        WindowMessage message = {};
         if (GET_WHEEL_DELTA_WPARAM(wParam) > 0)
         {
-            MouseWheelUpMessage upMessage;
+            MouseWheelUpMessage upMessage = {};
             upMessage.x = x;
             upMessage.y = y;
             message = upMessage.Encode();
         }
         else if (GET_WHEEL_DELTA_WPARAM(wParam) < 0)
         {
-            MouseWheelDownMessage downMessage;
+            MouseWheelDownMessage downMessage = {};
             downMessage.x = x;
             downMessage.y = y;
             message = downMessage.Encode();
@@ -769,7 +773,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
             _last2Moves[1].bottom = y + h;
         }
 
-        WindowMoveMessage message;
+        WindowMoveMessage message = {};
         message.x = x;
         message.y = y;
         _m_msg.lock();
@@ -807,7 +811,12 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
             if (!_insideInitialShowWindowCall)
                 _m_windowSize.lock();
         }
+
+        // Disable unreleased mutex warning
+#pragma warning( push )
+#pragma warning( disable : 26115 )
         return DefWindowProc(hWnd, msg, wParam, lParam);
+#pragma warning( pop )
     }
     case WM_SIZE:
     {
@@ -821,7 +830,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
         _messageWidth = w;
         _messageHeight = h;
 
-        WindowSizeMessage message;
+        WindowSizeMessage message = {};
         message.width = w;
         message.height = h;
 
@@ -856,16 +865,19 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
         _msgQueue.push(message.Encode());
         _m_msg.unlock();
 
+        // Disable not-locked mutex warning
+#pragma warning( push )
+#pragma warning( disable : 26117 26110 )
         if (!_insideInitialShowWindowCall)
             _m_windowSize.unlock();
-
         return DefWindowProc(hWnd, msg, wParam, lParam);
+#pragma warning( pop )
         break;
     }
     case WM_KEYDOWN:
     {
-        KeyDownMessage message;
-        message.keyCode = wParam;
+        KeyDownMessage message = {};
+        message.keyCode = (uint8_t)wParam;
         message.repeatCount = (uint16_t)(lParam & 0xFFFF);
         message.scanCode = (uint8_t)((lParam >> 16) & 0xFF);
         message.isExtended = (lParam & KF_EXTENDED) == KF_ALTDOWN;
@@ -878,8 +890,8 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_KEYUP:
     {
-        KeyUpMessage message;
-        message.keyCode = wParam;
+        KeyUpMessage message = {};
+        message.keyCode = (uint8_t)wParam;
         message.scanCode = (uint8_t)((lParam >> 16) & 0xFF);
         message.isExtended = (lParam & KF_EXTENDED) == KF_ALTDOWN;
 
@@ -890,8 +902,8 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_SYSKEYDOWN:
     {
-        KeyDownMessage message;
-        message.keyCode = wParam;
+        KeyDownMessage message = {};
+        message.keyCode = (uint8_t)wParam;
         message.repeatCount = (uint16_t)(lParam & 0xFFFF);
         message.scanCode = (uint8_t)((lParam >> 16) & 0xFF);
         message.isExtended = (lParam & KF_EXTENDED) == KF_ALTDOWN;
@@ -913,7 +925,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
             _m_msg.lock();
             message.keyCode = VK_MENU;
             _msgQueue.push(message.Encode());
-            message.keyCode = wParam;
+            message.keyCode = (uint8_t)wParam;
             _msgQueue.push(message.Encode());
             _m_msg.unlock();
         }
@@ -922,8 +934,8 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_SYSKEYUP:
     {
-        KeyUpMessage message;
-        message.keyCode = wParam;
+        KeyUpMessage message = {};
+        message.keyCode = (uint8_t)wParam;
         message.scanCode = (uint8_t)((lParam >> 16) & 0xFF);
         message.isExtended = (lParam & KF_EXTENDED) == KF_ALTDOWN;
 
@@ -943,7 +955,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
             _m_msg.lock();
             message.keyCode = VK_MENU;
             _msgQueue.push(message.Encode());
-            message.keyCode = wParam;
+            message.keyCode = (uint8_t)wParam;
             _msgQueue.push(message.Encode());
             _m_msg.unlock();
         }
@@ -952,8 +964,8 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_CHAR:
     {
-        CharMessage message;
-        message.character = wParam;
+        CharMessage message = {};
+        message.character = (wchar_t)wParam;
         message.repeatCount = (uint16_t)(lParam & 0xFFFF);
         message.scanCode = (uint8_t)((lParam >> 16) & 0xFF);
 
@@ -1034,6 +1046,34 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
             SetCursor(_cursor);
         break;
     }
+    case WM_APP_SET_FOCUS:
+    {
+        SetFocus(_hwnd);
+        break;
+    }
+    case WM_APP_SET_WINDOW_INTERACTION:
+    {
+        MouseWindowInteraction interactionType = (MouseWindowInteraction)wParam;
+        if (interactionType == MouseWindowInteraction::DEFAULT)
+        {
+            LONG_PTR currentStyle = GetWindowLongPtr(_hwnd, GWL_EXSTYLE);
+            if (currentStyle & WS_EX_TRANSPARENT)
+            {
+                SetWindowLongPtr(_hwnd, GWL_EXSTYLE, currentStyle & ~WS_EX_TRANSPARENT);
+                SetWindowPos(_hwnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
+            }
+        }
+        else if (interactionType == MouseWindowInteraction::PASS_THROUGH)
+        {
+            LONG_PTR currentStyle = GetWindowLongPtr(_hwnd, GWL_EXSTYLE);
+            if (!(currentStyle & WS_EX_TRANSPARENT))
+            {
+                SetWindowLongPtr(_hwnd, GWL_EXSTYLE, currentStyle | WS_EX_TRANSPARENT);
+                SetWindowPos(_hwnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
+            }
+        }
+        break;
+    }
     default:
     {
         return DefWindowProc(hWnd, msg, wParam, lParam);
@@ -1051,13 +1091,13 @@ void zwnd::WindowBackend::HandleFullscreenChange(bool fullscreen)
 
     if (_fullscreenInternal)
     {
-        WINDOWPLACEMENT placement;
+        WINDOWPLACEMENT placement = {};
         placement.length = sizeof(WINDOWPLACEMENT);
         GetWindowPlacement(_hwnd, &placement);
         _windowedMaximized = (placement.showCmd == SW_SHOWMAXIMIZED);
 
         HMONITOR hMonitor = MonitorFromWindow(_hwnd, MONITOR_DEFAULTTONEAREST);
-        MONITORINFO info;
+        MONITORINFO info = {};
         info.cbSize = sizeof(MONITORINFO);
         GetMonitorInfo(hMonitor, &info);
         RECT monitor = info.rcMonitor;
@@ -1136,24 +1176,7 @@ void zwnd::WindowBackend::ResetScreenTimer()
 
 void zwnd::WindowBackend::SetMouseInteraction(MouseWindowInteraction interactionType)
 {
-    if (interactionType == MouseWindowInteraction::DEFAULT)
-    {
-        LONG_PTR currentStyle = GetWindowLongPtr(_hwnd, GWL_EXSTYLE);
-        if (currentStyle & WS_EX_TRANSPARENT)
-        {
-            SetWindowLongPtr(_hwnd, GWL_EXSTYLE, currentStyle & ~WS_EX_TRANSPARENT);
-            SetWindowPos(_hwnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
-        }
-    }
-    else if (interactionType == MouseWindowInteraction::PASS_THROUGH)
-    {
-        LONG_PTR currentStyle = GetWindowLongPtr(_hwnd, GWL_EXSTYLE);
-        if (!(currentStyle & WS_EX_TRANSPARENT))
-        {
-            SetWindowLongPtr(_hwnd, GWL_EXSTYLE, currentStyle | WS_EX_TRANSPARENT);
-            SetWindowPos(_hwnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
-        }
-    }
+    PostMessage(_hwnd, WM_APP_SET_WINDOW_INTERACTION, (int)interactionType, NULL);
 }
 
 void zwnd::WindowBackend::AddKeyboardHandler(KeyboardEventHandler* handler)
@@ -1252,7 +1275,7 @@ void zwnd::WindowBackend::SetPosition(int newX, int newY)
 
 bool zwnd::WindowBackend::Maximized()
 {
-    WINDOWPLACEMENT placement;
+    WINDOWPLACEMENT placement = {};
     placement.length = sizeof(WINDOWPLACEMENT);
     GetWindowPlacement(_hwnd, &placement);
     return placement.showCmd == SW_SHOWMAXIMIZED;
@@ -1265,7 +1288,7 @@ void zwnd::WindowBackend::Maximize()
 
 bool zwnd::WindowBackend::Minimized()
 {
-    WINDOWPLACEMENT placement;
+    WINDOWPLACEMENT placement = {};
     placement.length = sizeof(WINDOWPLACEMENT);
     GetWindowPlacement(_hwnd, &placement);
     return placement.showCmd == SW_SHOWMINIMIZED;
@@ -1281,6 +1304,11 @@ void zwnd::WindowBackend::Restore()
     PostMessage(_hwnd, WM_SYSCOMMAND, SC_RESTORE, 0);
 }
 
+void zwnd::WindowBackend::Focus()
+{
+    PostMessage(_hwnd, WM_APP_SET_FOCUS, NULL, NULL);
+}
+
 void zwnd::WindowBackend::SetDisplayType(WindowDisplayType displayType)
 {
     PostMessage(_hwnd, WM_APP_SET_WINDOW_DISPLAY, (int)displayType, NULL);
@@ -1289,7 +1317,7 @@ void zwnd::WindowBackend::SetDisplayType(WindowDisplayType displayType)
 RECT zwnd::WindowBackend::GetMonitorRectAtScreenPoint(int x, int y)
 {
     HMONITOR hmon = MonitorFromPoint({ x, y }, MONITOR_DEFAULTTONEAREST);
-    MONITORINFO info;
+    MONITORINFO info = {};
     info.cbSize = sizeof(info);
     GetMonitorInfo(hmon, &info);
     return info.rcMonitor;

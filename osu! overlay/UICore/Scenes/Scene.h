@@ -5,15 +5,12 @@
 
 #include <functional>
 
-enum class NotificationPosition
-{
-    TOP_LEFT,
-    TOP_RIGHT,
-    BOTTOM_LEFT,
-    BOTTOM_RIGHT
-};
-
-#define NOTIF_PANEL_Z_INDEX 255
+#define DEFINE_SCENE(scene_name, parent) \
+public: \
+scene_name() : parent() {} \
+const char* GetName() const override { return StaticName(); } \
+static const char* StaticName() { return #scene_name; } \
+private:
 
 class App;
 namespace zwnd
@@ -23,14 +20,6 @@ namespace zwnd
 
 namespace zcom
 {
-    struct ResizeInfo
-    {
-        bool windowMaximized = false;
-        bool windowMinimized = false;
-        bool windowRestored = false;
-        bool windowFullscreened = false;
-    };
-
     // Options scene initialization
     struct SceneOptionsBase
     {
@@ -39,32 +28,22 @@ namespace zcom
 
     class Scene
     {
-        friend class App;
         friend class zwnd::Window;
     protected:
-        App* _app;
-        zwnd::Window* _window;
-        Canvas* _canvas;
-        bool _initialized = false;
-        bool _focused = false;
+        App* _app = nullptr;
+        zwnd::Window* _window = nullptr;
+        Panel* _basePanel = nullptr;
 
-        Scene(App* app, zwnd::Window* window);
+        Scene() {};
     public:
-        virtual ~Scene();
+        virtual ~Scene() {};
     protected:
-        void Init(SceneOptionsBase* options);
-        void Uninit();
-        void Focus();
-        void Unfocus();
-    public:
-        bool Focused() const;
-
-    protected:
-        void Update();
-        bool Redraw();
-        ID2D1Bitmap* Draw(Graphics g);
-        ID2D1Bitmap* ContentImage();
-        void Resize(int width, int height, ResizeInfo info = {});
+        //void SetReferences(App* app, zwnd::Window* window, Panel* basePanel);
+        void SetApp(App* app) { _app = app; };
+        void SetWindow(zwnd::Window* window) { _window = window; };
+        void SetBasePanel(Panel* basePanel) { _basePanel = basePanel; };
+        virtual void Init(SceneOptionsBase* options) {}
+        virtual void Uninit() {}
 
         // Component creation
         template<class T, typename... Args>
@@ -75,31 +54,15 @@ namespace zcom
             return uptr;
         }
 
-    public:
-        std::unique_ptr<Panel> CreatePanel()
+        std::unique_ptr<Panel> CreatePanelForScene(Scene* scene)
         {
-            auto uptr = std::unique_ptr<Panel>(new Panel(this));
-            uptr->Init();
-            return uptr;
+            return std::unique_ptr<Panel>(new Panel(scene));
         }
 
     public:
         App* GetApp() const { return _app; }
         zwnd::Window* GetWindow() const { return _window; }
-
-        Canvas* GetCanvas() const;
-
-    private:
-        virtual void _Init(SceneOptionsBase* options) = 0;
-        virtual void _Uninit() = 0;
-        virtual void _Focus() = 0;
-        virtual void _Unfocus() = 0;
-
-        virtual void _Update() = 0;
-        virtual bool _Redraw() { return _canvas->Redraw(); }
-        virtual ID2D1Bitmap* _Draw(Graphics g) { return _canvas->Draw(g); }
-        virtual ID2D1Bitmap* _Image() { return _canvas->ContentImage(); }
-        virtual void _Resize(int width, int height, ResizeInfo info) = 0;
+        Panel* GetBasePanel() const { return _basePanel; }
 
     public:
         virtual const char* GetName() const = 0;

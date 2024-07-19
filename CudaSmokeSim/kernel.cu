@@ -229,7 +229,7 @@ __global__ void ProjectP3Kernel(float* u, float* v, const float* p, const float 
 
 void _ProjectVel(CudaSmokeSim_Context* ctx)
 {
-    float h = 1.0 / ctx->height;
+    float h = 1.0f / ctx->height;
 
     ProjectP1Kernel<<<ctx->blockCount, ctx->threadCount>>>(ctx->dev_u, ctx->dev_v, ctx->dev_u_prev, ctx->dev_v_prev, h, ctx->blockCount, ctx->threadCount, ctx->width, ctx->height);
     SetBoundaryKernel<<<1, 1>>>(ctx->width, ctx->height, 0, ctx->dev_u_prev);

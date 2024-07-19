@@ -128,7 +128,7 @@ std::pair<float, float> zcom::ScrollPanel::ScrollbarWorkArea(Scrollbar direction
     if (direction == Scrollbar::VERTICAL)
     {
         float topOffset = 10.0f;
-        float bottomOffset = ScrollbarWidth(Scrollbar::HORIZONTAL);
+        float bottomOffset = (float)ScrollbarWidth(Scrollbar::HORIZONTAL);
         if (_verticalScrollbar.backgroundVisible)
         {
             topOffset = 0.0f;
@@ -140,7 +140,7 @@ std::pair<float, float> zcom::ScrollPanel::ScrollbarWorkArea(Scrollbar direction
     else
     {
         float leftOffset = 10.0f;
-        float rightOffset = ScrollbarWidth(Scrollbar::VERTICAL);
+        float rightOffset = (float)ScrollbarWidth(Scrollbar::VERTICAL);
         if (_horizontalScrollbar.backgroundVisible)
         {
             leftOffset = 0.0f;
@@ -158,7 +158,7 @@ D2D1_RECT_F zcom::ScrollPanel::ScrollbarHitbox(Scrollbar direction) const
         auto workArea = ScrollbarWorkArea(direction);
         float startPos = workArea.first;
         float endPos = workArea.second;
-        float hitboxWidth = ScrollbarWidth(Scrollbar::VERTICAL);
+        float hitboxWidth = (float)ScrollbarWidth(Scrollbar::VERTICAL);
 
         // Calculate scrollbar layout
         float heightToContentRatio = GetHeight() / (float)GetContentHeight();
@@ -172,7 +172,7 @@ D2D1_RECT_F zcom::ScrollPanel::ScrollbarHitbox(Scrollbar direction) const
 
         D2D1_RECT_F hitbox{};
         hitbox.left = GetWidth() - hitboxWidth;
-        hitbox.right = GetWidth();
+        hitbox.right = (FLOAT)GetWidth();
         hitbox.top = startPos + scrollBarPosition;
         hitbox.bottom = hitbox.top + scrollBarLength;
         return hitbox;
@@ -182,7 +182,7 @@ D2D1_RECT_F zcom::ScrollPanel::ScrollbarHitbox(Scrollbar direction) const
         auto workArea = ScrollbarWorkArea(direction);
         float startPos = workArea.first;
         float endPos = workArea.second;
-        float hitboxWidth = ScrollbarWidth(Scrollbar::HORIZONTAL);
+        float hitboxWidth = (float)ScrollbarWidth(Scrollbar::HORIZONTAL);
 
         // Calculate scrollbar layout
         float widthToContentRatio = GetWidth() / (float)GetContentWidth();
@@ -198,7 +198,7 @@ D2D1_RECT_F zcom::ScrollPanel::ScrollbarHitbox(Scrollbar direction) const
         hitbox.left = startPos + scrollBarPosition;
         hitbox.right = hitbox.left + scrollBarLength;
         hitbox.top = GetHeight() - hitboxWidth;
-        hitbox.bottom = GetHeight();
+        hitbox.bottom = (FLOAT)GetHeight();
         return hitbox;
     }
 }
@@ -289,6 +289,16 @@ void zcom::ScrollPanel::ScrollToItem(Component* item, bool force)
     }
 }
 
+Duration zcom::ScrollPanel::ScrollFocusLifetime() const
+{
+    return _scrollFocusLifetime;
+}
+
+void zcom::ScrollPanel::ScrollFocusLifetime(Duration lifetime)
+{
+    _scrollFocusLifetime = lifetime;
+}
+
 void zcom::ScrollPanel::_UpdateScrollbar(Scrollbar direction)
 {
     _Scrollbar& scrollbar = _GetScrollbar(direction);
@@ -362,7 +372,7 @@ void zcom::ScrollPanel::_UpdateScrollbar(Scrollbar direction)
 
             int startPos = scrollbar.scrollAnimation.startPos;
             int endPos = scrollbar.scrollAnimation.endPos;
-            scrollbar.scrollAmount = startPos + (endPos - startPos) * moveProgress;
+            scrollbar.scrollAmount = int(startPos + (endPos - startPos) * moveProgress);
         }
         _RecalculateLayout(GetWidth(), GetHeight());
         // TODO: only resend mouse move messages if mouse is in the component
