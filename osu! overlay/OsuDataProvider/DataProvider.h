@@ -123,6 +123,7 @@ namespace osu
                         _connectionEventEmitter->InvokeAll(DISCONNECT_COMPLETED);
                         _connectionState = DISCONNECTED;
                         _client.reset();
+                        _gameState = std::nullopt;
                         break;
                     }
 

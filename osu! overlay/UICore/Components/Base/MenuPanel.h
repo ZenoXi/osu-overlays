@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Panel.h"
+#include "FlexPanel.h"
 #include "MenuItem.h"
 
 #include "Window/WindowId.h"
@@ -34,57 +34,28 @@ namespace zcom
         std::optional<EventEmitter<void>> mouseMoveEventEmitter = std::nullopt;
     };
 
-    class MenuPanel : public Panel
+    class MenuPanel : public FlexPanel
     {
-        DEFINE_COMPONENT(MenuPanel, Panel)
+        DEFINE_COMPONENT(MenuPanel, FlexPanel)
         DEFAULT_DESTRUCTOR(MenuPanel)
     protected:
         void Init(MenuParams params);
 
     public:
-        void SetMaxWidth(int maxWidth)
-        {
-            if (_maxWidth != maxWidth)
-            {
-                _maxWidth = maxWidth;
-                _RearrangeMenuItems();
-                _CalculatePlacement();
-            }
-        }
-
-        void SetMinWidth(int minWidth)
-        {
-            if (_minWidth != minWidth)
-            {
-                _minWidth = minWidth;
-                _RearrangeMenuItems();
-                _CalculatePlacement();
-            }
-        }
-
-        void AddItem(std::unique_ptr<MenuItem> item)
-        {
-            Panel::AddItem(std::move(item));
-            _RearrangeMenuItems();
-            _CalculatePlacement();
-        }
-
-        MenuItem* GetItem(int index)
-        {
-            return (MenuItem*)Panel::GetItem(index);
-        }
-
-        size_t ItemCount() const
-        {
-            return Panel::ItemCount();
-        }
-
-        void ClearItems()
-        {
-            Panel::ClearItems();
-            _RearrangeMenuItems();
-            _CalculatePlacement();
-        }
+        Value<int> minWidth = Value<int>(70, [=](int& currentValue, const int& minWidth) {
+            currentValue = minWidth;
+            DeferLayoutUpdates();
+            for (auto& item : _items)
+                ((MenuItem*)item.item)->minWidth = minWidth;
+            ResumeLayoutUpdates();
+        });
+        Value<int> maxWidth = Value<int>(600, [=](int& currentValue, const int& maxWidth) {
+            currentValue = maxWidth;
+            DeferLayoutUpdates();
+            for (auto& item : _items)
+                ((MenuItem*)item.item)->maxWidth = maxWidth;
+            ResumeLayoutUpdates();
+        });
 
         void HandleCloseRequest();
 
@@ -101,9 +72,9 @@ namespace zcom
                 if (_childItemId.has_value() && ((MenuItem*)it.item)->GetId() == _childItemId.value())
                 {
                     if (_hoveredItem)
-                        _hoveredItem->SetBackgroundColor(D2D1::ColorF(0, 0.0f));
+                        _hoveredItem->backgroundColor = Color();
                     _hoveredItem = (MenuItem*)it.item;
-                    _hoveredItem->SetBackgroundColor(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.1f));
+                    _hoveredItem->backgroundColor = Color(0xFFFFFF, 0.1f);
                     break;
                 }
             }
@@ -123,8 +94,6 @@ namespace zcom
         RECT _bounds = { 0, 0, 0, 0 };
         // Parent menu or other source rect in virtual screen coordinates
         RECT _parentRect = { 0, 0, 0, 0 };
-        int _maxWidth = 600;
-        int _minWidth = 70;
 
         TimePoint _childHoverStartTime = 0;
         std::optional<MenuItem::Id> _childMenuToShow = std::nullopt;
@@ -158,29 +127,21 @@ namespace zcom
 
         void _AddHandlerToCanvas();
 
-        void _RearrangeMenuItems()
+        void _AddItem(Component* item, size_t position, bool transferOwnership) override
         {
-            constexpr int MARGINS = 2;
-
-            _RecalculateLayout(GetWidth(), GetHeight());
-            int totalHeight = MARGINS;
-            int maxWidth = 0;
-            for (int i = 0; i < _items.size(); i++)
+            if (!dynamic_cast<MenuItem*>(item))
             {
-                _items[i].item->SetOffsetPixels(MARGINS, totalHeight);
-                _items[i].item->SetBaseWidth(-MARGINS * 2);
-                totalHeight += _items[i].item->GetHeight();
-                int width = ((MenuItem*)_items[i].item)->CalculateWidth();
-                if (width > maxWidth)
-                    maxWidth = width;
+                if (transferOwnership)
+                    delete item;
+                return;
             }
+            Panel::_AddItem(item, position, transferOwnership);
+        }
 
-            if (maxWidth < _minWidth)
-                maxWidth = _minWidth;
-            if (maxWidth > _maxWidth)
-                maxWidth = _maxWidth;
-
-            SetBaseSize(maxWidth + MARGINS * 2, totalHeight + MARGINS);
+        void _ComputeItemLayout() override
+        {
+            FlexPanel::_ComputeItemLayout();
+            _CalculatePlacement();
         }
 
         void _CalculatePlacement();
@@ -216,12 +177,12 @@ namespace zcom
             }
         }
 
-        EventTargets _OnMouseMove(int x, int y, int deltaX, int deltaY) override
+        EventContext _OnMouseMove(Point point, Point deltaPos) override
         {
             // Notify parent menu of mouse movement
             _mouseMoveEventEmitter->InvokeAll();
 
-            auto targets = Panel::_OnMouseMove(x, y, deltaX, deltaY);
+            auto targets = Panel::_OnMouseMove(point, deltaPos);
             Component* mainTarget = targets.MainTarget();
             auto it = std::find_if(_items.begin(), _items.end(), [mainTarget](Item& item) { return item.item == mainTarget; });
             if (it != _items.end())
@@ -229,10 +190,10 @@ namespace zcom
                 MenuItem* item = (MenuItem*)it->item;
 
                 if (_hoveredItem)
-                    _hoveredItem->SetBackgroundColor(D2D1::ColorF(0, 0.0f));
+                    _hoveredItem->backgroundColor = Color();
                 _hoveredItem = item;
-                if (!_hoveredItem->IsSeparator() && !_hoveredItem->Disabled())
-                    _hoveredItem->SetBackgroundColor(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.1f));
+                if (!_hoveredItem->IsSeparator() && !_hoveredItem->disabled)
+                    _hoveredItem->backgroundColor = Color(0xFFFFFF, 0.1f);
 
                 // Stop scheduled hide
                 if (_childMenuShowing && item->GetId() == _childItemId.value())
@@ -257,7 +218,7 @@ namespace zcom
                 }
 
                 // Prime panel to open
-                if (!item->Disabled() && item->GetMenu() && (!_childItemId.has_value() || item->GetId() != _childItemId.value()))
+                if (!item->disabled && item->GetMenu() && (!_childItemId.has_value() || item->GetId() != _childItemId.value()))
                 {
                     if (!_childMenuToShow)
                     {
@@ -267,12 +228,12 @@ namespace zcom
                 }
             }
 
-            return std::move(targets.Add(this, GetMousePosX(), GetMousePosY()));
+            return std::move(targets.Add(this, point));
         }
 
-        EventTargets _OnLeftPressed(int x, int y) override
+        EventContext _OnLeftPressed(Point point) override
         {
-            auto targets = Panel::_OnLeftPressed(x, y);
+            auto targets = Panel::_OnLeftPressed(point);
             Component* mainTarget = targets.MainTarget();
             auto it = std::find_if(_items.begin(), _items.end(), [mainTarget](Item& item) { return item.item == mainTarget; });
             if (it != _items.end())
@@ -283,32 +244,29 @@ namespace zcom
                 _childHoverEndTime = ztime::Main() - _hoverToShowDuration;
                 _childHoverStartTime = ztime::Main() - _hoverToShowDuration;
 
-                if (!item->Disabled())
+                if (!item->disabled)
                 {
                     // Handle checkable items
-                    if (item->Checkable())
+                    if (item->checkable)
                     {
-                        if (item->CheckGroup() == -1)
+                        if (item->checkGroup == -1)
                         {
-                            item->Invoke(!item->Checked());
-                            item->SetChecked(!item->Checked());
+                            item->Invoke(!item->checked);
+                            item->checked = !item->checked;
                         }
                         else
                         {
-                            if (!item->Checked())
+                            if (!item->checked)
                             {
                                 // Uncheck others from same group
                                 for (int i = 0; i < _items.size(); i++)
                                 {
                                     MenuItem* mItem = (MenuItem*)_items[i].item;
-                                    if (mItem->CheckGroup() == item->CheckGroup() && mItem->Checked())
-                                    {
-                                        mItem->SetChecked(false);
-                                    }
+                                    if (mItem->checkGroup == item->checkGroup && mItem->checked)
+                                        mItem->checked = false;
                                 }
-
                                 item->Invoke(true);
-                                item->SetChecked(true);
+                                item->checked = true;
                             }
                         }
                     }
@@ -320,12 +278,12 @@ namespace zcom
 
                 if (!item->GetMenu() &&
                     !item->IsSeparator() &&
-                    !item->Disabled() &&
-                    item->CloseOnClick())
+                    !item->disabled &&
+                    item->closeOnClick)
                     FullClose();
             }
 
-            return std::move(targets.Add(this, x, y));
+            return std::move(targets.Add(this, point));
         }
 
         void _OnMouseLeave() override
@@ -352,7 +310,7 @@ namespace zcom
                 {
                     if (_hoveredItem)
                     {
-                        _hoveredItem->SetBackgroundColor(D2D1::ColorF(0, 0.0f));
+                        _hoveredItem->backgroundColor = Color();
                         _hoveredItem = nullptr;
                     }
                 }
@@ -362,10 +320,22 @@ namespace zcom
                 // Unhighlight item
                 if (_hoveredItem)
                 {
-                    _hoveredItem->SetBackgroundColor(D2D1::ColorF(0, 0.0f));
+                    _hoveredItem->backgroundColor = Color();
                     _hoveredItem = nullptr;
                 }
             }
+        }
+
+    public:
+        std::vector<std::pair<std::string, std::vector<ValueProxy>>> GetReflectionData()
+        {
+            std::vector<ValueProxy> values;
+            values.push_back(ValueProxy::BasicIntValueProxy<int>("min width", std::make_any<Value<int>*>(&minWidth), ValueProxy::Number(0)));
+            values.push_back(ValueProxy::BasicIntValueProxy<int>("max width", std::make_any<Value<int>*>(&maxWidth), ValueProxy::Number(0)));
+
+            auto data = FlexPanel::GetReflectionData();
+            data.insert(data.begin(), { "Menu panel", std::move(values) });
+            return data;
         }
     };
 }

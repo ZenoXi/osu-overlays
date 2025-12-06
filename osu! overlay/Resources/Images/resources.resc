@@ -12,6 +12,8 @@ cursor_icon Resources\Images\WindowIcons\CursorIcon.png
 slider_anchor Resources\Images\Misc\SliderAnchor.png
 slider_anchor_hovered Resources\Images\Misc\SliderAnchorHovered.png
 osu_memory Resources\Images\Misc\OsuMemory.png
+osu_web Resources\Images\Misc\OsuWeb.png
+overlay Resources\Images\Misc\Overlay.png
 settings_22x22 Resources\Images\Misc\Settings-22x22.png
 trail_head_icon Resources\Images\Misc\TrailHeadIcon.png
 slider_anchor_top Resources\Images\Misc\SliderAnchorTop.png
@@ -22,3 +24,6 @@ insertion_marker_head Resources\Images\Misc\InsertionMarkerHead.png
 insertion_marker_icon Resources\Images\Misc\InsertionMarkerIcon.png
 minus_1 Resources\Images\Misc\Minus.png
 wall_to_2px_pipe_transition_right Resources\Images\Misc\WallTo2pxPipeTransitionRight.png
+eye Resources\Images\Misc\Eye.png
+on_off Resources\Images\Misc\OnOff.png
+update Resources\Images\Misc\Update.png

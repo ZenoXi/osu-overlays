@@ -1,5 +1,4 @@
 #include "MenuPanel.h"
-#include "Canvas.h"
 #include "App.h"
 #include "Scenes/Scene.h"
 #include "Scenes/ContextMenuScene.h"
@@ -13,9 +12,10 @@
 void zcom::MenuPanel::Init(MenuParams params)
 {
     _closeRequestEventEmitter = EventEmitter<void>(EventEmitterThreadMode::MULTITHREADED);
-    Panel::Init();
+    FlexPanel::Init(FlexDirection::DOWN);
 
-    SetBackgroundColor(D2D1::ColorF(0.05f, 0.05f, 0.05f));
+    backgroundColor = Color(0x0D0D0D);
+    padding = { 2, 2, 2, 2 };
 
     _parentRect = params.parentRect;
     _bounds = _scene->GetWindow()->Backend().GetMonitorRectAtWindowPoint(_parentRect.right, _parentRect.top);
@@ -44,6 +44,7 @@ void zcom::MenuPanel::Init(MenuParams params)
     }
 
     // Create menu components from template
+    DeferLayoutUpdates();
     for (auto& item : params.menuTemplate.items)
     {
         std::unique_ptr<MenuItem> menuItem;
@@ -57,20 +58,18 @@ void zcom::MenuPanel::Init(MenuParams params)
         if (!menuItem)
             continue;
         
-        menuItem->SetCheckable(item.checkable);
-        menuItem->SetCheckGroup(item.checkGroup);
+        menuItem->checkable = item.checkable;
+        menuItem->checkGroup = item.checkGroup;
 
         if (!item.iconResourceName.empty())
         {
             _scene->GetWindow()->resourceManager.InitImage(item.iconResourceName);
-            menuItem->SetIcon(_scene->GetWindow()->resourceManager.GetImage(item.iconResourceName));
+            menuItem->icon = _scene->GetWindow()->resourceManager.GetImage(item.iconResourceName);
         }
 
         Panel::AddItem(std::move(menuItem));
     }
-
-    _RearrangeMenuItems();
-    _CalculatePlacement();
+    ResumeLayoutUpdates();
 
     ExecuteSynchronously([&] {
         _scene->GetWindow()->Backend().SetDisplayType(zwnd::WindowDisplayType::NORMAL_NOACTIVATE);
@@ -139,10 +138,10 @@ std::future<std::optional<zwnd::WindowId>> zcom::MenuPanel::_OpenChildMenu(MenuI
 
     zwnd::Window* window = _scene->GetWindow();
     RECT itemRectInScreenCoords = {
-        item->GetWindowX(),
-        item->GetWindowY(),
-        item->GetWindowX() + item->GetWidth(),
-        item->GetWindowY() + item->GetHeight()
+        item->windowPosition_->x,
+        item->windowPosition_->y,
+        item->windowPosition_->x + item->size_->width,
+        item->windowPosition_->y + item->size_->height
     };
     RECT windowRect = window->Backend().GetWindowRectangle();
     itemRectInScreenCoords.left += windowRect.left;
@@ -247,9 +246,9 @@ void zcom::MenuPanel::_CalculatePlacement()
 
     // Horizontal placement
     int hPlacement;
-    if (_parentRect.right + GetBaseWidth() < _bounds.right)
+    if (_parentRect.right + size->width < _bounds.right)
         hPlacement = RIGHT;
-    else if (_parentRect.left - GetBaseWidth() > _bounds.left)
+    else if (_parentRect.left - size->width > _bounds.left)
         hPlacement = LEFT;
     else
         if (_bounds.right - _parentRect.right > _parentRect.left - _bounds.left)
@@ -259,9 +258,9 @@ void zcom::MenuPanel::_CalculatePlacement()
 
     // Vertical placement
     int vPlacement;
-    if (_parentRect.top + GetBaseHeight() < _bounds.bottom)
+    if (_parentRect.top + size->height < _bounds.bottom)
         vPlacement = DOWN;
-    else if (_parentRect.bottom - GetBaseHeight() > _bounds.top)
+    else if (_parentRect.bottom - size->height > _bounds.top)
         vPlacement = UP;
     else
         if (_bounds.bottom - _parentRect.top > _parentRect.bottom - _bounds.top)
@@ -274,22 +273,22 @@ void zcom::MenuPanel::_CalculatePlacement()
     if (hPlacement == RIGHT)
         xPos = _parentRect.right;
     else
-        xPos = _parentRect.left - GetBaseWidth();
+        xPos = _parentRect.left - size->width;
 
     // Final y position
     int yPos;
     if (vPlacement == DOWN)
         yPos = _parentRect.top;
     else
-        yPos = _parentRect.bottom - GetBaseHeight();
+        yPos = _parentRect.bottom - size->height;
 
     // Set window position accounting for non client area overlap
-    RECT clientAreaMargins = _scene->GetWindow()->GetNonClientAreaScene()->GetClientAreaMargins();
+    Rect clientAreaMargins = _scene->GetWindow()->GetNonClientAreaScene()->GetClientAreaMargins();
     RECT finalRect = {
         xPos - clientAreaMargins.left,
         yPos - clientAreaMargins.top,
-        xPos + GetBaseWidth() + clientAreaMargins.right,
-        yPos + GetBaseHeight() + clientAreaMargins.bottom
+        xPos + size->width + clientAreaMargins.right,
+        yPos + size->height + clientAreaMargins.bottom
     };
     _scene->GetWindow()->Backend().SetWindowRectangle(finalRect);
 }

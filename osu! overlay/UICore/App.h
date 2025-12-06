@@ -5,7 +5,7 @@
 #include "Helper/Handle.h"
 #include "Helper/EventEmitter.h"
 #include "Helper/Config.h"
-#include "OsuDataProvider/DataProvider.h"
+#include "WindowEvent.h"
 
 #include <mutex>
 #include <optional>
@@ -40,14 +40,16 @@ public:
     std::future<std::optional<zwnd::WindowId>> CreateChildWindowAsync(zwnd::WindowId parentWindowId, zwnd::WindowProperties props, std::function<void(zwnd::Window* window)> initFunction);
     std::future<std::optional<zwnd::WindowId>> CreateToolWindowAsync(zwnd::WindowId parentWindowId, zwnd::WindowProperties props, std::function<void(zwnd::Window* window)> initFunction);
 
-    std::unique_ptr<AsyncEventSubscription<void, zwnd::WindowId, zwnd::WindowType, zwnd::WindowProperties>> SubscribeOnWindowCreated(std::function<void(zwnd::WindowId, zwnd::WindowType, zwnd::WindowProperties)> handler);
-    std::unique_ptr<AsyncEventSubscription<void, zwnd::WindowId>> SubscribeOnWindowClosed(std::function<void(zwnd::WindowId)> handler);
+    std::unique_ptr<AsyncEventSubscription<void, WindowEvent>> SubscribeOnWindowEvent(std::function<void(WindowEvent)> handler = nullptr);
 
     Handle<zwnd::Window> GetWindow(zwnd::WindowId windowId);
     Handle<zwnd::Window> GetWindowNoLock(zwnd::WindowId windowId);
     Handle<zwnd::Window> FindWindowByClassName(std::wstring className);
+    std::vector<zwnd::WindowId> GetWindowList();
     zwnd::Window* GetMessageWindow();
     bool WindowsClosed();
+
+    void Exit();
 private:
     // _m_windows must be locked before calling
     zwnd::Window* _FindWindow(zwnd::WindowId windowId);
@@ -70,8 +72,7 @@ private:
     std::vector<WindowInfo> _windows;
     std::mutex _m_windows;
 
-    EventEmitter<void, zwnd::WindowId, zwnd::WindowType, zwnd::WindowProperties> _windowCreatedEvent;
-    EventEmitter<void, zwnd::WindowId> _windowClosedEvent;
+    EventEmitter<void, WindowEvent> _windowEvent;
 
     std::unique_ptr<zwnd::Window> _messageWindow;
 
@@ -80,5 +81,19 @@ private:
 
 public:
     Config config;
-    osu::DataProvider dataProvider;
+
+private:
+    // Shared application specific context
+    std::any _shared;
+public:
+    template<class _Shared>
+    void SetSharedContext(_Shared shared)
+    {
+        _shared = std::make_any<_Shared>(shared);
+    }
+    template<class _Shared>
+    _Shared Shared()
+    {
+        return std::any_cast<_Shared>(_shared);
+    }
 };

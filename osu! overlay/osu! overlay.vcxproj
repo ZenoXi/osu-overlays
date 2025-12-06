@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -160,19 +160,21 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <AdditionalIncludeDirectories>$(SolutionDir)include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <EntryPointSymbol>mainCRTStartup</EntryPointSymbol>
+      <EntryPointSymbol>
+      </EntryPointSymbol>
       <AdditionalLibraryDirectories>$(SolutionDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>CudaSmokeSim.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>CudaSmokeSim.lib;libssl.lib;libcrypto.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /y /d "$(ProjectDir)build\$(Configuration)\$(TargetFileName)" "$(SolutionDir)output\$(Configuration)\"
@@ -183,86 +185,178 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="ComboBar\ComboBarParameterPanel.cpp" />
-    <ClCompile Include="ComboBar\ComboBarScene.cpp" />
-    <ClCompile Include="CursorTrail\CursorTrailEffect.cpp" />
-    <ClCompile Include="CursorTrail\CursorTrailParameterPanel.cpp" />
-    <ClCompile Include="CursorTrail\CursorTrailScene.cpp" />
-    <ClCompile Include="FontLoader\FontLoader.cpp" />
+    <ClCompile Include="notification\NotificationDisplayComponent.cpp" />
+    <ClCompile Include="notification\NotificationService.cpp" />
+    <ClCompile Include="notification\StandardNotificationTemplate.cpp" />
     <ClCompile Include="osu! overlay.cpp" />
     <ClCompile Include="OsuDataProvider\DataProviderSetupScene.cpp" />
+    <ClCompile Include="OsuDataProvider\DataProviderView.cpp" />
     <ClCompile Include="OsuDataProvider\easywsclient.cpp" />
     <ClCompile Include="OsuDataProvider\GameState.cpp" />
+    <ClCompile Include="Overlays\combo-counter\ComboCounterOverlay.cpp" />
+    <ClCompile Include="Overlays\combo-counter\ComboCounterOverlayComponent.cpp" />
+    <ClCompile Include="Overlays\combo-counter\ComboCounterSetupComponent.cpp" />
+    <ClCompile Include="Overlays\cursor-trail\CursorTrailEffect.cpp" />
+    <ClCompile Include="Overlays\cursor-trail\CursorTrailOverlay.cpp" />
+    <ClCompile Include="Overlays\cursor-trail\CursorTrailOverlayComponent.cpp" />
+    <ClCompile Include="Overlays\cursor-trail\CursorTrailSetupComponent.cpp" />
+    <ClCompile Include="Overlays\OverlayManager.cpp" />
+    <ClCompile Include="Overlays\OverlayScene.cpp" />
+    <ClCompile Include="Overlays\OverlayView.cpp" />
+    <ClCompile Include="Overlays\pp-counter\PPCounterOverlay.cpp" />
+    <ClCompile Include="Overlays\pp-counter\PPCounterOverlayComponent.cpp" />
+    <ClCompile Include="Overlays\pp-counter\PPCounterSetupComponent.cpp" />
+    <ClCompile Include="Overlays\rt-leaderboard\RTLeaderboardOverlay.cpp" />
+    <ClCompile Include="Overlays\rt-leaderboard\RTLeaderboardOverlayComponent.cpp" />
+    <ClCompile Include="Overlays\rt-leaderboard\RTLeaderboardSetupComponent.cpp" />
+    <ClCompile Include="Overlays\smoke-sim\enhanced-smoke\EnhancedSmokeOverlay.cpp" />
+    <ClCompile Include="Overlays\smoke-sim\enhanced-smoke\EnhancedSmokeSetupComponent.cpp" />
+    <ClCompile Include="Overlays\smoke-sim\smoke-trail\SmokeTrailOverlay.cpp" />
+    <ClCompile Include="Overlays\smoke-sim\smoke-trail\SmokeTrailSetupComponent.cpp" />
+    <ClCompile Include="Overlays\smoke-sim\SmokeSimOverlayComponent.cpp" />
+    <ClCompile Include="Overlays\ur-counter\URCounterOverlay.cpp" />
+    <ClCompile Include="Overlays\ur-counter\URCounterOverlayComponent.cpp" />
+    <ClCompile Include="Overlays\ur-counter\URCounterSetupComponent.cpp" />
+    <ClCompile Include="Settings\IntegrationSettingsPanel.cpp" />
+    <ClCompile Include="Settings\OverlaySettingsPanel.cpp" />
+    <ClCompile Include="Settings\SettingsScene.cpp" />
+    <ClCompile Include="Settings\SettingsWindowController.cpp" />
+    <ClCompile Include="Settings\UpdateSettingsPanel.cpp" />
+    <ClCompile Include="Shared\Components\OverlayLayoutSetup.cpp" />
+    <ClCompile Include="Shared\Scenes\TitleBarScene.cpp" />
     <ClCompile Include="Shared\Util\Functions.cpp" />
     <ClCompile Include="Shared\Util\Navigation.cpp" />
-    <ClCompile Include="SimplePPCounter\SimplePPCounterParameterPanel.cpp" />
-    <ClCompile Include="SimplePPCounter\SimplePPCounterScene.cpp" />
-    <ClCompile Include="Shared\Scenes\ColorSelectorScene.cpp" />
-    <ClCompile Include="SmokeSim\SmokeSimParameterPanel.cpp" />
-    <ClCompile Include="SmokeSim\SmokeSimScene.cpp" />
     <ClCompile Include="UICore\App.cpp" />
     <ClCompile Include="UICore\Components\Base\Button.cpp" />
     <ClCompile Include="UICore\Components\Base\Checkbox.cpp" />
+    <ClCompile Include="UICore\Components\Base\ColorSelector.cpp" />
     <ClCompile Include="UICore\Components\Base\ComponentBase.cpp" />
+    <ClCompile Include="UICore\Components\Base\DropdownSelector.cpp" />
     <ClCompile Include="UICore\Components\Base\FlexPanel.cpp" />
     <ClCompile Include="UICore\Components\Base\KeySelector.cpp" />
     <ClCompile Include="UICore\Components\Base\Label.cpp" />
     <ClCompile Include="UICore\Components\Base\MenuItem.cpp" />
     <ClCompile Include="UICore\Components\Base\MenuPanel.cpp" />
     <ClCompile Include="UICore\Components\Base\NumberInput.cpp" />
+    <ClCompile Include="UICore\Components\Base\Panel.cpp" />
     <ClCompile Include="UICore\Components\Base\ScrollPanel.cpp" />
     <ClCompile Include="UICore\Components\Base\Slider.cpp" />
     <ClCompile Include="UICore\Components\Base\TextInput.cpp" />
     <ClCompile Include="UICore\Components\Base\Toggle.cpp" />
+    <ClCompile Include="UICore\Components\ComHelper.cpp" />
     <ClCompile Include="UICore\D2DEffects\TintEffect.cpp" />
+    <ClCompile Include="UICore\Fonts\FontLoader.cpp" />
     <ClCompile Include="UICore\Helper\Config.cpp" />
     <ClCompile Include="UICore\Helper\ResourceManager.cpp" />
     <ClCompile Include="UICore\Helper\StringHelper.cpp" />
     <ClCompile Include="UICore\Helper\Time.cpp" />
+    <ClCompile Include="UICore\Helper\Value.cpp" />
+    <ClCompile Include="UICore\Scenes\ColorSelectorScene.cpp" />
     <ClCompile Include="UICore\Scenes\ContextMenuScene.cpp" />
+    <ClCompile Include="UICore\Scenes\DebugWindowScene.cpp" />
     <ClCompile Include="UICore\Scenes\DefaultNonClientAreaScene.cpp" />
     <ClCompile Include="UICore\Scenes\DefaultTitleBarScene.cpp" />
     <ClCompile Include="UICore\Scenes\EntryScene.cpp" />
     <ClCompile Include="UICore\Scenes\Scene.cpp" />
     <ClCompile Include="UICore\Scenes\TestScene.cpp" />
     <ClCompile Include="UICore\Scenes\TooltipScene.cpp" />
+    <ClCompile Include="UICore\Window\BitmapAllocator.cpp" />
+    <ClCompile Include="UICore\Window\Effects.cpp" />
+    <ClCompile Include="UICore\Window\Graphics.cpp" />
+    <ClCompile Include="UICore\Window\SegmentedBitmapAllocator.cpp" />
+    <ClCompile Include="UICore\Window\TextRenderContext.cpp" />
     <ClCompile Include="UICore\Window\Window.cpp" />
     <ClCompile Include="UICore\Window\WindowBackend.cpp" />
     <ClCompile Include="UICore\Window\WindowGraphics.cpp" />
+    <ClCompile Include="versioning\UpdateErrorScene.cpp" />
+    <ClCompile Include="versioning\VersionManager.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="ComboBar\ComboBarConfig.h" />
-    <ClInclude Include="ComboBar\ComboBarParameterPanel.h" />
-    <ClInclude Include="ComboBar\ComboBarScene.h" />
-    <ClInclude Include="CursorTrail\CursorTrailConfig.h" />
-    <ClInclude Include="CursorTrail\CursorTrailEffect.h" />
-    <ClInclude Include="CursorTrail\CursorTrailParameterPanel.h" />
-    <ClInclude Include="CursorTrail\CursorTrailScene.h" />
     <ClInclude Include="FontLoader\Common.h" />
     <ClInclude Include="FontLoader\FontLoader.h" />
+    <ClInclude Include="notification\NotificationDisplayComponent.h" />
+    <ClInclude Include="notification\NotificationInfo.h" />
+    <ClInclude Include="notification\NotificationService.h" />
+    <ClInclude Include="notification\StandardNotificationTemplate.h" />
     <ClInclude Include="OsuDataProvider\Context.h" />
     <ClInclude Include="OsuDataProvider\DataProvider.h" />
     <ClInclude Include="OsuDataProvider\DataProviderConfig.h" />
     <ClInclude Include="OsuDataProvider\DataProviderSetupScene.h" />
+    <ClInclude Include="OsuDataProvider\DataProviderView.h" />
     <ClInclude Include="OsuDataProvider\easywsclient.hpp" />
     <ClInclude Include="OsuDataProvider\GameState.h" />
     <ClInclude Include="OsuDataProvider\json.hpp" />
     <ClInclude Include="OsuDataProvider\WsClientWrapper.h" />
+    <ClInclude Include="OsuWebApi\Response\BeatmapUserScore.h" />
+    <ClInclude Include="OsuWebApi\Response\LeaderboardPage.h" />
+    <ClInclude Include="OsuWebApi\Response\PlayerData.h" />
+    <ClInclude Include="OsuWebApi\Response\User.h" />
+    <ClInclude Include="OsuWebApi\Response\WebResponse.h" />
+    <ClInclude Include="OsuWebApi\WebApi.h" />
+    <ClInclude Include="OsuWebApi\WebApiConfig.h" />
+    <ClInclude Include="Overlays\combo-counter\ComboCounterConfig.h" />
+    <ClInclude Include="Overlays\combo-counter\ComboCounterOverlay.h" />
+    <ClInclude Include="Overlays\combo-counter\ComboCounterOverlayComponent.h" />
+    <ClInclude Include="Overlays\combo-counter\ComboCounterSetupComponent.h" />
+    <ClInclude Include="Overlays\cursor-trail\CursorTrailConfig.h" />
+    <ClInclude Include="Overlays\cursor-trail\CursorTrailEffect.h" />
+    <ClInclude Include="Overlays\cursor-trail\CursorTrailOverlay.h" />
+    <ClInclude Include="Overlays\cursor-trail\CursorTrailOverlayComponent.h" />
+    <ClInclude Include="Overlays\cursor-trail\CursorTrailSetupComponent.h" />
+    <ClInclude Include="Overlays\Overlay.h" />
+    <ClInclude Include="Overlays\OverlayConfig.h" />
+    <ClInclude Include="Overlays\OverlayEvent.h" />
+    <ClInclude Include="Overlays\OverlayManager.h" />
+    <ClInclude Include="Overlays\OverlayScene.h" />
+    <ClInclude Include="Overlays\OverlayView.h" />
+    <ClInclude Include="Overlays\pp-counter\PPCounterConfig.h" />
+    <ClInclude Include="Overlays\pp-counter\PPCounterOverlay.h" />
+    <ClInclude Include="Overlays\pp-counter\PPCounterOverlayComponent.h" />
+    <ClInclude Include="Overlays\pp-counter\PPCounterSetupComponent.h" />
+    <ClInclude Include="Overlays\rt-leaderboard\LeaderboardCountries.h" />
+    <ClInclude Include="Overlays\rt-leaderboard\LeaderboardItem.h" />
+    <ClInclude Include="Overlays\rt-leaderboard\RTLeaderboardConfig.h" />
+    <ClInclude Include="Overlays\rt-leaderboard\RTLeaderboardOverlay.h" />
+    <ClInclude Include="Overlays\rt-leaderboard\RTLeaderboardOverlayComponent.h" />
+    <ClInclude Include="Overlays\rt-leaderboard\RTLeaderboardSetupComponent.h" />
+    <ClInclude Include="Overlays\smoke-sim\enhanced-smoke\EnhancedSmokeConfig.h" />
+    <ClInclude Include="Overlays\smoke-sim\enhanced-smoke\EnhancedSmokeOverlay.h" />
+    <ClInclude Include="Overlays\smoke-sim\enhanced-smoke\EnhancedSmokeSetupComponent.h" />
+    <ClInclude Include="Overlays\smoke-sim\smoke-trail\SmokeTrailConfig.h" />
+    <ClInclude Include="Overlays\smoke-sim\smoke-trail\SmokeTrailOverlay.h" />
+    <ClInclude Include="Overlays\smoke-sim\smoke-trail\SmokeTrailSetupComponent.h" />
+    <ClInclude Include="Overlays\smoke-sim\SmokeSimOverlayComponent.h" />
+    <ClInclude Include="Overlays\smoke-sim\SmokeSimParams.h" />
+    <ClInclude Include="Overlays\smoke-sim\SmokeSimType.h" />
+    <ClInclude Include="Overlays\ur-counter\URCounterConfig.h" />
+    <ClInclude Include="Overlays\ur-counter\URCounterOverlay.h" />
+    <ClInclude Include="Overlays\ur-counter\URCounterOverlayComponent.h" />
+    <ClInclude Include="Overlays\ur-counter\URCounterSetupComponent.h" />
+    <ClInclude Include="Settings\IntegrationSettingsPanel.h" />
+    <ClInclude Include="Settings\IntegrationSettingsTabOptions.h" />
+    <ClInclude Include="Settings\OverlaySettingsPanel.h" />
+    <ClInclude Include="Settings\SettingsConfig.h" />
+    <ClInclude Include="Settings\SettingsScene.h" />
+    <ClInclude Include="Settings\SettingsTab.h" />
+    <ClInclude Include="Settings\SettingsWindowController.h" />
+    <ClInclude Include="Settings\UpdateSettingsPanel.h" />
+    <ClInclude Include="SharedContext.h" />
     <ClInclude Include="Shared\Components\ColorSliderInputGroup.h" />
     <ClInclude Include="Shared\Components\LoadingAnimation.h" />
     <ClInclude Include="Shared\Components\NumberParameterInput.h" />
+    <ClInclude Include="Shared\Components\OverlayLayoutSetup.h" />
     <ClInclude Include="Shared\Components\SectionHeader.h" />
+    <ClInclude Include="Shared\Scenes\TitleBarScene.h" />
     <ClInclude Include="Shared\Styles\Styles.h" />
-    <ClInclude Include="Shared\Util\Color.h" />
     <ClInclude Include="Shared\Util\Constants.h" />
+    <ClInclude Include="Shared\Util\Eigen.h" />
     <ClInclude Include="Shared\Util\Functions.h" />
+    <ClInclude Include="Shared\Util\Http.h" />
+    <ClInclude Include="Shared\Util\httplib.h" />
+    <ClInclude Include="Shared\Util\JsonParser.h" />
     <ClInclude Include="Shared\Util\Navigation.h" />
     <ClInclude Include="Shared\Util\Streams.h" />
     <ClInclude Include="Shared\Util\ThreadPool.h" />
-    <ClInclude Include="SimplePPCounter\SimplePPCounterConfig.h" />
-    <ClInclude Include="SimplePPCounter\SimplePPCounterParameterPanel.h" />
-    <ClInclude Include="SimplePPCounter\SimplePPCounterScene.h" />
-    <ClInclude Include="Shared\Scenes\ColorSelectorScene.h" />
     <ClInclude Include="SmokeSim\SmokeSimConfig.h" />
     <ClInclude Include="SmokeSim\SmokeSimParameterPanel.h" />
     <ClInclude Include="SmokeSim\SmokeSimParams.h" />
@@ -270,9 +364,10 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     <ClInclude Include="SmokeSim\SmokeSimType.h" />
     <ClInclude Include="UICore\App.h" />
     <ClInclude Include="UICore\Components\Base\Button.h" />
-    <ClInclude Include="UICore\Components\Base\Canvas.h" />
     <ClInclude Include="UICore\Components\Base\Checkbox.h" />
+    <ClInclude Include="UICore\Components\Base\ColorSelector.h" />
     <ClInclude Include="UICore\Components\Base\ComponentBase.h" />
+    <ClInclude Include="UICore\Components\Base\DropdownSelector.h" />
     <ClInclude Include="UICore\Components\Base\Dummy.h" />
     <ClInclude Include="UICore\Components\Base\FlexPanel.h" />
     <ClInclude Include="UICore\Components\Base\Image.h" />
@@ -288,8 +383,11 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     <ClInclude Include="UICore\Components\Base\TextInput.h" />
     <ClInclude Include="UICore\Components\Base\Toggle.h" />
     <ClInclude Include="UICore\Components\ComHelper.h" />
+    <ClInclude Include="UICore\Components\Custom\ColorSliderInputGroup.h" />
     <ClInclude Include="UICore\Components\Custom\DitheredBackground.h" />
     <ClInclude Include="UICore\D2DEffects\TintEffect.h" />
+    <ClInclude Include="UICore\Fonts\Common.h" />
+    <ClInclude Include="UICore\Fonts\FontLoader.h" />
     <ClInclude Include="UICore\Helper\AnimationHelper.h" />
     <ClInclude Include="UICore\Helper\BinarySearchIterator.h" />
     <ClInclude Include="UICore\Helper\CollectionsHelper.h" />
@@ -303,7 +401,17 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     <ClInclude Include="UICore\Helper\ResourceManager.h" />
     <ClInclude Include="UICore\Helper\StringHelper.h" />
     <ClInclude Include="UICore\Helper\Time.h" />
+    <ClInclude Include="UICore\Helper\Value.h" />
+    <ClInclude Include="UICore\Helper\ValueProxy.h" />
+    <ClInclude Include="UICore\Helper\WindowView.h" />
+    <ClInclude Include="UICore\Model\Bitmap.h" />
+    <ClInclude Include="UICore\Model\Color.h" />
+    <ClInclude Include="UICore\Model\Ellipse.h" />
+    <ClInclude Include="UICore\Model\LinearGradient.h" />
+    <ClInclude Include="UICore\Model\StrokeStyle.h" />
+    <ClInclude Include="UICore\Scenes\ColorSelectorScene.h" />
     <ClInclude Include="UICore\Scenes\ContextMenuScene.h" />
+    <ClInclude Include="UICore\Scenes\DebugWindowScene.h" />
     <ClInclude Include="UICore\Scenes\DefaultNonClientAreaScene.h" />
     <ClInclude Include="UICore\Scenes\DefaultTitleBarScene.h" />
     <ClInclude Include="UICore\Scenes\EntryScene.h" />
@@ -311,8 +419,12 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     <ClInclude Include="UICore\Scenes\TestScene.h" />
     <ClInclude Include="UICore\Scenes\TooltipParams.h" />
     <ClInclude Include="UICore\Scenes\TooltipScene.h" />
+    <ClInclude Include="UICore\WindowEvent.h" />
+    <ClInclude Include="UICore\Window\BitmapAllocator.h" />
     <ClInclude Include="UICore\Window\CursorIcon.h" />
+    <ClInclude Include="UICore\Window\DirectX.h" />
     <ClInclude Include="UICore\Window\DragDropEventHandler.h" />
+    <ClInclude Include="UICore\Window\Effects.h" />
     <ClInclude Include="UICore\Window\FileDropHandler.h" />
     <ClInclude Include="UICore\Window\GdiInclude.h" />
     <ClInclude Include="UICore\Window\Graphics.h" />
@@ -321,6 +433,9 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     <ClInclude Include="UICore\Window\MouseEventHandler.h" />
     <ClInclude Include="UICore\Window\MouseManager.h" />
     <ClInclude Include="UICore\Window\ResizeFlags.h" />
+    <ClInclude Include="UICore\Window\SegmentedBitmapAllocator.h" />
+    <ClInclude Include="UICore\Window\Text.h" />
+    <ClInclude Include="UICore\Window\TextRenderContext.h" />
     <ClInclude Include="UICore\Window\Window.h" />
     <ClInclude Include="UICore\Window\WindowBackend.h" />
     <ClInclude Include="UICore\Window\WindowDisplayType.h" />
@@ -330,6 +445,9 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     <ClInclude Include="UICore\Window\WindowProperties.h" />
     <ClInclude Include="UICore\Window\WindowsEx.h" />
     <ClInclude Include="UICore\Window\WindowType.h" />
+    <ClInclude Include="versioning\UpdateErrorScene.h" />
+    <ClInclude Include="versioning\Version.h" />
+    <ClInclude Include="versioning\VersionManager.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

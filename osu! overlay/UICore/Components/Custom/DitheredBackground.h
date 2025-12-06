@@ -12,11 +12,11 @@ namespace zcom
 #pragma region base_class
     protected:
         void _OnUpdate() {}
-        void _OnDraw(Graphics g)
+        void _OnDraw(Graphics* g)
         {
             ID2D1Bitmap1* backgroundBitmap = nullptr;
-            g.target->CreateBitmap(
-                D2D1::SizeU(GetWidth(), GetHeight()),
+            g->GetRenderContext()->CreateBitmap(
+                D2D1::SizeU(size_->width, size_->height),
                 nullptr,
                 0,
                 D2D1::BitmapProperties1(
@@ -27,27 +27,27 @@ namespace zcom
             );
 
             // Gnerate source data
-            auto sourceData = std::make_unique<float[]>((size_t)GetWidth() * GetHeight());
+            auto sourceData = std::make_unique<float[]>((size_t)size_->width * size_->height);
             float lColor = 0.2f;
             float rColor = 0.0f;
-            for (int y = 0; y < GetHeight(); y++)
+            for (int y = 0; y < size_->height; y++)
             {
-                for (int x = 0; x < GetWidth(); x++)
+                for (int x = 0; x < size_->width; x++)
                 {
-                    float color = lColor + (rColor - lColor) * (x / (float)GetWidth());
-                    sourceData[y * GetWidth() + x] = color;
+                    float color = lColor + (rColor - lColor) * (x / (float)size_->width);
+                    sourceData[y * size_->width + x] = color;
                 }
             }
 
             // Dither
-            auto ditheredData = std::make_unique<unsigned char[]>((size_t)GetWidth() * GetHeight() * 4);
+            auto ditheredData = std::make_unique<unsigned char[]>((size_t)size_->width * size_->height * 4);
 
             std::mt19937 engine;
             std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
             int ditherRange = 0;
 
-            for (int i = 0; i < (size_t)GetWidth() * GetHeight(); i++)
+            for (int i = 0; i < (size_t)size_->width * size_->height; i++)
             {
                 float srcColor = sourceData[i];
                 // Normalize to 0.0-255.0 range
@@ -58,7 +58,7 @@ namespace zcom
                 float weight = (srcColor - lowerValue) / (1.0f + ditherRange * 2);
 
                 float finalColor;
-                if (i < (size_t)GetWidth() * GetHeight() / 2)
+                if (i < (size_t)size_->width * size_->height / 2)
                 {
                     finalColor = std::roundf(srcColor);
                 }
@@ -84,10 +84,10 @@ namespace zcom
                 ditheredData[index + 3] = 255; // Alpha
             }
 
-            D2D1_RECT_U destRect = D2D1::RectU(0, 0, GetWidth(), GetHeight());
-            backgroundBitmap->CopyFromMemory(&destRect, ditheredData.get(), GetWidth() * 4);
+            D2D1_RECT_U destRect = D2D1::RectU(0, 0, size_->width, size_->height);
+            backgroundBitmap->CopyFromMemory(&destRect, ditheredData.get(), size_->width * 4);
 
-            g.target->DrawBitmap(backgroundBitmap);
+            g->GetRenderContext()->DrawBitmap(backgroundBitmap);
             backgroundBitmap->Release();
         }
         void _OnResize(int width, int height) {}

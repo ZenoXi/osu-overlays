@@ -11,7 +11,7 @@ namespace zwnd
     {
         static WindowId Generate()
         {
-            static std::atomic<uint64_t> _ID_COUNTER{ 0 };
+            static std::atomic<uint64_t> _ID_COUNTER{ 1 };
             return WindowId(_ID_COUNTER.fetch_add(1));
         }
 
@@ -22,15 +22,16 @@ namespace zwnd
             return ss.str();
         }
 
-        bool operator==(const WindowId& other)
+        bool operator==(const WindowId& other) const
         {
             return _id == other._id;
         }
-        bool operator!=(const WindowId& other)
+        bool operator!=(const WindowId& other) const
         {
             return _id != other._id;
         }
 
+        WindowId() : _id(0) {}
         WindowId(const WindowId& other) : _id(other._id) {}
         WindowId& operator=(const WindowId& other) { _id = other._id; return *this; }
         WindowId(WindowId&& other) noexcept : _id(other._id) {}

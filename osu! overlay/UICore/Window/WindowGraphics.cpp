@@ -2,13 +2,14 @@
 #include "WindowsEx.h"
 
 #include "D2DEffects/TintEffect.h"
-#include "CursorTrail/CursorTrailEffect.h"
+#include "Overlays/cursor-trail/CursorTrailEffect.h"
 
 #include <iostream>
 
-void zwnd::WindowGraphics::Initialize(HWND* hwnd)
+void zwnd::WindowGraphics::Initialize(HWND* hwnd, int width, int height, bool syncFramerate)
 {
     p_hwnd = hwnd;
+    _syncFramerate = syncFramerate;
     HRESULT hr;
 
     // Obtain the size of the drawing area.
@@ -28,7 +29,7 @@ void zwnd::WindowGraphics::Initialize(HWND* hwnd)
         nullptr,
         D3D_DRIVER_TYPE_HARDWARE,
         nullptr,
-        D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+        D3D11_CREATE_DEVICE_BGRA_SUPPORT | D3D11_CREATE_DEVICE_DEBUG,
         nullptr,
         0,
         D3D11_SDK_VERSION,
@@ -42,23 +43,47 @@ void zwnd::WindowGraphics::Initialize(HWND* hwnd)
     HR(p_DXGIDevice->GetAdapter(p_DXGIAdapter.GetAddressOf()));
     HR(p_DXGIAdapter->GetParent(__uuidof(p_DXGIFactory), reinterpret_cast<void**>(p_DXGIFactory.GetAddressOf())));
 
+    DCompositionCreateDevice2(
+        p_DXGIDevice.Get(),
+        __uuidof(IDCompositionDesktopDevice),
+        reinterpret_cast<void**>(p_DCompDevice.GetAddressOf())
+    );
+    p_DCompDevice->CreateTargetForHwnd(*p_hwnd, FALSE, p_DCompTarget.GetAddressOf());
+    p_DCompDevice->CreateVisual(p_DCompVisual.GetAddressOf());
+    p_DCompTarget->SetRoot(p_DCompVisual.Get());
+
     // Set up swap chain
     DXGI_SWAP_CHAIN_DESC1 scd;
     ZeroMemory(&scd, sizeof(DXGI_SWAP_CHAIN_DESC1));
+    scd.Width = (UINT)width;
+    scd.Height = (UINT)height;
     scd.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
     scd.SampleDesc.Count = 1;
     scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    scd.BufferCount = 1;
+    scd.BufferCount = 2;
     scd.Flags |= DXGI_SWAP_CHAIN_FLAG_GDI_COMPATIBLE;
+    scd.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
+    scd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
-    HR(p_DXGIFactory->CreateSwapChainForHwnd(
+    hr = p_DXGIFactory->CreateSwapChainForComposition(
         p_D3DDevice.Get(),
-        *p_hwnd,
         &scd,
         nullptr,
-        nullptr,
         p_SwapChain.GetAddressOf()
-    ));
+    );
+    p_DCompVisual->SetContent(p_SwapChain.Get());
+    //p_DCompVisual->SetOffsetX(10.0f);
+    p_DCompDevice->Commit();
+
+    //hr = p_DXGIFactory->CreateSwapChainForHwnd(
+    //    p_D3DDevice.Get(),
+    //    *p_hwnd,
+    //    &scd,
+    //    nullptr,
+    //    nullptr,
+    //    p_SwapChain.GetAddressOf()
+    //);
+    //std::cout << std::hex << hr << std::dec << "hiii" << '\n';
 
     HR(p_D2DFactory->CreateDevice(p_DXGIDevice.Get(), p_D2DDevice.GetAddressOf()));
     HR(p_D2DDevice->CreateDeviceContext(D2D1_DEVICE_CONTEXT_OPTIONS_NONE, p_Target.GetAddressOf()));
@@ -78,6 +103,30 @@ void zwnd::WindowGraphics::Initialize(HWND* hwnd)
     ));
     p_Target->SetTarget(p_Bitmap.Get());
 
+    _allocator.SetTarget(p_Target.Get());
+    _allocator.AddSource(2048, D2D1::BitmapProperties1(
+        D2D1_BITMAP_OPTIONS_TARGET,
+        { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
+    ), SEGMENT_POOL_MAIN);
+    _allocator.AddSource(2048, D2D1::BitmapProperties1(
+        D2D1_BITMAP_OPTIONS_TARGET,
+        { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
+    ), SEGMENT_POOL_AUX1);
+    _allocator.AddSource(2048, D2D1::BitmapProperties1(
+        D2D1_BITMAP_OPTIONS_TARGET,
+        { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
+    ), SEGMENT_POOL_AUX2);
+    _allocator.AddSource(2048, D2D1::BitmapProperties1(
+        D2D1_BITMAP_OPTIONS_TARGET,
+        { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
+    ), SEGMENT_POOL_AUX3);
+
+    _graphicsContext._target = p_Target.Get();
+    _graphicsContext._factory = p_D2DFactory.Get();
+    _graphicsContext._refs = &_references;
+    _graphicsContext._allocator = &_allocator;
+    _graphicsContext._textRenderContext = &_textRenderContext;
+
     _initialized = true;
 }
 
@@ -93,6 +142,8 @@ void zwnd::WindowGraphics::Close()
         }
     }
     _references.clear();
+
+    _allocator.ClearSources();
 
     // Release all objects
     p_Bitmap.Reset();
@@ -111,10 +162,26 @@ void zwnd::WindowGraphics::BeginFrame()
 
 }
 
-void zwnd::WindowGraphics::EndFrame(bool swap)
+void zwnd::WindowGraphics::EndFrame(bool swap, bool forceSync)
 {
+    static int c = 0;
+
     if (swap)
-        p_SwapChain->Present(1, 0);
+    {
+        //std::cout << "presenting\n";
+        HRESULT hr = p_SwapChain->Present(_syncFramerate || forceSync ? 1 : 0, 0);
+        if (hr != S_OK)
+        {
+            std::cout << hr << '\n';
+        }
+
+        if (!_syncFramerate)
+        {
+            //std::cout << "not syncing " + std::to_string(c++) + "\n";
+            //std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        //std::cout << "presented\n";
+    }
     else
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
 }
@@ -141,6 +208,8 @@ void zwnd::WindowGraphics::ResizeBuffers(int width, int height, bool lock)
         }
     }
     _references.clear();
+
+    _allocator.ClearSources();
 
     p_Target->Release();
     p_Bitmap->Release();
@@ -173,6 +242,8 @@ void zwnd::WindowGraphics::ResizeBuffers(int width, int height, bool lock)
     // Resize swapchain
     hr = p_SwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG_GDI_COMPATIBLE);
     //HR(p_SwapChain->ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0/*DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH*/));
+    //p_DCompVisual->SetOffsetX(20.0f);
+    p_DCompDevice->Commit();
 
     // Recreate target reference
     HR(p_SwapChain->GetBuffer(
@@ -191,6 +262,11 @@ void zwnd::WindowGraphics::ResizeBuffers(int width, int height, bool lock)
         p_Bitmap.GetAddressOf()
     ));
     p_Target->SetTarget(p_Bitmap.Get());
+
+    _allocator.SetTarget(p_Target.Get());
+    _allocator.RecreateInitialGroupSource();
+
+    _graphicsContext._target = p_Target.Get();
 
     if (lock)
         Unlock();
@@ -216,6 +292,16 @@ void zwnd::WindowGraphics::ReleaseResource(IUnknown** res)
     }
 }
 
+void zwnd::WindowGraphics::EnableVsync()
+{
+    _syncFramerate = true;
+}
+
+void zwnd::WindowGraphics::DisableVsync()
+{
+    _syncFramerate = false;
+}
+
 void zwnd::WindowGraphics::Lock()
 {
     _m_gfx.lock();
@@ -230,9 +316,24 @@ void zwnd::WindowGraphics::Unlock()
 #pragma warning( pop )
 }
 
-Graphics zwnd::WindowGraphics::GetGraphics()
+zcom::Graphics* zwnd::WindowGraphics::GetGraphics()
 {
-    return { p_Target.Get(), p_D2DFactory.Get(), &_references };
+    return &_graphicsContext;
+
+    //zcom::Graphics g;
+    //g._target = p_Target.Get();
+    //g.factory = p_D2DFactory.Get();
+    //g.refs = &_references;
+    //g.allocator = &_allocator;
+    //g._textRenderContext = &_textRenderContext;
+    //return g;
+    //std::cout << g.target->GetSize().width << ":" << g.target->GetSize().height << '\n';
+    //return { p_Target.Get(), p_D2DFactory.Get(), &_references, &_allocator };
+}
+
+zcom::TextRenderContext* zwnd::WindowGraphics::GetTextRenderContext()
+{
+    return &_textRenderContext;
 }
 
 IDXGISurface1* zwnd::WindowGraphics::GetSurface()

@@ -28,6 +28,6 @@ namespace zanim
     template<typename _Val, typename _Flt>
     _Val Interpolate(_Val startValue, _Val endValue, _Flt progress)
     {
-        return startValue + (endValue - startValue) * progress;
+        return startValue + _Val((endValue - startValue) * progress);
     }
 }

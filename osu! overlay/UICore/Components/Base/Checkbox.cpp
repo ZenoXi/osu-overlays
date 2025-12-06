@@ -3,27 +3,6 @@
 #include "Scenes/Scene.h"
 #include "Window/Window.h"
 
-void zcom::Checkbox::Checked(bool checked, bool emitChangeEvent)
-{
-    if (_checked == checked)
-        return;
-
-    _checked = checked;
-    if (emitChangeEvent)
-        _onStateChanged->InvokeAll(_checked);
-    InvokeRedraw();
-}
-
-void zcom::Checkbox::SetCheckColor(D2D1_COLOR_F checkColor)
-{
-    if (_checkColor == checkColor)
-        return;
-
-    _checkColor = checkColor;
-    if (_checked)
-        InvokeRedraw();
-}
-
 EventSubscription<void, bool> zcom::Checkbox::SubscribeOnStateChanged(const std::function<void(bool)>& handler)
 {
     return _onStateChanged->Subscribe(handler);
@@ -31,80 +10,59 @@ EventSubscription<void, bool> zcom::Checkbox::SubscribeOnStateChanged(const std:
 
 void zcom::Checkbox::Init(bool checked)
 {
-    _checked = checked;
-    _checkColor = D2D1::ColorF(0.6f, 0.6f, 0.6f);
+    this->checked = checked;
+    checkColor = Color(0x999999);
 
     _customInactiveDraw = true;
-    SetDefaultCursor(zwnd::CursorIcon::HAND);
-    SetSelectable(true);
-    SetCornerRounding(5.0f);
-    SetBorderVisibility(true);
-    SetBorderColor(D2D1::ColorF(0.3f, 0.3f, 0.3f));
-    SetBackgroundColor(D2D1::ColorF(0.1f, 0.1f, 0.1f));
+    cursorIcon = zwnd::CursorIcon::HAND;
+    selectable = true;
+    border.visible = true;
+    border.color = Color(0x4D4D4D);
+    border.cornerRadius = 5.0f;
+    backgroundColor = Color(0x1A1A1A);
 }
 
-void zcom::Checkbox::_OnDraw(Graphics g)
+void zcom::Checkbox::_OnDraw(Graphics* g)
 {
-    if (!Checked())
+    if (!checked)
         return;
 
-    D2D1_COLOR_F finalCheckColor = _checkColor;
-    if (!GetActive())
+    Color finalCheckColor = checkColor;
+    if (disabled)
     {
-        finalCheckColor.r *= 0.5f;
-        finalCheckColor.g *= 0.5f;
-        finalCheckColor.b *= 0.5f;
+        finalCheckColor.r = uint8_t(finalCheckColor.r * 0.5f);
+        finalCheckColor.g = uint8_t(finalCheckColor.g * 0.5f);
+        finalCheckColor.b = uint8_t(finalCheckColor.b * 0.5f);
     }
 
-    if (GetCornerRounding() > 5.0f)
+    if (border.cornerRadius > 5.0f)
     {
-        auto size = g.target->GetSize();
-        D2D1_ROUNDED_RECT rrect;
-        rrect.radiusX = GetCornerRounding() - 5.0f;
-        rrect.radiusY = GetCornerRounding() - 5.0f;
-        rrect.rect = { 5.0f, 5.0f, size.width - 5.0f, size.height - 5.0f };
-        ID2D1SolidColorBrush* brush = nullptr;
-        g.target->CreateSolidColorBrush(finalCheckColor, &brush);
-        if (brush)
-        {
-            g.target->FillRoundedRectangle(rrect, brush);
-            brush->Release();
-        }
-        else
-        {
-            // TODO: Logging
-        }
+        RoundedRect rrect{};
+        rrect.radiusX = border.cornerRadius - 5.0f;
+        rrect.radiusY = border.cornerRadius - 5.0f;
+        rrect.rect = { 5.0f, 5.0f, size_->width - 5.0f, size_->height - 5.0f };
+        g->FillRoundedRectangle(rrect, finalCheckColor);
     }
     else
     {
-        auto size = g.target->GetSize();
-        D2D1_RECT_F rect = { 5.0f, 5.0f, size.width - 5.0f, size.height - 5.0f };
-        ID2D1SolidColorBrush* brush = nullptr;
-        g.target->CreateSolidColorBrush(finalCheckColor, &brush);
-        if (brush)
-        {
-            g.target->FillRectangle(rect, brush);
-            brush->Release();
-        }
-        else
-        {
-            // TODO: Logging
-        }
+        RectF rect = { 5.0f, 5.0f, size_->width - 5.0f, size_->height - 5.0f };
+        g->FillRectangle(rect, finalCheckColor);
     }
 }
 
-zcom::EventTargets zcom::Checkbox::_OnLeftPressed(int x, int y)
+zcom::EventContext zcom::Checkbox::_OnLeftPressed(Point point)
 {
-    Checked(!Checked());
-    InvokeRedraw();
-    return EventTargets().Add(this, x, y);
+    checked = !checked;
+    _onStateChanged->InvokeAll(checked);
+    return EventContext().Add(this, point);
 }
 
 bool zcom::Checkbox::_OnKeyDown(BYTE vkCode)
 {
     if (vkCode == VK_RETURN)
     {
-        Checked(!Checked());
+        checked = !checked;
+        _onStateChanged->InvokeAll(checked);
         return true;
     }
     return false;

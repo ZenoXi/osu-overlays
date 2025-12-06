@@ -13,7 +13,8 @@ namespace zcom
 {
     struct TooltipSceneOptions : public SceneOptionsBase
     {
-        std::shared_ptr<std::unique_ptr<AsyncEventSubscription<void, zcom::TooltipParams>>> showRequestSubscriptionWrapper = nullptr;
+        EventEmitter<void, TooltipParams> showRequestEventEmitter;
+        EventEmitter<void, std::optional<uint64_t>> hideRequestEventEmitter;
     };
 
     class TooltipScene : public Scene
@@ -29,8 +30,10 @@ namespace zcom
         std::unique_ptr<Label> _label = nullptr;
 
         std::unique_ptr<AsyncEventSubscription<void, TooltipParams>> _showRequestSubscription = nullptr;
+        std::unique_ptr<AsyncEventSubscription<void, std::optional<uint64_t>>> _hideRequestSubscription = nullptr;
         std::unique_ptr<AsyncEventSubscription<bool, zwnd::WindowMessage>> _windowMessageSubscription = nullptr;
 
-        void _Update();
+        void _ShowTooltip(TooltipParams params);
+        void _HideTooltip(std::optional<uint64_t> displayId);
     };
 }

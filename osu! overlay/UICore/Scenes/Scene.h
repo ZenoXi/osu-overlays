@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Components/Base/Canvas.h"
+#include "Components/Base/Panel.h"
 #include "Helper/Time.h"
 
 #include <functional>

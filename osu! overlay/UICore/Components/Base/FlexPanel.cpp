@@ -2,10 +2,10 @@
 
 #include <numeric>
 
-void zcom::FlexPanel::_RecalculateLayout(int width, int height)
+void zcom::FlexPanel::_ComputeItemLayout()
 {
-    bool horizontalFlex = (_direction == FlexDirection::LEFT || _direction == FlexDirection::RIGHT);
-    bool reversedFlex = (_direction == FlexDirection::LEFT || _direction == FlexDirection::UP);
+    bool horizontalFlex = (direction == FlexDirection::LEFT || direction == FlexDirection::RIGHT);
+    bool reversedFlex = (direction == FlexDirection::LEFT || direction == FlexDirection::UP);
 
     // Layout is first calculated using coordinates aligned with the flex direction for simpler evaluation
     // Here 'along' means x when panel direction is horizontal and y when vertical
@@ -16,6 +16,8 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
 
         int baseSizeAlong = 0;
         int baseSizePerp = 0;
+        int selfSizeAlong = 0;
+        int selfSizePerp = 0;
         float parentSizeRatioAlong = 0;
         float parentSizeRatioPerp = 0;
         int offsetAlong = 0;
@@ -45,29 +47,41 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
         bool last = false;
     };
 
-    // Calculate positions using only visible items (opacity of 0 can be used to provide invisibility without layout changes)
-    std::vector<Component*> visibleItems;
+    std::vector<Component*> flexItems;
+    std::vector<Component*> nonFlexItems;
     for (auto& item : _items)
-        if (item.item->GetVisible())
-            visibleItems.push_back(item.item);
-
-    std::vector<ItemLayoutDesc> layoutDescs(visibleItems.size());
-    for (int i = 0; i < visibleItems.size(); i++)
     {
-        Component* item = visibleItems[i];
-        layoutDescs[i].baseSizeAlong = item->GetBaseWidth();
-        layoutDescs[i].baseSizePerp = item->GetBaseHeight();
-        layoutDescs[i].parentSizeRatioAlong = item->GetParentWidthPercent();
-        layoutDescs[i].parentSizeRatioPerp = item->GetParentHeightPercent();
-        layoutDescs[i].offsetAlong = item->GetHorizontalOffsetPixels();
-        layoutDescs[i].offsetPerp = item->GetVerticalOffsetPixels();
-        layoutDescs[i].offsetRatioAlong = item->GetHorizontalOffsetPercent();
-        layoutDescs[i].offsetRatioPerp = item->GetVerticalOffsetPercent();
-        layoutDescs[i].alignmentAlong = item->GetHorizontalAlignment();
-        layoutDescs[i].alignmentPerp = item->GetVerticalAlignment();
+        // Calculate positions using only visible items (opacity of 0 can be used to provide invisibility without layout changes)
+        if (!item.item->visible)
+            continue;
+
+        // Items with FlexIgnore property do not participate in flex layout
+        if (item.item->GetProperty<FlexIgnore>().valid)
+            nonFlexItems.push_back(item.item);
+        else
+            flexItems.push_back(item.item);
+    }
+
+    std::vector<ItemLayoutDesc> layoutDescs(flexItems.size());
+    for (int i = 0; i < flexItems.size(); i++)
+    {
+        Component* item = flexItems[i];
+        layoutDescs[i].baseSizeAlong = item->size->width;
+        layoutDescs[i].baseSizePerp = item->size->height;
+        layoutDescs[i].selfSizeAlong = item->selfSize_->width;
+        layoutDescs[i].selfSizePerp = item->selfSize_->height;
+        layoutDescs[i].parentSizeRatioAlong = item->parentSize->width;
+        layoutDescs[i].parentSizeRatioPerp = item->parentSize->height;
+        layoutDescs[i].offsetAlong = item->position->x;
+        layoutDescs[i].offsetPerp = item->position->y;
+        layoutDescs[i].offsetRatioAlong = item->parentPosition->x;
+        layoutDescs[i].offsetRatioPerp = item->parentPosition->y;
+        layoutDescs[i].alignmentAlong = item->xAlign;
+        layoutDescs[i].alignmentPerp = item->yAlign;
         if (!horizontalFlex)
         {
             std::swap(layoutDescs[i].baseSizeAlong, layoutDescs[i].baseSizePerp);
+            std::swap(layoutDescs[i].selfSizeAlong, layoutDescs[i].selfSizePerp);
             std::swap(layoutDescs[i].parentSizeRatioAlong, layoutDescs[i].parentSizeRatioPerp);
             std::swap(layoutDescs[i].offsetAlong, layoutDescs[i].offsetPerp);
             std::swap(layoutDescs[i].offsetRatioAlong, layoutDescs[i].offsetRatioPerp);
@@ -97,18 +111,18 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
 
         if (i == 0)
             layoutDescs[i].first = true;
-        if (i == visibleItems.size() - 1)
+        if (i == flexItems.size() - 1)
             layoutDescs[i].last = true;
     }
-    RECT padding = GetPadding();
-    int sizeAlong = GetWidth();
-    int sizePerp = GetHeight();
+    Rect padding = this->padding;
+    int sizeAlong = size_->width;
+    int sizePerp = size_->height;
     int paddingAlong = padding.left + padding.right;
     int paddingPerp = padding.top + padding.bottom;
     int sizeWithoutPaddingAlong = sizeAlong - paddingAlong;
     int sizeWithoutPaddingPerp = sizePerp - paddingPerp;
-    bool sizeFixedAlong = IsWidthFixed();
-    bool sizeFixedPerp = IsHeightFixed();
+    bool sizeFixedAlong = !autoWidth;
+    bool sizeFixedPerp = !autoHeight;
     if (!horizontalFlex)
     {
         std::swap(sizeAlong, sizePerp);
@@ -125,9 +139,9 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
         float flexShrinkRatioSum = 0.0f;
         for (auto& item : layoutDescs)
         {
-            item.calculatedSizeAlong = (int)std::round(item.parentSizeRatioAlong * sizeWithoutPaddingAlong) + item.baseSizeAlong;
+            item.calculatedSizeAlong = (int)std::round(item.parentSizeRatioAlong * sizeWithoutPaddingAlong) + item.baseSizeAlong + item.selfSizeAlong;
             item.sizeAlong = item.calculatedSizeAlong; // Will be overwritten if flex grow/shrink is applied
-            totalCalculatedSizeAlong += item.calculatedSizeAlong + (!item.last ? _spacing : 0) + item.flexMarginBefore + item.flexMarginAfter;
+            totalCalculatedSizeAlong += item.calculatedSizeAlong + (!item.last ? spacing.Get() : 0) + item.flexMarginBefore + item.flexMarginAfter;
             flexGrowRatioSum += item.flexGrow.value_or(0.0f);
             flexShrinkRatioSum += item.flexShrink.value_or(0.0f);
         }
@@ -164,17 +178,17 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
     for (auto& item : layoutDescs)
     {
         if (!sizeFixedAlong)
-            item.sizeAlong = item.baseSizeAlong;
+            item.sizeAlong = item.baseSizeAlong + item.selfSizeAlong;
         if (sizeFixedPerp)
-            item.sizePerp = (int)std::round(item.parentSizeRatioPerp * sizeWithoutPaddingPerp) + item.baseSizePerp;
+            item.sizePerp = (int)std::round(item.parentSizeRatioPerp * sizeWithoutPaddingPerp) + item.baseSizePerp + item.selfSizePerp;
         else
-            item.sizePerp = item.baseSizePerp;
+            item.sizePerp = item.baseSizePerp + item.selfSizePerp;
     }
 
     // Offset along flex direction
     int layoutSizeAlong = 0;
     for (auto& item : layoutDescs)
-        layoutSizeAlong += item.sizeAlong + (!item.last ? _spacing : 0) + item.flexMarginBefore + item.flexMarginAfter;
+        layoutSizeAlong += item.sizeAlong + (!item.last ? spacing.Get() : 0) + item.flexMarginBefore + item.flexMarginAfter;
     int offset = 0;
     int reversedStartPos = 0;
     if (reversedFlex)
@@ -190,7 +204,7 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
             item.posAlong = offset + item.flexMarginBefore;
         else
             item.posAlong = reversedStartPos - offset - item.flexMarginBefore - item.sizeAlong;
-        offset += item.sizeAlong + _spacing + item.flexMarginBefore + item.flexMarginAfter;
+        offset += item.sizeAlong + spacing.Get() + item.flexMarginBefore + item.flexMarginAfter;
     }
     // Offset perpendicular to flex direction
     int layoutSizePerp = sizeWithoutPaddingPerp;
@@ -206,9 +220,9 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
     for (auto& item : layoutDescs)
     {
         Alignment alignment;
-        if (_itemAlignment.has_value())
+        if (itemAlignment->has_value())
         {
-            alignment = _itemAlignment.value();
+            alignment = itemAlignment->value();
             if (item.flexAlign.has_value())
                 alignment = item.flexAlign.value();
         }
@@ -226,19 +240,19 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
     }
 
     // Translate values back into x/y space
-    for (int i = 0; i < visibleItems.size(); i++)
+    for (int i = 0; i < flexItems.size(); i++)
     {
-        Component* item = visibleItems[i];
+        Component* item = flexItems[i];
         if (!horizontalFlex)
         {
             std::swap(layoutDescs[i].posAlong, layoutDescs[i].posPerp);
             std::swap(layoutDescs[i].sizeAlong, layoutDescs[i].sizePerp);
         }
-        item->SetPosition(
-            layoutDescs[i].posAlong + item->GetHorizontalOffsetPixels() + padding.left,
-            layoutDescs[i].posPerp + item->GetVerticalOffsetPixels() + padding.top
-        );
-        item->Resize(layoutDescs[i].sizeAlong, layoutDescs[i].sizePerp);
+        item->SetPosition({
+            layoutDescs[i].posAlong + item->position->x + padding.left,
+            layoutDescs[i].posPerp + item->position->y + padding.top
+        });
+        item->Resize({ layoutDescs[i].sizeAlong, layoutDescs[i].sizePerp });
     }
 
     // Panel size
@@ -249,24 +263,61 @@ void zcom::FlexPanel::_RecalculateLayout(int width, int height)
     if (!sizeFixedPerp)
         newSizePerp = layoutSizePerp + paddingPerp;
 
-    if (newSizeAlong != sizeAlong || newSizePerp != sizePerp)
+    if (horizontalFlex)
     {
-        if (horizontalFlex)
-        {
-            // Force base size to remain unchanged if size in that dimension is fixed
-            // This is necessary, because sizeAlong/sizePerp do not match user set base size values right after creating the panel
-            SetBaseSize(
-                IsWidthFixed() ? GetBaseWidth() : newSizeAlong,
-                IsHeightFixed() ? GetBaseHeight() : newSizePerp
-            );
-        }
-        else
-        {
-            SetBaseSize(
-                IsWidthFixed() ? GetBaseWidth() : newSizePerp,
-                IsHeightFixed() ? GetBaseHeight() : newSizeAlong
-            );
-        }
+        selfSize_ = {
+            autoWidth ? newSizeAlong : 0,
+            autoHeight ? newSizePerp : 0
+        };
+    }
+    else
+    {
+        selfSize_ = {
+            autoWidth ? newSizePerp : 0,
+            autoHeight ? newSizeAlong : 0
+        };
+    }
+
+    Size flexSize = {
+        autoWidth ? size->width + selfSize_->width : size_->width,
+        autoHeight ? size->height + selfSize_->height : size_->height
+    };
+
+    int widthWithoutPadding = flexSize.width - padding.left - padding.right;
+    int heightWithoutPadding = flexSize.height - padding.top - padding.bottom;
+
+    // Calculate item sizes and positions
+    for (auto& item : nonFlexItems)
+    {
+        int newWidth = (int)std::round(widthWithoutPadding * item->parentSize->width) + item->size->width + item->selfSize_->width;
+        int newHeight = (int)std::round(heightWithoutPadding * item->parentSize->height) + item->size->height + item->selfSize_->height;
+        if (newWidth < 0)
+            newWidth = 0;
+        if (newHeight < 0)
+            newHeight = 0;
+
+        int newPosX = 0;
+        if (item->xAlign == Alignment::START)
+            newPosX = (int)std::round((widthWithoutPadding - newWidth) * item->parentPosition->x);
+        else if (item->xAlign == Alignment::CENTER)
+            newPosX = (widthWithoutPadding - newWidth) / 2;
+        else if (item->xAlign == Alignment::END)
+            newPosX = (int)std::round((widthWithoutPadding - newWidth) * (1.0f - item->parentPosition->x));
+        newPosX += item->position->x;
+        newPosX += padding.left;
+
+        int newPosY = 0;
+        if (item->yAlign == Alignment::START)
+            newPosY = (int)std::round((heightWithoutPadding - newHeight) * item->parentPosition->y);
+        else if (item->yAlign == Alignment::CENTER)
+            newPosY = (heightWithoutPadding - newHeight) / 2;
+        else if (item->yAlign == Alignment::END)
+            newPosY = (int)std::round((heightWithoutPadding - newHeight) * (1.0f - item->parentPosition->y));
+        newPosY += item->position->y;
+        newPosY += padding.top;
+
+        item->SetPosition({ newPosX, newPosY });
+        item->Resize({ newWidth, newHeight });
     }
 
     _SetWindowPositions();

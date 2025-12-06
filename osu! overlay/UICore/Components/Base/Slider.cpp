@@ -7,11 +7,12 @@ void zcom::Slider::Init()
     Panel::Init();
 
     _bodyPlaceholder = Create<Dummy>();
-    _bodyPlaceholder->SetVisible(false);
+    _bodyPlaceholder->visible = false;
     _anchorPlaceholder = Create<Dummy>();
-    _anchorPlaceholder->SetVisible(false);
+    _anchorPlaceholder->visible = false;
     AddItem(_bodyPlaceholder.get());
     AddItem(_anchorPlaceholder.get());
+    InvokeRedraw();
 }
 
 void zcom::Slider::SetBodyComponent(Component* body)
@@ -45,140 +46,86 @@ void zcom::Slider::SetAnchorComponent(std::unique_ptr<Component> anchor)
     _PositionAnchor();
 }
 
-void zcom::Slider::SetSliderBodyStartOffset(int offset)
+zcom::EventContext zcom::Slider::_OnMouseMove(Point point, Point deltaPos)
 {
-    SetSliderBodyOffset(offset, _endOffset);
-}
-
-void zcom::Slider::SetSliderBodyEndOffset(int offset)
-{
-    SetSliderBodyOffset(_startOffset, offset);
-}
-
-void zcom::Slider::SetSliderBodyOffset(int start, int end)
-{
-    _startOffset = start;
-    _endOffset = end;
-    _PositionAnchor();
-}
-
-void zcom::Slider::SetAnchorOffset(int offset)
-{
-    _anchorOffset = offset;
-    _PositionAnchor();
-}
-
-void zcom::Slider::SetInteractionAreaMargins(RECT margins)
-{
-    _interactionAreaMargins = margins;
-}
-
-void zcom::Slider::SetValue(float value, bool emitChangeEvent)
-{
-    if (_currentValue == value)
-        return;
-
-    if (value < 0.0f)
-        value = 0.0f;
-    if (value > 1.0f)
-        value = 1.0f;
-
-    if (emitChangeEvent)
-        _onValueChanged->InvokeAll(this, &value);
-    _currentValue = value;
-    _PositionAnchor();
-}
-
-zcom::EventTargets zcom::Slider::_OnMouseMove(int x, int y, int deltaX, int deltaY)
-{
-    if (x >= _interactionAreaMargins.left && x < GetWidth() - _interactionAreaMargins.right &&
-        y >= _interactionAreaMargins.top && y < GetHeight() - _interactionAreaMargins.bottom)
+    if (point.x >= interactionAreaMargins->left && point.x < size_->width - interactionAreaMargins->right &&
+        point.y >= interactionAreaMargins->top && point.y < size_->height - interactionAreaMargins->bottom)
     {
-        _SetInsideInteractionArea(true);
+        insideInteractionArea_ = true;
     }
-    else if (!_holding)
+    else if (!holding_)
     {
-        _SetInsideInteractionArea(false);
+        insideInteractionArea_ = false;
     }
-    if (_holding)
-        _HandleMouseMove(x);
-    return Panel::_OnMouseMove(x, y, deltaX, deltaY);
+    if (holding_)
+        _HandleMouseMove(point.x);
+    return Panel::_OnMouseMove(point, deltaPos);
 }
 
 void zcom::Slider::_OnMouseLeave()
 {
-    _SetInsideInteractionArea(false);
+    insideInteractionArea_ = false;
     Panel::_OnMouseLeave();
 }
 
-zcom::EventTargets zcom::Slider::_OnLeftPressed(int x, int y)
+zcom::EventContext zcom::Slider::_OnLeftPressed(Point point)
 {
-    if (_insideInteractionArea)
+    if (insideInteractionArea_)
     {
-        _holding = true;
-        _onSliderPressed->InvokeAll(this);
-        _HandleMouseMove(x);
+        holding_ = true;
+        _HandleMouseMove(point.x);
     }
-    return Panel::_OnLeftPressed(x, y);
+    return Panel::_OnLeftPressed(point);
 }
 
-zcom::EventTargets zcom::Slider::_OnLeftReleased(int x, int y)
+zcom::EventContext zcom::Slider::_OnLeftReleased(std::optional<Point> point)
 {
-    if (_holding)
+    if (holding_)
     {
-        _holding = false;
-        _onSliderReleased->InvokeAll(this);
+        holding_ = false;
     }
-    return Panel::_OnLeftReleased(x, y);
+    return Panel::_OnLeftReleased(point);
 }
 
-zcom::EventTargets zcom::Slider::_OnWheelUp(int x, int y)
+zcom::EventContext zcom::Slider::_OnWheelUp(Point point)
 {
     // TODO: FIX (remove these overrides in favor of simply always eating the event)
-    // Also rework post event handlers to allow modifying the EventTargets object in handler
+    // Also rework post event handlers to allow modifying the EventContext object in handler
 
     // If event eating is set to true, assume that inner components don't need scroll events
-    return (GetEatScrollEvents() && _currentValue < 1.0f) ? EventTargets().Add(this, x, y) : Panel::_OnWheelUp(x, y);
+    return (eatScrollEvents && value < 1.0f) ? EventContext().Add(this, point) : Panel::_OnWheelUp(point);
 }
 
-zcom::EventTargets zcom::Slider::_OnWheelDown(int x, int y)
+zcom::EventContext zcom::Slider::_OnWheelDown(Point point)
 {
-    return (GetEatScrollEvents() && _currentValue > 0.0f) ? EventTargets().Add(this, x, y) : Panel::_OnWheelDown(x, y);
+    return (eatScrollEvents && value > 0.0f) ? EventContext().Add(this, point) : Panel::_OnWheelDown(point);
 }
 
-void zcom::Slider::_OnResize(int width, int height)
+void zcom::Slider::_OnResize(Size size)
 {
+    Panel::_OnResize(size);
     _PositionAnchor();
 }
 
 void zcom::Slider::_HandleMouseMove(int position)
 {
-    int sliderPosition = position - _startOffset;
-    int maxPosition = GetWidth() - _startOffset - _endOffset;
+    int sliderPosition = position - bodyStartOffset;
+    int maxPosition = size_->width - bodyStartOffset - bodyEndOffset;
     if (sliderPosition < 0)
         sliderPosition = 0;
     if (sliderPosition > maxPosition - 1)
         sliderPosition = maxPosition - 1;
 
-    SetValue(sliderPosition / float(maxPosition - 1));
+    float newValue = sliderPosition / float(maxPosition - 1);
+    if (newValue != value)
+        _onValueChanged->InvokeAll(this, &newValue);
+    value = newValue;
 }
 
 void zcom::Slider::_PositionAnchor()
 {
-    int maxPosition = GetWidth() - _startOffset - _endOffset;
-    int currentPosition = int(_currentValue * (maxPosition - 1));
+    int maxPosition = size_->width - bodyStartOffset - bodyEndOffset;
+    int currentPosition = int(value * (maxPosition - 1));
 
-    GetItem(1)->SetHorizontalOffsetPixels(_startOffset + currentPosition + _anchorOffset);
-}
-
-void zcom::Slider::_SetInsideInteractionArea(bool value)
-{
-    if (value == _insideInteractionArea)
-        return;
-
-    _insideInteractionArea = value;
-    if (_insideInteractionArea)
-        _onEnterInteractionArea->InvokeAll(this);
-    else
-        _onLeaveInteractionArea->InvokeAll(this);
+    GetItem(1)->position = { bodyStartOffset + currentPosition + anchorOffset, GetItem(1)->position->y };
 }

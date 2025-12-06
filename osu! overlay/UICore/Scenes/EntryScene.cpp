@@ -1,22 +1,23 @@
 #include "App.h" // App.h must be included first
+#include "SharedContext.h"
 #include "Window/Window.h"
 #include "EntryScene.h"
 #include "DefaultNonClientAreaScene.h"
 #include "DefaultTitleBarScene.h"
 #include "OsuDataProvider/DataProviderConfig.h"
 #include "OsuDataProvider/DataProviderSetupScene.h"
-#include "SimplePPCounter/SimplePPCounterConfig.h"
-#include "SimplePPCounter/SimplePPCounterParameterPanel.h"
-#include "ComboBar/ComboBarConfig.h"
-#include "ComboBar/ComboBarParameterPanel.h"
-#include "SmokeSim/SmokeSimConfig.h"
-#include "SmokeSim/SmokeSimParameterPanel.h"
-#include "CursorTrail/CursorTrailConfig.h"
-#include "CursorTrail/CursorTrailParameterPanel.h"
 #include "Components/Base/ScrollPanel.h"
 #include "Components/Base/FlexPanel.h"
 #include "Components/Base/Dummy.h"
 #include "Shared/Styles/Styles.h"
+#include "Settings/IntegrationSettingsTabOptions.h"
+#include "Overlays/pp-counter/PPCounterOverlay.h"
+#include "Overlays/ur-counter/URCounterOverlay.h"
+#include "Overlays/rt-leaderboard/RTLeaderboardOverlay.h"
+#include "Overlays/combo-counter/ComboCounterOverlay.h"
+#include "Overlays/cursor-trail/CursorTrailOverlay.h"
+#include "Overlays/smoke-sim/smoke-trail/SmokeTrailOverlay.h"
+#include "Overlays/smoke-sim/enhanced-smoke/EnhancedSmokeOverlay.h"
 
 void zcom::EntryScene::Init(SceneOptionsBase* options)
 {
@@ -26,119 +27,95 @@ void zcom::EntryScene::Init(SceneOptionsBase* options)
         opt = *reinterpret_cast<const EntrySceneOptions*>(options);
     }
 
-    _dataProviderConnectionEvent = _app->dataProvider.SubscribeOnConnectionEvent();
+    _dataProviderConnectionEvent = _app->Shared<SharedContext*>()->dataProvider.SubscribeOnConnectionEvent();
     _waitingForDataProvider = true;
 
-    _windowCreatedEventSubscription = _app->SubscribeOnWindowCreated([=](zwnd::WindowId id, zwnd::WindowType, zwnd::WindowProperties props) {
-        _basePanel->ExecuteSynchronously([=] {
-            _HandleWindowCreatedEvent(id, props);
-        });
-    });
-    _windowClosedEventSubscription = _app->SubscribeOnWindowClosed([=](zwnd::WindowId id) {
-        _basePanel->ExecuteSynchronously([=] {
-            _HandleWindowClosedEvent(id);
-        });
-    });
-
     _mainPanel = Create<FlexPanel>(FlexDirection::RIGHT);
-    _mainPanel->FillContainerSize();
-    _mainPanel->SetSpacing(1);
-    //_mainPanel->SetPadding(RECT{ 0, 1, 0, 0 });
-    _mainPanel->SetBaseHeight(-1);
-    _mainPanel->SetVerticalOffsetPixels(1);
+    _mainPanel->parentSize = { 1.0f, 1.0f };
+    _mainPanel->size = { 0, -1 };
+    _mainPanel->position = { 0, 1 };
+    _mainPanel->spacing = 1;
 
     _selectionPanel = Create<FlexPanel>(FlexDirection::DOWN);
-    _selectionPanel->FillContainerSize();
+    _selectionPanel->parentSize = { 1.0f, 1.0f };
     _selectionPanel->SetProperty(FlexShrink());
-    _selectionPanel->SetBackgroundColor(D2D1::ColorF(0x1A1A1A));
+    _selectionPanel->backgroundColor = Color(0x1A1A1A);
 
-    _loadingBar = Create<zcom::LoadingAnimation>();
-    _loadingBar->SetParentWidthPercent(1.0f);
-    _loadingBar->SetBaseHeight(1);
-    _loadingBar->SetMainColor(D2D1::ColorF(0x5421FF, 0.5f));
-    //_loadingBar->SetAccentColor(D2D1::ColorF(0x8A2BFF, 1.0f));
-    _loadingBar->SetAccentColor(D2D1::ColorF(0xF966AB, 1.0f));
+    _loadingBar = Create<LoadingAnimation>();
+    _loadingBar->parentSize = { 1.0f, 0.0f };
+    _loadingBar->size = { 0, 1 };
+    _loadingBar->mainColor = Color(0x5421FF, 0.5f);
+    //_loadingBar->SetAccentColor(Color(0x8A2BFF, 1.0f));
+    _loadingBar->accentColor = Color(0xF966AB, 1.0f);
 
     auto osuMemoryPanel = Create<FlexPanel>(FlexDirection::RIGHT);
-    osuMemoryPanel->FillContainerWidth();
-    osuMemoryPanel->SetBaseHeight(40);
-    osuMemoryPanel->SetHeightFixed(true);
-    osuMemoryPanel->SetSpacing(10);
-    osuMemoryPanel->SetPadding(RECT{10, 10, 10, 0});
-    osuMemoryPanel->SetItemAlignment(Alignment::CENTER);
+    osuMemoryPanel->parentSize = { 1.0f, 0.0f };
+    osuMemoryPanel->size = { 0, 40 };
+    osuMemoryPanel->spacing = 10;
+    osuMemoryPanel->padding = { 10, 10, 10, 0 };
+    osuMemoryPanel->itemAlignment = Alignment::CENTER;
     auto osuMemoryFiller = Create<Dummy>();
-    osuMemoryFiller->SetBaseHeight(1);
+    osuMemoryFiller->size = { 0, 1 };
     osuMemoryFiller->SetProperty(FlexGrow());
     auto osuMemoryIcon = Create<Image>(_window->resourceManager.GetImage("osu_memory"));
-    osuMemoryIcon->SetBaseSize(26, 26);
-    osuMemoryIcon->SetHorizontalOffsetPixels(5);
+    osuMemoryIcon->size = { 26, 26 };
+    osuMemoryIcon->position = { 5, 0 };
     auto osuMemoryLabel = Create<Label>(L"osu! data provider");
-    osuMemoryLabel->SetBaseHeight(20);
-    osuMemoryLabel->AutomaticWidth();
-    osuMemoryLabel->SetVerticalTextAlignment(Alignment::CENTER);
+    osuMemoryLabel->size = { 0, 20 };
+    osuMemoryLabel->autoWidth = true;
+    osuMemoryLabel->yTextAlign = Alignment::CENTER;
     auto osuMemorySeparator = Create<Dummy>();
-    osuMemorySeparator->SetBaseSize(1, 22);
-    osuMemorySeparator->SetBackgroundColor(D2D1::ColorF(0x404040));
+    osuMemorySeparator->size = { 1, 22 };
+    osuMemorySeparator->backgroundColor = Color(0x404040);
+    osuMemorySeparator->border.cornerRadius = 0.5f;
     _osuMemoryToggle = Create<Toggle>(false);
-    _osuMemoryToggle->SetBaseSize(40, 22);
-    _osuMemoryToggle->SetCornerRounding(11.0f);
-    _osuMemoryToggle->SetMarginToBorder(4.0f);
-    _osuMemoryToggle->SetBorderVisibility(false);
-    _osuMemoryToggle->SetSelectedBorderColor(D2D1::ColorF(0, 0.0f));
-    _osuMemoryToggle->SetToggledOnBackgroundColor(D2D1::ColorF(0x308020));
-    _osuMemoryToggle->SetToggledOffBackgroundColor(D2D1::ColorF(0x303030));
-    _osuMemoryToggle->SetToggledOnAnchorColor(D2D1::ColorF(0xC0C0C0));
-    _osuMemoryToggle->SetToggledOffAnchorColor(D2D1::ColorF(0xC0C0C0));
-    _osuMemoryToggle->SetProperty(PROP_Shadow{});
-    _osuMemoryToggle->SetToggledOn(_app->dataProvider.Ready());
+    _osuMemoryToggle->size = { 40, 22 };
+    _osuMemoryToggle->marginToBorder = 4.0f;
+    _osuMemoryToggle->border.cornerRadius = 11.0f;
+    _osuMemoryToggle->border.visible = false;
+    _osuMemoryToggle->border.selectedColor = Color(0, 0.0f);
+    _osuMemoryToggle->toggledOnBackgroundColor = Color(0x308020);
+    _osuMemoryToggle->toggledOffBackgroundColor = Color(0x303030);
+    _osuMemoryToggle->toggledOnAnchorColor = Color(0xC0C0C0);
+    _osuMemoryToggle->toggledOffAnchorColor = Color(0xC0C0C0);
+    _osuMemoryToggle->SetProperty(Shadow{});
+    _osuMemoryToggle->toggledOn = _app->Shared<SharedContext*>()->dataProvider.Ready();
     _osuMemoryToggle->SubscribeOnToggled([=](bool* newValue) {
         if (*newValue)
         {
             std::wstring url = _app->config.GetConfigValue(osu::DataProviderConfig::URL, Config::ADD_AND_SAVE_IF_MISSING);
-            if (_app->dataProvider.Connect(url))
+            if (_app->Shared<SharedContext*>()->dataProvider.Connect(url))
             {
                 _waitingForDataProvider = true;
-                _osuMemoryToggle->SetActive(false);
-                _loadingBar->ShowAnimation();
+                _osuMemoryToggle->disabled = true;
+                _loadingBar->showAnimation = true;
                 *newValue = false;
             }
         }
         else
         {
-            if (_app->dataProvider.Disconnect())
+            if (_app->Shared<SharedContext*>()->dataProvider.Disconnect())
             {
                 _waitingForDataProvider = true;
-                _osuMemoryToggle->SetActive(false);
-                _loadingBar->ShowAnimation();
+                _osuMemoryToggle->disabled = true;
+                _loadingBar->showAnimation = true;
                 *newValue = true;
             }
         }
     }).Detach();
     auto osuMemoryButton = Create<Button>(L"");
-    osuMemoryButton->SetBaseSize(30, 30);
-    osuMemoryButton->SetBorderVisibility(false);
-    osuMemoryButton->SetBackgroundColor(D2D1::ColorF(0x303030));
-    osuMemoryButton->SetButtonColor(D2D1::ColorF(0, 0.0f));
-    osuMemoryButton->SetButtonHoverColor(D2D1::ColorF(0xFFFFFF, 0.1f));
-    osuMemoryButton->SetButtonClickColor(D2D1::ColorF(0x000000, 0.1f));
-    osuMemoryButton->SetButtonImageAll(_window->resourceManager.GetImage("settings_22x22"));
-    osuMemoryButton->ButtonImage()->SetPlacement(zcom::ImagePlacement::CENTER);
-    osuMemoryButton->ButtonImage()->SetTintColor(D2D1::ColorF(0xC0C0C0));
-    osuMemoryButton->UseImageParamsForAll(osuMemoryButton->ButtonImage());
-    osuMemoryButton->SetCornerRounding(3.0f);
-    osuMemoryButton->SetSelectedBorderColor(D2D1::ColorF(0, 0.0f));
-    osuMemoryButton->SetProperty(PROP_Shadow{});
+    osuMemoryButton->size = { 30, 30 };
+    osuMemoryButton->border.visible = false;
+    osuMemoryButton->backgroundColor = Color(0x303030);
+    osuMemoryButton->ValueFromButtonState<Color>(osuMemoryButton->buttonColor, Color(0, 0.0f), Color(0xFFFFFF, 0.1f), Color(0x000000, 0.1f));
+    osuMemoryButton->Image()->image = _window->resourceManager.GetImage("settings_22x22");
+    osuMemoryButton->Image()->imagePlacement = ImagePlacement::CENTER;
+    osuMemoryButton->Image()->tintColor = Color(0xC0C0C0);
+    osuMemoryButton->border.cornerRadius = 3.0f;
+    osuMemoryButton->border.selectedColor = Color();
+    osuMemoryButton->SetProperty(Shadow{});
     osuMemoryButton->SubscribeOnActivated([=]() {
-        if (!_dataProviderSetupWindowId)
-        {
-            _OpenDataProviderSetup(false);
-        }
-        else
-        {
-            Handle<zwnd::Window> handle = _app->GetWindow(_dataProviderSetupWindowId.value());
-            if (handle.Valid())
-                handle->Backend().Focus();
-        }
+        _app->Shared<SharedContext*>()->settingsWindow.OpenSettings(SettingsTab::INTEGRATION);
     }).Detach();
     osuMemoryPanel->AddItem(std::move(osuMemoryFiller));
     osuMemoryPanel->AddItem(std::move(osuMemoryIcon));
@@ -148,86 +125,132 @@ void zcom::EntryScene::Init(SceneOptionsBase* options)
     osuMemoryPanel->AddItem(std::move(osuMemoryButton));
 
     _overlayListPanel = Create<FlexPanel>(FlexDirection::DOWN);
-    _overlayListPanel->FillContainerWidth();
-    _overlayListPanel->SetHeightFixed(true);
+    _overlayListPanel->parentSize = { 1.0f, 0.0f };
     _overlayListPanel->SetProperty(FlexGrow());
-    _overlayListPanel->SetSpacing(3);
-    _overlayListPanel->SetItemAlignment(Alignment::CENTER);
+    _overlayListPanel->spacing = 3;
+    _overlayListPanel->itemAlignment = Alignment::CENTER;
 
     auto overlayListHeader = Create<FlexPanel>(FlexDirection::RIGHT);
-    overlayListHeader->FillContainerWidth();
-    overlayListHeader->SetBaseHeight(30);
-    overlayListHeader->SetPadding(RECT{ 12, 0, 12, 0 });
-    overlayListHeader->SetSpacing(5);
+    overlayListHeader->parentSize = { 1.0f, 0.0f };
+    overlayListHeader->size = { 0, 30 };
+    overlayListHeader->padding = { 12, 0, 12, 0 };
+    overlayListHeader->spacing = 5;
     auto headerLabel = Create<Label>(L"Available overlays");
-    headerLabel->AutomaticWidth();
-    headerLabel->SetBaseHeight(30);
-    headerLabel->SetVerticalTextAlignment(Alignment::CENTER);
-    headerLabel->SetFontSize(14.0f);
-    headerLabel->SetFontColor(D2D1::ColorF(0.8f, 0.8f, 0.8f));
-    headerLabel->SetFont(L"Arial");
+    headerLabel->autoWidth = true;
+    headerLabel->size = { 0, 30 };
+    headerLabel->yTextAlign = Alignment::CENTER;
+    headerLabel->fontSize = 14.0f;
+    headerLabel->fontColor = Color(0xCCCCCC);
+    headerLabel->font = L"Arial";
     auto headerSeparator = Create<Dummy>();
     HorizontalSeparatorStyle::Apply(headerSeparator.get());
     //headerSeparator->SetBaseHeight(1);
-    headerSeparator->SetVerticalOffsetPixels(1);
-    headerSeparator->SetVerticalAlignment(Alignment::CENTER);
+    headerSeparator->position = { 0, 1 };
+    headerSeparator->yAlign = Alignment::CENTER;
     headerSeparator->SetProperty(FlexShrink());
-    //headerSeparator->SetBackgroundColor(D2D1::ColorF(0x404040));
+    //headerSeparator->backgroundColor = D2D1::ColorF(0x404040);
     overlayListHeader->AddItem(std::move(headerLabel));
     overlayListHeader->AddItem(std::move(headerSeparator));
 
     _overlayListPanel->AddItem(std::move(overlayListHeader));
 
-    _CreateOverlaySelector(L"Enhanced smoke", SmokeSimConfig::ENHANCED_SMOKE_OVERLAY_WINDOW_NAME, [=] {
-        auto paramPanel = Create<SmokeSimParameterPanel>(SmokeSimType::ENHANCED_SMOKE);
-        paramPanel->SetParentHeightPercent(1.0f);
-        paramPanel->SetBaseWidth(300);
-        return paramPanel;
-    });
-    _CreateOverlaySelector(L"Trail smoke", SmokeSimConfig::CURSOR_TRAIL_OVERLAY_WINDOW_NAME, [=] {
-        auto paramPanel = Create<SmokeSimParameterPanel>(SmokeSimType::CURSOR_TRAIL);
-        paramPanel->SetParentHeightPercent(1.0f);
-        paramPanel->SetBaseWidth(300);
-        return paramPanel;
-    });
-    _CreateOverlaySelector(L"Cursor trail", CursorTrailConfig::OVERLAY_WINDOW_NAME, [=] {
-        auto paramPanel = Create<CursorTrailParameterPanel>();
-        paramPanel->SetParentHeightPercent(1.0f);
-        paramPanel->SetBaseWidth(300);
-        return paramPanel;
-    });
-    _CreateOverlaySelector(L"Combo counter", ComboBarConfig::OVERLAY_WINDOW_NAME, [=] {
-        auto paramPanel = Create<ComboBarParameterPanel>();
-        paramPanel->SetParentHeightPercent(1.0f);
-        paramPanel->SetBaseWidth(300);
-        return paramPanel;
-    }, true);
-    _CreateOverlaySelector(L"PP counter", SimplePPCounterConfig::OVERLAY_WINDOW_NAME, [=] {
-        auto paramPanel = Create<SimplePPCounterParameterPanel>();
-        paramPanel->SetParentHeightPercent(1.0f);
-        paramPanel->SetBaseWidth(300);
-        return paramPanel;
-    }, true);
+    _registeredOverlays.push_back(std::make_shared<const RTLeaderboardOverlay>());
+    _registeredOverlays.push_back(std::make_shared<const PPCounterOverlay>());
+    _registeredOverlays.push_back(std::make_shared<const URCounterOverlay>());
+    _registeredOverlays.push_back(std::make_shared<const ComboCounterOverlay>());
+    _registeredOverlays.push_back(std::make_shared<const CursorTrailOverlay>());
+    _registeredOverlays.push_back(std::make_shared<const EnhancedSmokeOverlay>());
+    _registeredOverlays.push_back(std::make_shared<const SmokeTrailOverlay>());
+
+    for (auto& overlay : _registeredOverlays)
+    {
+        _OverlaySelector selector;
+        selector.overlayView = std::make_unique<OverlayView>(overlay->Id(), _basePanel);
+
+        selector.selectorComponent = Create<Panel>();
+        selector.selectorComponent->parentSize = { 1.0f, 0.0f };
+        selector.selectorComponent->size = { -20, 30 };
+        selector.selectorComponent->SetProperty(Shadow{});
+
+        auto backPanel = Create<FlexPanel>(FlexDirection::RIGHT);
+        backPanel->parentSize = { 1.0f, 1.0f };
+        backPanel->spacing = 3;
+        auto onOffButton = Create<Button>(L"");
+        onOffButton->size = { 30, 30 };
+        onOffButton->selectable = false;
+        onOffButton->border.visible = false;
+        onOffButton->backgroundColor.ComputedFrom([](bool overlayEnabled) { return overlayEnabled ? Color(0x307E20) : Color(0x303030); }, selector.overlayView->enabled_);
+        onOffButton->ValueFromButtonState<Color>(onOffButton->buttonColor, Color(0, 0.0f), Color(0xFFFFFF, 0.1f), Color(0x000000, 0.1f));
+        onOffButton->border.cornerRadius = 3;
+        onOffButton->Image()->image = _window->resourceManager.GetImage("on_off");
+        onOffButton->Image()->imagePlacement = ImagePlacement::CENTER;
+        onOffButton->Image()->tintColor = Color(0xCCCCCC);
+        onOffButton->SubscribeOnActivated([=, overlayView = selector.overlayView.get()]() {
+            if (!overlayView->enabled_)
+                _app->Shared<SharedContext*>()->overlayManager.EnableOverlay(overlay);
+            else
+                _app->Shared<SharedContext*>()->overlayManager.DisableOverlay(overlay->Id());
+        }).Detach();
+        auto button = Create<Button>(overlay->GetTitle());
+        button->parentSize = { 1.0f, 0.0f };
+        button->size = { 0, 30 };
+        button->SetProperty(FlexShrink());
+        button->selectable = false;
+        button->border.visible = false;
+        button->backgroundColor = Color(0x303030);
+        button->ValueFromButtonState<Color>(button->buttonColor, Color(0, 0.0f), Color(0xFFFFFF, 0.1f), Color(0x000000, 0.1f));
+        button->border.cornerRadius = 3;
+        button->SubscribeOnActivated([=] {
+            if (_currentPropertyPanel)
+                _mainPanel->RemoveItem(_currentPropertyPanel);
+
+            auto paramPanel = overlay->CreateSetupComponent(overlay, _mainPanel.get());
+            _currentPropertyPanel = paramPanel.get();
+            _mainPanel->AddItem(std::move(paramPanel));
+        }).Detach();
+
+        if (overlay->RequiresGameData())
+        {
+            auto osuMemoryIcon = Create<Image>(_window->resourceManager.GetImage("osu_memory"));
+            osuMemoryIcon->size = { 30, 30 };
+            osuMemoryIcon->position = { -5, 0 };
+            osuMemoryIcon->xAlign = Alignment::END;
+            osuMemoryIcon->imagePlacement = ImagePlacement::CENTER;
+            osuMemoryIcon->interactable = false;
+            osuMemoryIcon->zIndex = 1;
+            selector.selectorComponent->AddItem(std::move(osuMemoryIcon));
+        }
+
+        backPanel->AddItem(std::move(onOffButton));
+        backPanel->AddItem(std::move(button));
+        selector.selectorComponent->AddItem(std::move(backPanel));
+        _overlayListPanel->AddItem(selector.selectorComponent.get());
+
+        _overlaySelectors.push_back(std::move(selector));
+    }
 
     auto creditsPanel = Create<FlexPanel>(FlexDirection::DOWN);
-    creditsPanel->FillContainerWidth();
-    creditsPanel->SetPadding(RECT{ 0, 5, 0, 5 });
-    creditsPanel->SetSpacing(5);
-
-    auto creditsLabel1 = Create<Label>(L"v2.0.0 | Made by Zenox");
-    creditsLabel1->SetParentWidthPercent(1.0f);
-    creditsLabel1->SetBaseWidth(-20);
-    creditsLabel1->AutomaticHeight();
-    creditsLabel1->SetHorizontalAlignment(Alignment::CENTER);
-    creditsLabel1->SetTextSelectable(true);
+    creditsPanel->parentSize = { 1.0f, 0.0f };
+    creditsPanel->autoHeight = true;
+    creditsPanel->padding = { 0, 5, 0, 5 };
+    creditsPanel->spacing = 5;
+    auto creditsLabel1 = Create<Label>(L"v" + string_to_wstring(OVERLAY_ENGINE_VERSION.ToString()) + L" | Made by Zenox");
+    creditsLabel1->parentSize = { 1.0f, 0.0f };
+    creditsLabel1->size = { -20, 0 };
+    creditsLabel1->autoHeight = true;
+    creditsLabel1->xAlign = Alignment::CENTER;
+    creditsLabel1->textSelectable = true;
+    creditsLabel1->SubscribePostLeftReleased([=](Component*, std::vector<EventContext::Params>, std::optional<Point>) {
+        _window->Backend().SetWindowRectangle({ 0, 0, 300, 300 });
+    }).Detach();
     auto creditsLabel2 = Create<Label>(L"If you have any questions, you can message me directly on osu!, username: ZenoXLTU\nFor updates and FAQ check the app page: https://github.com/ZenoXi/osu-overlays");
-    creditsLabel2->SetParentWidthPercent(1.0f);
-    creditsLabel2->SetBaseWidth(-20);
-    creditsLabel2->AutomaticHeight();
-    creditsLabel2->SetHorizontalAlignment(Alignment::CENTER);
-    creditsLabel2->SetFontStyle(DWRITE_FONT_STYLE_ITALIC);
-    creditsLabel2->SetTextSelectable(true);
-    creditsLabel2->SetWordWrap(true);
+    creditsLabel2->parentSize = { 1.0f, 0.0f };
+    creditsLabel2->size = { -20, 0 };
+    creditsLabel2->autoHeight = true;
+    creditsLabel2->xAlign = Alignment::CENTER;
+    creditsLabel2->fontStyle = FontStyle::ITALIC;
+    creditsLabel2->textSelectable = true;
+    creditsLabel2->wordWrapping = WordWrapping::WRAP;
     creditsPanel->AddItem(std::move(creditsLabel1));
     creditsPanel->AddItem(std::move(creditsLabel2));
 
@@ -239,7 +262,7 @@ void zcom::EntryScene::Init(SceneOptionsBase* options)
     _mainPanel->AddItem(_selectionPanel.get());
 
     _basePanel->AddItem(_mainPanel.get());
-    _basePanel->SetBackgroundColor(D2D1::ColorF(0));
+    _basePanel->backgroundColor = Color(0);
     _basePanel->SubscribePostUpdate([=]() {
         _Update();
     }).Detach();
@@ -257,163 +280,20 @@ void zcom::EntryScene::_Update()
         if (_waitingForDataProvider)
         {
             _waitingForDataProvider = false;
-            _osuMemoryToggle->SetActive(true);
-            _loadingBar->HideAnimation();
+            _osuMemoryToggle->disabled = false;
+            _loadingBar->showAnimation = false;
         }
 
         auto event = mostRecentEvent.value();
         if (event == osu::DataProvider::CONNECTION_SUCCESSFUL)
-            _osuMemoryToggle->SetToggledOn(true);
+            _osuMemoryToggle->toggledOn = true;
         else if (event == osu::DataProvider::DISCONNECT_COMPLETED)
-            _osuMemoryToggle->SetToggledOn(false);
+            _osuMemoryToggle->toggledOn = false;
         else if (event == osu::DataProvider::CONNECTION_FAILED)
         {
-            _osuMemoryToggle->SetToggledOn(false);
-            if (!_dataProviderSetupWindowId)
-            {
-                _OpenDataProviderSetup(true);
-            }
-            else
-            {
-                Handle<zwnd::Window> handle = _app->GetWindow(_dataProviderSetupWindowId.value());
-                if (handle.Valid())
-                    handle->Backend().Focus();
-            }
+            IntegrationSettingsTabOptions opt;
+            opt.showDataProviderError = true;
+            _app->Shared<SharedContext*>()->settingsWindow.OpenSettings(SettingsTab::INTEGRATION, std::make_any<IntegrationSettingsTabOptions>(opt));
         }
     }
-}
-
-void zcom::EntryScene::_CreateOverlaySelector(std::wstring buttonText, std::wstring windowClassName, std::function<std::unique_ptr<Component>()> parameterPanelInitFunc, bool dataProviderRequired)
-{
-    auto row = Create<Panel>();
-    row->SetParentWidthPercent(1.0f);
-    row->SetBaseSize(-20, 30);
-    row->SetProperty(PROP_Shadow{});
-
-    auto backPanel = Create<FlexPanel>(FlexDirection::RIGHT);
-    backPanel->FillContainerSize();
-    backPanel->SetSpacing(3);
-    auto statusIndicator = Create<Dummy>();
-    statusIndicator->SetBaseSize(10, 30);
-    statusIndicator->SetCornerRounding(3);
-    statusIndicator->SetBackgroundColor(D2D1::ColorF(0x30B020));
-    statusIndicator->SetVisible(false);
-    auto button = Create<Button>(L"");
-    button->SetParentWidthPercent(1.0f);
-    button->SetBaseHeight(30);
-    button->SetProperty(FlexShrink());
-    button->SetSelectable(false);
-    button->SetBorderVisibility(false);
-    button->SetBackgroundColor(D2D1::ColorF(0x303030));
-    button->SetButtonColor(D2D1::ColorF(0, 0.0f));
-    button->SetButtonHoverColor(D2D1::ColorF(0xFFFFFF, 0.1f));
-    button->SetButtonClickColor(D2D1::ColorF(0x000000, 0.1f));
-    button->SetCornerRounding(3);
-    button->SubscribeOnActivated([=] {
-        if (_currentPropertyPanel)
-            _mainPanel->RemoveItem(_currentPropertyPanel);
-
-        auto paramPanel = parameterPanelInitFunc();
-        _currentPropertyPanel = paramPanel.get();
-        _mainPanel->AddItem(std::move(paramPanel));
-    }).Detach();
-
-    auto text = Create<Label>(buttonText);
-    text->AutomaticSize();
-    text->SetAlignment(Alignment::CENTER, Alignment::CENTER);
-    text->SetInteractable(false);
-    text->SetZIndex(1);
-    if (dataProviderRequired)
-    {
-        auto osuMemoryIcon = Create<Image>(_window->resourceManager.GetImage("osu_memory"));
-        osuMemoryIcon->SetBaseSize(30, 30);
-        osuMemoryIcon->SetHorizontalOffsetPixels(-5);
-        osuMemoryIcon->SetHorizontalAlignment(Alignment::END);
-        osuMemoryIcon->SetPlacement(ImagePlacement::CENTER);
-        osuMemoryIcon->SetInteractable(false);
-        osuMemoryIcon->SetZIndex(1);
-        row->AddItem(std::move(osuMemoryIcon));
-    }
-    row->AddItem(std::move(text));
-
-    _OverlaySelector selector;
-    selector.overlayWindowClassName = windowClassName;
-    selector.statusIndicator = statusIndicator.get();
-    _overlaySelectors.push_back(std::move(selector));
-
-    backPanel->AddItem(std::move(statusIndicator));
-    backPanel->AddItem(std::move(button));
-    row->AddItem(std::move(backPanel));
-    _overlayListPanel->AddItem(std::move(row));
-}
-
-void zcom::EntryScene::_HandleWindowCreatedEvent(zwnd::WindowId windowId, zwnd::WindowProperties props)
-{
-    for (auto& selector : _overlaySelectors)
-    {
-        if (selector.overlayWindowClassName == props.windowClassName)
-        {
-            selector.overlayWindowId = windowId;
-            selector.statusIndicator->SetVisible(true);
-            break;
-        }
-    }
-}
-
-void zcom::EntryScene::_HandleWindowClosedEvent(zwnd::WindowId windowId)
-{
-    for (auto& selector : _overlaySelectors)
-    {
-        if (selector.overlayWindowId.has_value() && selector.overlayWindowId.value() == windowId)
-        {
-            selector.overlayWindowId = std::nullopt;
-            selector.statusIndicator->SetVisible(false);
-            break;
-        }
-    }
-
-    if (_dataProviderSetupWindowId && _dataProviderSetupWindowId.value() == windowId)
-        _dataProviderSetupWindowId = std::nullopt;
-}
-
-void zcom::EntryScene::_OpenDataProviderSetup(bool showError)
-{
-    int width = 560;
-    int height = 380;
-    RECT mainWindowRect = _window->Backend().GetWindowRectangle();
-    int mainWindowCenterX = (mainWindowRect.left + mainWindowRect.right) / 2;
-    int mainWindowCenterY = (mainWindowRect.top + mainWindowRect.bottom) / 2;
-
-    auto props = zwnd::WindowProperties()
-        .WindowClassName(osu::DataProviderConfig::DATA_PROVIDER_SETUP_WINDOW_NAME)
-        .InitialSize(width, height)
-        .MinSize(500, 200)
-        .InitialOffset(mainWindowCenterX - width / 2, mainWindowCenterY - height / 2)
-        .DisableMaximizing()
-        .DisableMinimizing()
-        .DisableFastTooltips();
-
-    _dataProviderSetupWindowId = _app->CreateChildWindow(
-        _window->GetWindowId(),
-        props,
-        [=](zwnd::Window* wnd) {
-            wnd->resourceManager.SetImageResourceFilePath("Resources/Images/resources.resc");
-            wnd->resourceManager.InitAllImages();
-
-            wnd->LoadNonClientAreaScene<DefaultNonClientAreaScene>(nullptr);
-
-            // Remove unnecessary caption elements
-            DefaultTitleBarSceneOptions tbOpt;
-            tbOpt.showMaximizeButton = false;
-            tbOpt.showMinimizeButton = false;
-            tbOpt.windowIconResourceName = "osu_memory";
-            tbOpt.windowTitle = L"osu! data provider setup";
-            tbOpt.darkMode = true;
-            wnd->LoadTitleBarScene<DefaultTitleBarScene>(&tbOpt);
-
-            DataProviderSetupSceneOptions opt;
-            opt.showError = showError;
-            wnd->LoadStartingScene<DataProviderSetupScene>(&opt);
-        }
-    );
 }

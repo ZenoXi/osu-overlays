@@ -89,9 +89,10 @@ namespace zwnd
             //_info.psize = NULL;
             //_info.dwFlags |= ULW_EX_NORESIZE;
 
-            //std::cout << _info.psize->cx << ':' << _info.psize->cy << '\n';
+            //std::cout << "Updating layered window: " << _info.psize->cx << ':' << _info.psize->cy << '\n';
             //_size.cx++;
             BOOL res = UpdateLayeredWindowIndirect(window, &_info);
+            //std::cout << "Layered window updated\n";
             if (res == 0)
             {
                 //std::cout << "LAYERED WINDOW UPDATE ERROR " << _info.psize->cx << ':' << _info.psize->cy << " vs " << GetWidth() << ':' << GetHeight() << '\n';
@@ -116,6 +117,7 @@ namespace zwnd
     {
         HWND _hwnd = NULL;
         HWND _parentHwnd = NULL;
+        bool _layeredWindowUpdateRequired = true;
         LayeredWindowInfo _linfo;
 
         LPCWSTR _wndClassName = L"wndClassName";
@@ -153,7 +155,8 @@ namespace zwnd
         // Resumes processing of WM_WINDOWPOSCHANGING messages
         void UnlockSize();
 
-        void UpdateLayeredWindow();
+        void ResizeBuffers(int width, int height);
+        bool UpdateLayeredWindow();
 
         void ProcessMessages();
         bool ProcessSingleMessage();
@@ -163,6 +166,8 @@ namespace zwnd
         bool RemoveKeyboardHandler(KeyboardEventHandler* handler);
         void AddDragDropHandler(IDragDropEventHandler* handler);
         bool RemoveDragDropHandler(IDragDropEventHandler* handler);
+
+        void RegisterMessage(UINT messageId, std::function<WindowMessage(WPARAM, LPARAM)> mapper);
 
         RECT GetWindowRectangle();
         void SetWindowRectangle(RECT rect);
@@ -223,11 +228,20 @@ namespace zwnd
         WindowMessage _exitResult = {};
         std::queue<WindowMessage> _msgQueue;
 
+        struct _RegisteredMessage
+        {
+            UINT id;
+            std::function<WindowMessage(WPARAM, LPARAM)> mapper;
+        };
+        std::vector<_RegisteredMessage> _registeredMessages;
+
         // Window width, updated only in the WM_SIZE messages
         int _messageWidth = 0;
         // Window height, updated only in the WM_SIZE messages
         int _messageHeight = 0;
+        bool _bufferResizeRequired = false;
         std::mutex _m_windowSize;
+        bool _disableVsync;
 
         int _minWidth = 0;
         int _minHeight = 0;
@@ -320,6 +334,8 @@ namespace zwnd
         bool RemoveKeyboardHandler(KeyboardEventHandler* handler) { return _wnd->RemoveKeyboardHandler(handler); }
         void AddDragDropHandler(IDragDropEventHandler* handler) { _wnd->AddDragDropHandler(handler); }
         bool RemoveDragDropHandler(IDragDropEventHandler* handler) { return _wnd->RemoveDragDropHandler(handler); }
+
+        void RegisterMessage(UINT messageId, std::function<WindowMessage(WPARAM, LPARAM)> mapper) { _wnd->RegisterMessage(messageId, mapper); };
     private:
         WindowBackend* _wnd;
     };

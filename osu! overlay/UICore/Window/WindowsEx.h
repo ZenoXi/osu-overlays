@@ -6,7 +6,9 @@
 #include <sdkddkver.h>
 
 #define WIN32_LEAN_AND_MEAN
+//#ifndef NOMINMAX
 #define NOMINMAX
+//#endif
 
 #include <Windows.h>
 #include <windowsx.h>
@@ -17,3 +19,30 @@
 #else
 #define HR(expression) expression
 #endif
+
+#include <string>
+#include <optional>
+
+inline std::optional<std::wstring> ToWinErrorString(DWORD errorCode)
+{
+    LPTSTR errorText = NULL;
+
+    FormatMessage(
+        FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS,
+        NULL,
+        errorCode,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        (LPTSTR)&errorText,
+        0,
+        NULL
+    );
+
+    if (NULL != errorText)
+    {
+        std::wstring str(errorText);
+        LocalFree(errorText);
+        return str;
+    }
+
+    return std::nullopt;
+}

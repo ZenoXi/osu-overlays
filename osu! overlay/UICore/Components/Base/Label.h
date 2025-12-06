@@ -2,6 +2,7 @@
 
 #include "ComponentBase.h"
 #include "../ComHelper.h"
+#include "Window/Text.h"
 #include "Window/KeyboardEventHandler.h"
 
 #include "Helper/StringHelper.h"
@@ -11,585 +12,209 @@
 
 namespace zcom
 {
-    enum class TextAlignment
+    constexpr std::vector<std::pair<int64_t, std::wstring>> TextAlignmentValueProxySelectionValues()
     {
-        LEADING,
-        CENTER,
-        JUSTIFIED,
-        TRAILING
-    };
-
-    struct LineMetricsResult
-    {
-        std::vector<DWRITE_LINE_METRICS> lineMetrics;
-    };
-
-    struct TextPositionHitResult
-    {
-        FLOAT posX;
-        FLOAT posY;
-        DWRITE_HIT_TEST_METRICS hitMetrics;
-    };
-
-    struct TextRangeHitResult
-    {
-        std::vector<DWRITE_HIT_TEST_METRICS> hitMetrics;
-    };
-
-    struct HitTestResult
-    {
-        BOOL isTrailingHit = false;
-        BOOL isInside = false;
-        DWRITE_HIT_TEST_METRICS hitMetrics = {};
-    };
+        return {
+            { (int64_t)TextAlignment::LEADING, L"Leading" },
+            { (int64_t)TextAlignment::CENTER, L"Center" },
+            { (int64_t)TextAlignment::JUSTIFIED, L"Justified" },
+            { (int64_t)TextAlignment::TRAILING, L"Trailing" }
+        };
+    }
 
     // To enable ClearType, the ignore alpha parameter in the component base must be set to true
     class Label : public Component, public KeyboardEventHandler
     {
         DEFINE_COMPONENT(Label, Component)
     public:
-        ~Label()
-        {
-            SafeFullRelease((IUnknown**)&_textBrush);
-            SafeFullRelease((IUnknown**)&_dwriteTextFormat);
-            SafeFullRelease((IUnknown**)&_dwriteTextLayout);
-            SafeFullRelease((IUnknown**)&_dwriteFactory);
-        }
+        ~Label() {}
     protected:
         void Init(std::wstring text = L"")
         {
-            _text = text;
+            this->text = text;
 
-            SetSelectedBorderColor(D2D1::ColorF(0, 0.0f));
+            border.selectedColor = Color();
 
-            // Create text rendering resources
-            DWriteCreateFactory(
-                DWRITE_FACTORY_TYPE_SHARED,
-                __uuidof(IDWriteFactory),
-                reinterpret_cast<IUnknown**>(&_dwriteFactory)
-            );
-            _CreateTextFormat();
-            _CreateTextLayout();
+            Component::hoverText.ComputedFrom([](
+                const std::wstring& text,
+                const std::wstring& labelHoverText,
+                bool showTruncatedText,
+                bool textTruncated
+            ) {
+                if (!showTruncatedText)
+                    return labelHoverText;
+                else if (textTruncated)
+                    return text;
+                else
+                    return std::wstring();
+            }, this->text, hoverText, showTruncatedText, _textTruncated);
         }
 
     public:
-        std::wstring GetText() const
-        {
-            return _text;
-        }
+        Value<std::wstring> text = Value<std::wstring>(L"", [=](std::wstring& currentValue, const std::wstring& text) {
+            std::wstring newText = text;
+            _textChangedEvent->InvokeAll(this, &newText);
+            currentValue = newText;
 
-        TextAlignment GetHorizontalTextAlignment() const
-        {
-            return _hTextAlignment;
-        }
+            selectionStart = 0;
+            selectionEnd = 0;
 
-        Alignment GetVerticalTextAlignment() const
-        {
-            return _vTextAlignment;
-        }
-
-        bool GetWordWrap() const
-        {
-            return _wrapText;
-        }
-
-        std::wstring GetCutoff() const
-        {
-            return _cutoff;
-        }
-
-        RECT_F GetMargins() const
-        {
-            return _padding;
-        }
-
-        std::wstring GetFont() const
-        {
-            return _font;
-        }
-
-        float GetFontSize() const
-        {
-            return _fontSize;
-        }
-
-        DWRITE_FONT_WEIGHT GetFontWeight() const
-        {
-            return _fontWeight;
-        }
-
-        DWRITE_FONT_STYLE GetFontStyle() const
-        {
-            return _fontStyle;
-        }
-
-        DWRITE_FONT_STRETCH GetFontStretch() const
-        {
-            return _fontStretch;
-        }
-
-        D2D1_COLOR_F GetFontColor() const
-        {
-            return _fontColor;
-        }
-
-        float GetTextWidth() const
-        {
-            DWRITE_TEXT_METRICS textMetrics;
-            _dwriteTextLayout->GetMetrics(&textMetrics);
-            return textMetrics.width + _padding.left + _padding.right;
-        }
-
-        float GetTextHeight() const
-        {
-            DWRITE_TEXT_METRICS textMetrics;
-            _dwriteTextLayout->GetMetrics(&textMetrics);
-            return textMetrics.height + _padding.top + _padding.bottom;
-        }
-
-        bool GetTextSelectable() const
-        {
-            return _textSelectable;
-        }
-
-        size_t GetSelectionStart() const
-        {
-            return _selectionStart;
-        }
-
-        size_t GetSelectionEnd() const
-        {
-            return _selectionEnd;
-        }
-
-        void SetText(std::wstring text)
-        {
-            if (text == _text)
-                return;
-
-            // 'text' can be modified by the handlers
-            _textChangedEvent->InvokeAll(this, &text);
-
-            _text = text;
-            SetSelectionStart(0);
-            SetSelectionEnd(0);
-            _CreateTextLayout();
-        }
-
-        void SetHorizontalTextAlignment(TextAlignment alignment)
-        {
-            if (_hTextAlignment != alignment)
-            {
-                _hTextAlignment = alignment;
-                _CreateTextLayout();
-            }
-        }
-
-        void SetVerticalTextAlignment(Alignment alignment)
-        {
-            _vTextAlignment = alignment;
+            _textDesc.WithText(currentValue);
+            _CalculateLayout();
+        });
+        Value<TextAlignment> xTextAlign = Value<TextAlignment>(TextAlignment::LEADING, [=](TextAlignment& currentValue, const TextAlignment& alignment) {
+            currentValue = alignment;
+            _textDesc.WithTextAlignment(currentValue);
+            _CalculateLayout();
+        });
+        Value<Alignment> yTextAlign = Value<Alignment>(Alignment::START, [=](Alignment& currentValue, const Alignment& alignment) {
+            currentValue = alignment;
             InvokeRedraw();
-        }
-
-        void SetWordWrap(bool wrap)
-        {
-            if (_wrapText != wrap)
-            {
-                _wrapText = wrap;
-                _CreateTextLayout();
-            }
-        }
-
+        });
+        Value<WordWrapping> wordWrapping = Value<WordWrapping>(WordWrapping::NO_WRAP, [=](WordWrapping& currentValue, const WordWrapping& wrap) {
+            currentValue = wrap;
+            _textDesc.WithWrap(currentValue);
+            _CalculateLayout();
+        });
         // If set to a non-empty string, the text will be truncated to fit within the boundaries.
         // 'cutoff' - The string appended to the end of truncated text (e.g. "trunca..." if 'cutoff' is "...").
-        void SetCutoff(std::wstring cutoff)
-        {
-            if (_cutoff != cutoff)
-            {
-                _cutoff = cutoff;
-                _CreateTextLayout();
-            }
-        }
-
-        void SetPadding(RECT_F padding)
-        {
-            if (_padding != padding)
-            {
-                _padding = padding;
-                _CreateTextLayout();
-            }
-        }
-
-        void SetFont(std::wstring font)
-        {
-            if (_font != font)
-            {
-                _font = font;
-                _CreateTextFormat();
-                _CreateTextLayout();
-            }
-        }
-
-        void SetFontSize(float size)
-        {
-            if (_fontSize != size)
-            {
-                _fontSize = size;
-                _CreateTextFormat();
-                _CreateTextLayout();
-            }
-        }
-
-        void SetFontWeight(DWRITE_FONT_WEIGHT weight)
-        {
-            if (_fontWeight != weight)
-            {
-                _fontWeight = weight;
-                _CreateTextFormat();
-                _CreateTextLayout();
-            }
-        }
-
-        void SetFontStyle(DWRITE_FONT_STYLE style)
-        {
-            if (_fontStyle != style)
-            {
-                _fontStyle = style;
-                _CreateTextFormat();
-                _CreateTextLayout();
-            }
-        }
-
-        void SetFontStretch(DWRITE_FONT_STRETCH stretch)
-        {
-            if (_fontStretch != stretch)
-            {
-                _fontStretch = stretch;
-                _CreateTextFormat();
-                _CreateTextLayout();
-            }
-        }
-
-        void SetFontColor(D2D1_COLOR_F color)
-        {
-            _fontColor = color;
-            SafeFullRelease((IUnknown**)&_textBrush);
+        Value<std::wstring> cutoff = Value<std::wstring>(L"", [=](std::wstring& currentValue, const std::wstring& cutoff) {
+            currentValue = cutoff;
+            _CalculateLayout();
+        });
+        Value<RectF> padding = Value<RectF>({ 0, 0, 0, 0 }, [=](RectF& currentValue, const RectF& rect) {
+            currentValue = rect;
+            _CalculateLayout();
+        });
+        Value<std::wstring> hoverText = std::wstring(L"");
+        Value<bool> showTruncatedText = false;
+    private:
+        Value<bool> _textTruncated = false;
+    public:
+        Value<std::wstring> font = Value<std::wstring>(L"Calibri", [=](std::wstring& currentValue, const std::wstring& font) {
+            currentValue = font;
+            _textDesc.WithFontFamily(currentValue);
+            _CalculateLayout();
+        });
+        Value<float> fontSize = Value<float>(14.0f, [=](float& currentValue, const float& fontSize) {
+            currentValue = fontSize;
+            _textDesc.WithFontSize(currentValue);
+            _CalculateLayout();
+        });
+        Value<FontWeight> fontWeight = Value<FontWeight>(FontWeight::NORMAL, [=](FontWeight& currentValue, const FontWeight& fontWeight) {
+            currentValue = fontWeight;
+            _textDesc.WithFontWeight(currentValue);
+            _CalculateLayout();
+        });
+        Value<FontStyle> fontStyle = Value<FontStyle>(FontStyle::NORMAL, [=](FontStyle& currentValue, const FontStyle& fontStyle) {
+            currentValue = fontStyle;
+            _textDesc.WithFontStyle(currentValue);
+            _CalculateLayout();
+        });
+        Value<FontStretch> fontStretch = Value<FontStretch>(FontStretch::NORMAL, [=](FontStretch& currentValue, const FontStretch& fontStretch) {
+            currentValue = fontStretch;
+            _textDesc.WithFontStretch(currentValue);
+            _CalculateLayout();
+        });
+        Value<Color> fontColor = Value<Color>(Color(0xD0D0D0), [=](Color& currentValue, const Color& fontColor) {
+            currentValue = fontColor;
             InvokeRedraw();
-        }
-
-        void SetUnderline(DWRITE_TEXT_RANGE range)
-        {
-            if (range.length == _underlineRange.length &&
-                range.startPosition == _underlineRange.startPosition)
-                return;
-
-            _underlineRange = range;
-            _CreateTextLayout();
-        }
-
-        void SetStrikethrough(DWRITE_TEXT_RANGE range)
-        {
-            if (range.length == _strikethroughRange.length &&
-                range.startPosition == _strikethroughRange.startPosition)
-                return;
-
-            _strikethroughRange = range;
-            _CreateTextLayout();
-        }
-
-        void SetTextSelectable(bool selectable)
-        {
-            if (selectable == _textSelectable)
-                return;
-
-            _textSelectable = selectable;
-            if (_textSelectable)
+        });
+        
+        Value<bool> autoWidth = Value<bool>(false, [=](bool& currentValue, const bool& autoWidth) {
+            currentValue = autoWidth;
+            _CalculateLayout();
+        });
+        Value<bool> autoHeight = Value<bool>(false, [=](bool& currentValue, const bool& autoHeight) {
+            currentValue = autoHeight;
+            _CalculateLayout();
+        });
+        Value<std::optional<int>> minAutoWidth = Value<std::optional<int>>(std::nullopt, [=](std::optional<int>& currentValue, const std::optional<int>& width) {
+            currentValue = width;
+            _CalculateLayout();
+        });
+        Value<std::optional<int>> minAutoHeight = Value<std::optional<int>>(std::nullopt, [=](std::optional<int>& currentValue, const std::optional<int>& height) {
+            currentValue = height;
+            _CalculateLayout();
+        });
+        Value<std::optional<int>> maxAutoWidth = Value<std::optional<int>>(std::nullopt, [=](std::optional<int>& currentValue, const std::optional<int>& width) {
+            currentValue = width;
+            _CalculateLayout();
+        });
+        Value<std::optional<int>> maxAutoHeight = Value<std::optional<int>>(std::nullopt, [=](std::optional<int>& currentValue, const std::optional<int>& height) {
+            currentValue = height;
+            _CalculateLayout();
+        });
+        
+        Value<bool> textSelectable = Value<bool>(false, [=](bool& currentValue, const bool& selectable) {
+            currentValue = selectable;
+            if (textSelectable)
             {
-                SetDefaultCursor(zwnd::CursorIcon::IBEAM);
-                SetSelectable(true);
+                cursorIcon = zwnd::CursorIcon::IBEAM;
+                Component::selectable = true;
             }
             else
             {
-                SetDefaultCursor(zwnd::CursorIcon::ARROW);
-                SetSelectable(false);
+                cursorIcon = zwnd::CursorIcon::ARROW;
+                Component::selectable = false;
                 _selecting = false;
-                _selectionStart = 0;
-                _selectionEnd = 0;
+                selectionStart = 0;
+                selectionEnd = 0;
             }
             InvokeRedraw();
-        }
-
-        void SetSelectionStart(size_t selectionStart)
-        {
-            if (!_textSelectable)
-                return;
-            if (selectionStart == _selectionStart)
-                return;
-
-            _selectionStart = selectionStart;
+        });
+        Value<size_t> selectionStart = Value<size_t>(0, [=](size_t& currentValue, const size_t& pos) {
+            currentValue = pos;
             InvokeRedraw();
-        }
-
-        void SetSelectionEnd(size_t selectionEnd)
-        {
-            if (!_textSelectable)
-                return;
-            if (selectionEnd == _selectionEnd)
-                return;
-
-            _selectionEnd = selectionEnd;
+        });
+        Value<size_t> selectionEnd = Value<size_t>(0, [=](size_t& currentValue, const size_t& pos) {
+            currentValue = pos;
             InvokeRedraw();
+        });
+
+        float GetTextWidth()
+        {
+            auto metrics = GetMetrics();
+            return metrics.width + padding->left + padding->right;
         }
 
-        void SetHoverText(std::wstring text)
+        float GetTextHeight()
         {
-            if (!text.empty())
-                _customHoverText = true;
-            else
-                _customHoverText = false;
-
-            Component::SetHoverText(text);
+            auto metrics = GetMetrics();
+            return metrics.height + padding->top + padding->bottom;
         }
 
-        LineMetricsResult LineMetrics() const
+        TextMetrics GetMetrics();
+        TextLineMetricsResult GetLineMetrics();
+        TextHitTestResult HitTestPoint(PointF point);
+        TextPositionHitTestResult HitTestTextPosition(size_t textPosition, bool isTrailingHit = false);
+        TextRangeHitTestResult HitTestTextRange(size_t textPosition, size_t textLength);
+
+        PointF MapComponentToTextLayoutCoordinates(PointF point)
         {
-            UINT32 lineCount;
-            _dwriteTextLayout->GetLineMetrics(nullptr, 0, &lineCount);
-            if (lineCount == 0)
-                return LineMetricsResult{};
-
-            std::vector<DWRITE_LINE_METRICS> metrics;
-            metrics.resize(lineCount);
-            _dwriteTextLayout->GetLineMetrics(metrics.data(), (UINT32)metrics.size(), &lineCount);
-
-            return LineMetricsResult{ metrics };
+            return { point.x - padding->left, point.y - _TextTopPos() };
         }
 
-        DWRITE_TEXT_METRICS TextMetrics() const
+        PointF MapTextLayoutToComponentCoordinates(PointF point)
         {
-            DWRITE_TEXT_METRICS metrics;
-            _dwriteTextLayout->GetMetrics(&metrics);
-            return metrics;
-        }
-
-        void AutomaticWidth()
-        {
-            if (!_autoWidth)
-            {
-                _autoWidth = true;
-                _CreateTextLayout();
-            }
-        }
-
-        void AutomaticHeight()
-        {
-            if (!_autoHeight)
-            {
-                _autoHeight = true;
-                _CreateTextLayout();
-            }
-        }
-
-        void AutomaticSize()
-        {
-            if (!_autoWidth || !_autoHeight)
-            {
-                _autoWidth = true;
-                _autoHeight = true;
-                _CreateTextLayout();
-            }
-        }
-
-        void FixedWidth()
-        {
-            if (_autoWidth)
-            {
-                _autoWidth = false;
-                _CreateTextLayout();
-            }
-        }
-
-        void FixedHeight()
-        {
-            if (_autoHeight)
-            {
-                _autoHeight = false;
-                _CreateTextLayout();
-            }
-        }
-
-        void FixedSize()
-        {
-            if (_autoWidth || _autoHeight)
-            {
-                _autoWidth = false;
-                _autoHeight = false;
-                _CreateTextLayout();
-            }
-        }
-
-        void SetMinAutoWidth(int minWidth)
-        {
-            if (_minAutoWidth == minWidth)
-                return;
-
-            _minAutoWidth = minWidth;
-            if (_autoWidth)
-                _CreateTextLayout();
-        }
-
-        void SetMinAutoHeight(int minHeight)
-        {
-            if (_minAutoHeight == minHeight)
-                return;
-
-            _minAutoHeight = minHeight;
-            if (_autoHeight)
-                _CreateTextLayout();
-        }
-
-        void SetMaxAutoWidth(int maxWidth)
-        {
-            if (_maxAutoWidth == maxWidth)
-                return;
-
-            _maxAutoWidth = maxWidth;
-            if (_autoWidth)
-                _CreateTextLayout();
-        }
-
-        void SetMaxAutoHeight(int maxHeight)
-        {
-            if (_maxAutoHeight == maxHeight)
-                return;
-
-            _maxAutoHeight = maxHeight;
-            if (_autoHeight)
-                _CreateTextLayout();
-        }
-
-        int GetMinAutoWidth() const
-        {
-            return _minAutoWidth;
-        }
-
-        int GetMinAutoHeight() const
-        {
-            return _minAutoHeight;
-        }
-
-        int GetMaxAutoWidth() const
-        {
-            return _maxAutoWidth;
-        }
-
-        int GetMaxAutoHeight() const
-        {
-            return _maxAutoHeight;
-        }
-
-        void SetWidthAutoResize(bool automatic)
-        {
-            SetAutoResize(automatic, _autoHeight);
-        }
-
-        void SetHeightAutoResize(bool automatic)
-        {
-            SetAutoResize(_autoWidth, automatic);
-        }
-
-        void SetAutoResize(bool autoWidth, bool autoHeight)
-        {
-            if (_autoWidth == autoWidth && _autoHeight == autoHeight)
-                return;
-
-            _autoWidth = autoWidth;
-            _autoHeight = autoHeight;
-            _CreateTextLayout();
-        }
-
-        bool IsWidthAutoResize() const
-        {
-            return _autoWidth;
-        }
-
-        bool IsHeightAutoResize() const
-        {
-            return _autoWidth;
+            return { point.x + padding->left, point.y + _TextTopPos() };
         }
 
     protected:
-        float _TextTopPos() const
+        float _TextTopPos()
         {
-            auto metrics = TextMetrics();
-            if (_vTextAlignment == Alignment::START)
-                return _padding.top;
-            else if (_vTextAlignment == Alignment::CENTER)
-                return _padding.top + ((GetHeight() - _padding.top - _padding.bottom) - metrics.height) * 0.5f;
-            else if (_vTextAlignment == Alignment::END)
-                return _padding.top + GetHeight() - metrics.height - _padding.bottom;
+            auto metrics = GetMetrics();
+            if (yTextAlign == Alignment::START)
+                return padding->top;
+            else if (yTextAlign == Alignment::CENTER)
+                return padding->top + ((size_->height - padding->top - padding->bottom) - metrics.height) * 0.5f;
+            else if (yTextAlign == Alignment::END)
+                return padding->top + size_->height - metrics.height - padding->bottom;
             else
                 return 0;
         }
 
     public:
-        HitTestResult HitTestPoint(float x, float y)
-        {
-            HitTestResult result;
-            _dwriteTextLayout->HitTestPoint(x - _padding.left, y - _TextTopPos(), &result.isTrailingHit, &result.isInside, &result.hitMetrics);
-            return result;
-        }
-
-        TextPositionHitResult HitTestTextPosition(size_t textPosition, bool isTrailingHit = false) const
-        {
-            TextPositionHitResult metrics;
-            _dwriteTextLayout->HitTestTextPosition(
-                (UINT32)textPosition,
-                isTrailingHit,
-                &metrics.posX, &metrics.posY,
-                &metrics.hitMetrics
-            );
-            metrics.posX += _padding.left;
-            metrics.posY += _TextTopPos();
-            return metrics;
-        }
-
-        TextRangeHitResult HitTestTextRange(size_t textPosition, size_t textLength) const
-        {
-            std::vector<DWRITE_HIT_TEST_METRICS> metricsArray;
-
-            auto metrics = TextMetrics();
-            metricsArray.resize((size_t)metrics.lineCount * metrics.maxBidiReorderingDepth);
-
-            while (true)
-            {
-                // Arbitrarily large limit
-                if (metricsArray.size() > 10000000)
-                    return {};
-
-                uint32_t actualCount;
-                HRESULT hr = _dwriteTextLayout->HitTestTextRange(
-                    (UINT32)textPosition,
-                    (UINT32)textLength,
-                    _padding.left,
-                    _TextTopPos(),
-                    metricsArray.data(),
-                    (UINT32)metricsArray.size(),
-                    &actualCount
-                );
-                if (hr == E_NOT_SUFFICIENT_BUFFER)
-                {
-                    metricsArray.resize(size_t(metricsArray.size() * 1.5) + 1);
-                    continue;
-                }
-
-                if (actualCount < metricsArray.size())
-                    metricsArray.resize(actualCount);
-
-                return { metricsArray };
-            }
-        }
-
         // Handler parameters:
         // - a pointer to the label object
         // - a reference to the new text string. This parameter can be modified
@@ -598,168 +223,93 @@ namespace zcom
             return _textChangedEvent->Subscribe(handler);
         }
 
-        EventSubscription<void, Label*> SubscribeOnTextFormatChanged(std::function<void(Label*)> handler)
-        {
-            return _textFormatChangedEvent->Subscribe(handler);
-        }
-
-        EventSubscription<void, Label*> SubscribeOnTextLayoutChanged(std::function<void(Label*)> handler)
-        {
-            return _textLayoutChangedEvent->Subscribe(handler);
-        }
-
     private:
-        std::wstring _text;
-        TextAlignment _hTextAlignment = TextAlignment::LEADING;
-        Alignment _vTextAlignment = Alignment::START;
-        bool _wrapText = false;
-        std::wstring _cutoff = L"";
-        RECT_F _padding = { 0, 0, 0, 0 };
-        bool _customHoverText = false;
+        Size _currentLayoutSize = { 0, 0 };
 
-        int _currentLayoutWidth = 0;
-        int _currentLayoutHeight = 0;
-
-        bool _autoHeight = false;
-        bool _autoWidth = false;
-        int _minAutoWidth = 0;
-        int _minAutoHeight = 0;
-        int _maxAutoWidth = std::numeric_limits<int>::max();
-        int _maxAutoHeight = std::numeric_limits<int>::max();
-
-        std::wstring _font = L"Calibri";
-        float _fontSize = 14.0f;
-        DWRITE_FONT_WEIGHT _fontWeight = DWRITE_FONT_WEIGHT_REGULAR;
-        DWRITE_FONT_STYLE _fontStyle = DWRITE_FONT_STYLE_NORMAL;
-        DWRITE_FONT_STRETCH _fontStretch = DWRITE_FONT_STRETCH_NORMAL;
-        D2D1_COLOR_F _fontColor = D2D1::ColorF(0.8f, 0.8f, 0.8f);
-
-        DWRITE_TEXT_RANGE _underlineRange = { 0, 0 };
-        DWRITE_TEXT_RANGE _strikethroughRange = { 0, 0 };
-
-        size_t _selectionStart = 0;
-        size_t _selectionEnd = 0;
         bool _selecting = false;
-        bool _textSelectable = false;
-
-        ID2D1SolidColorBrush* _textBrush = nullptr;
-
-        IDWriteFactory* _dwriteFactory = nullptr;
-        IDWriteTextFormat* _dwriteTextFormat = nullptr;
-        IDWriteTextLayout* _dwriteTextLayout = nullptr;
 
         EventEmitter<void, Label*, std::wstring*> _textChangedEvent;
-        EventEmitter<void, Label*> _textFormatChangedEvent;
-        EventEmitter<void, Label*> _textLayoutChangedEvent;
+
+        TextDesc _textDesc;
 
     protected:
-        void _OnDraw(Graphics g) override
+        void _OnDraw(Graphics* g) override
         {
-            // Create resources
-            if (!_textBrush)
-            {
-                g.target->CreateSolidColorBrush(_fontColor, &_textBrush);
-                g.refs->push_back({ (IUnknown**)&_textBrush, std::string("Label text brush. Text: ") + wstring_to_string(_text) });
-            }
-
             // Get selected area
-            TextRangeHitResult result;
-            if (_selectionStart > _selectionEnd)
-                result = HitTestTextRange(_selectionEnd, _selectionStart - _selectionEnd);
-            else if (_selectionStart < _selectionEnd)
-                result = HitTestTextRange(_selectionStart, _selectionEnd - _selectionStart);
+            TextRangeHitTestResult result;
+            if (selectionStart > selectionEnd)
+                result = HitTestTextRange(selectionEnd, selectionStart - selectionEnd);
+            else if (selectionStart < selectionEnd)
+                result = HitTestTextRange(selectionStart, selectionEnd - selectionStart);
 
             // Draw selection background
             if (!result.hitMetrics.empty())
             {
-                ID2D1SolidColorBrush* brush = nullptr;
-                g.target->CreateSolidColorBrush(D2D1::ColorF(D2D1::ColorF::DodgerBlue, 0.5f), &brush);
-
-                if (brush)
+                for (auto& metric : result.hitMetrics)
                 {
-                    for (auto& metric : result.hitMetrics)
-                    {
-                        D2D1_RECT_F rect;
-                        rect.left = metric.left;
-                        rect.top = metric.top;
-                        rect.right = rect.left + metric.width;
-                        rect.bottom = rect.top + metric.height;
-                        g.target->FillRectangle(rect, brush);
-                    }
-                    brush->Release();
-                }
-                else
-                {
-                    // TODO: Logging
+                    RectF rect{};
+                    rect.left = metric.left;
+                    rect.top = metric.top;
+                    rect.right = rect.left + metric.width;
+                    rect.bottom = rect.top + metric.height;
+                    Color dodgerBlue = Color(0x1E90FF, 0.5f);
+                    g->FillRectangle(rect, dodgerBlue);
                 }
             }
-
-            DWRITE_TEXT_METRICS textMetrics;
-            _dwriteTextLayout->GetMetrics(&textMetrics);
-
-            D2D1_POINT_2F pos;
-            pos.x = _padding.left;
-            pos.y = _TextTopPos();
 
             // Draw text
-            if (!_text.empty())
-            {
-                g.target->DrawTextLayout(
-                    pos,
-                    _dwriteTextLayout,
-                    _textBrush
-                );
-            }
+            if (!text->empty())
+                g->DrawTextLayout(_textDesc, PointF{ padding->left, _TextTopPos() }, fontColor);
         }
 
-        void _OnResize(int width, int height) override
+        void _OnResize(Size size) override
         {
-            if (width != _currentLayoutWidth || height != _currentLayoutHeight)
-                _CreateTextLayout(true);
+            if (size != _currentLayoutSize)
+                _CalculateLayout(true);
         }
 
-        EventTargets _OnLeftPressed(int x, int y) override
+        EventContext _OnLeftPressed(Point point) override
         {
-            if (_textSelectable)
+            if (textSelectable)
             {
                 // Get click text position
-                auto result = HitTestPoint((float)x, (float)y);
-                _selectionStart = result.hitMetrics.textPosition;
+                auto result = HitTestPoint(point.ToPointF());
+                selectionStart = result.hitMetrics.textPosition;
                 if (result.isTrailingHit)
-                    _selectionStart++;
-                _selectionEnd = _selectionStart;
+                    selectionStart = selectionStart + 1;
+                selectionEnd = selectionStart.Get();
                 _selecting = true;
 
                 InvokeRedraw();
             }
-            return EventTargets().Add(this, x, y);
+            return EventContext().Add(this, point);
         }
 
-        EventTargets _OnLeftReleased(int x, int y) override
+        EventContext _OnLeftReleased(std::optional<Point> point) override
         {
             _selecting = false;
-            return EventTargets().Add(this, x, y);
+            return EventContext().Add(this, point);
         }
 
-        EventTargets _OnMouseMove(int x, int y, int deltaX, int deltaY) override
+        EventContext _OnMouseMove(Point point, Point deltaPos) override
         {
-            if (deltaX == 0 && deltaY == 0)
-                return EventTargets().Add(this, GetMousePosX(), GetMousePosY());
+            if (deltaPos == Point{ 0, 0 })
+                return EventContext().Add(this, point);
 
             if (_selecting)
             {
-                auto result = HitTestPoint((float)GetMousePosX(), (float)GetMousePosY());
+                auto result = HitTestPoint(point.ToPointF());
                 size_t currentTextPosition = result.hitMetrics.textPosition;
                 if (result.isTrailingHit)
                     currentTextPosition++;
-                if (currentTextPosition != _selectionEnd)
+                if (currentTextPosition != selectionEnd)
                 {
-                    _selectionEnd = currentTextPosition;
+                    selectionEnd = currentTextPosition;
                     InvokeRedraw();
                 }
             }
 
-            return EventTargets().Add(this, GetMousePosX(), GetMousePosY());
+            return EventContext().Add(this, point);
         }
  
         void _OnSelected(bool reverse) override;
@@ -777,20 +327,20 @@ namespace zcom
             {
                 size_t selStart = 0;
                 size_t selLength = 0;
-                if (_selectionStart > _selectionEnd)
+                if (selectionStart > selectionEnd)
                 {
-                    selStart = _selectionEnd;
-                    selLength = _selectionStart - _selectionEnd;
+                    selStart = selectionEnd;
+                    selLength = selectionStart - selectionEnd;
                 }
                 else
                 {
-                    selStart = _selectionStart;
-                    selLength = _selectionEnd - _selectionStart;
+                    selStart = selectionStart;
+                    selLength = selectionEnd - selectionStart;
                 }
 
                 if (selLength != 0)
                 {
-                    std::wstring copyTextW = _text.substr(selStart, selLength);
+                    std::wstring copyTextW = text->substr(selStart, selLength);
                     std::string copyText = wstring_to_string(copyTextW);
                     copyTextW.resize(copyTextW.length() + 1);
                     copyText.resize(copyText.length() + 1);
@@ -855,135 +405,72 @@ namespace zcom
             return false;
         }
 
-        void _CreateTextFormat()
+        void _CalculateLayout(bool ignoreAutoSizing = false)
         {
-            if (_dwriteTextFormat)
-                _dwriteTextFormat->Release();
-
-            _dwriteFactory->CreateTextFormat(
-                _font.c_str(),
-                NULL,
-                _fontWeight,
-                _fontStyle,
-                _fontStretch,
-                _fontSize,
-                L"en-us",
-                &_dwriteTextFormat
-            );
-
-            InvokeRedraw();
-            _textFormatChangedEvent->InvokeAll(this);
-        }
-
-        void _CreateTextLayout(bool ignoreAutoSizing = false)
-        {
-            float finalWidth = GetWidth() - _padding.left - _padding.right;
-            float finalHeight = GetHeight() - _padding.top - _padding.bottom;
+            float xPadding = padding->left + padding->right;
+            float yPadding = padding->top + padding->bottom;
+            float finalWidth = size_->width - xPadding;
+            float finalHeight = size_->height - yPadding;
             if (finalWidth <= 0) finalWidth = 1.f;
             if (finalHeight <= 0) finalHeight = 1.f;
 
-            if (_dwriteTextLayout)
-            {
-                _dwriteTextLayout->Release();
-                _dwriteTextLayout = nullptr;
-            }
-
-            if (_autoWidth || _autoHeight)
+            if (autoWidth || autoHeight)
             {
                 float newFinalWidth = finalWidth;
                 float newFinalHeight = finalHeight;
 
-                _dwriteFactory->CreateTextLayout(
-                    _text.c_str(),
-                    (UINT32)_text.length(),
-                    _dwriteTextFormat,
-                    finalWidth,
-                    finalHeight,
-                    &_dwriteTextLayout
-                );
-                _dwriteTextLayout->SetWordWrapping(DWRITE_WORD_WRAPPING_NO_WRAP);
+                _textDesc.WithLayoutSize({ newFinalWidth, newFinalHeight }).WithWrap(WordWrapping::NO_WRAP);
+                TextMetrics textMetrics = GetMetrics();
 
-                DWRITE_TEXT_METRICS textMetrics;
-                _dwriteTextLayout->GetMetrics(&textMetrics);
-
-                if (_autoWidth)
+                if (autoWidth)
                 {
                     newFinalWidth = std::ceilf(textMetrics.width);
-                    if (newFinalWidth < _minAutoWidth)
-                        newFinalWidth = (float)_minAutoWidth;
-                    if (newFinalWidth > _maxAutoWidth)
-                        newFinalWidth = (float)_maxAutoWidth;
+                    if (minAutoWidth->has_value() && newFinalWidth < minAutoWidth->value() - xPadding)
+                        newFinalWidth = (float)minAutoWidth->value() - xPadding;
+                    if (maxAutoWidth->has_value() && newFinalWidth > maxAutoWidth->value() - xPadding)
+                        newFinalWidth = (float)maxAutoWidth->value() - xPadding;
                 }
-                if (_autoHeight)
+                if (autoHeight)
                 {
-                    if (_wrapText)
+                    if (wordWrapping != WordWrapping::NO_WRAP)
                     {
-                        _dwriteTextLayout->Release();
-                        _dwriteFactory->CreateTextLayout(
-                            _text.c_str(),
-                            (UINT32)_text.length(),
-                            _dwriteTextFormat,
-                            newFinalWidth,
-                            finalHeight,
-                            &_dwriteTextLayout
-                        );
-
-                        _dwriteTextLayout->SetWordWrapping(DWRITE_WORD_WRAPPING_WRAP);
-                        _dwriteTextLayout->GetMetrics(&textMetrics);
+                        _textDesc.WithLayoutSize({ newFinalWidth, newFinalHeight }).WithWrap(wordWrapping);
+                        textMetrics = GetMetrics();
                     }
                     newFinalHeight = std::ceilf(textMetrics.height);
-                    if (newFinalHeight < _minAutoHeight)
-                        newFinalHeight = (float)_minAutoHeight;
-                    if (newFinalHeight > _maxAutoHeight)
-                        newFinalHeight = (float)_maxAutoHeight;
-                }
-
-                if (finalWidth != newFinalWidth || finalHeight != newFinalHeight)
-                {
-                    _dwriteTextLayout->Release();
-                    _dwriteTextLayout = nullptr;
+                    if (minAutoHeight->has_value() && newFinalHeight < minAutoHeight->value() - yPadding)
+                        newFinalHeight = (float)minAutoHeight->value() - yPadding;
+                    if (maxAutoHeight->has_value() && newFinalHeight > maxAutoHeight->value() - yPadding)
+                        newFinalHeight = (float)maxAutoHeight->value() - yPadding;
                 }
 
                 finalWidth = newFinalWidth;
                 finalHeight = newFinalHeight;
             }
 
-            std::wstring finalText = _text;
+            std::wstring finalText = text;
             size_t charactersCut = 0;
-            //BinarySearchIterator it = BinarySearchIterator(_text.size());
 
+            _textDesc.WithLayoutSize({ finalWidth, finalHeight }).WithWrap(wordWrapping);
             while (true)
             {
-                if (!_dwriteTextLayout)
-                {
-                    _dwriteFactory->CreateTextLayout(
-                        finalText.c_str(),
-                        (UINT32)finalText.length(),
-                        _dwriteTextFormat,
-                        finalWidth,
-                        finalHeight,
-                        &_dwriteTextLayout
-                    );
-                }
-
-                _dwriteTextLayout->SetWordWrapping(_wrapText ? DWRITE_WORD_WRAPPING_WRAP : DWRITE_WORD_WRAPPING_NO_WRAP);
+                _textDesc.WithText(finalText);
 
                 // If a cutoff is specified, truncate the text until it fits (including the cutoff sequence)
-                if (!_cutoff.empty())
+                if (!cutoff->empty())
                 {
                     // OPTIMIZATION: Use binary search to speed up truncation of long strings
 
-                    DWRITE_TEXT_METRICS textMetrics;
-                    _dwriteTextLayout->GetMetrics(&textMetrics);
+                    TextMetrics textMetrics = GetMetrics();
                     if (textMetrics.width > textMetrics.layoutWidth ||
                         (textMetrics.height > textMetrics.layoutHeight && textMetrics.lineCount > 1))
                     {
                         // Stop if the entire string is cut
-                        if (charactersCut == _text.length())
+                        if (charactersCut == text->length())
                             break;
 
                         charactersCut++;
-                        finalText = _text.substr(0, _text.length() - charactersCut) + _cutoff;
+                        finalText = text->substr(0, text->length() - charactersCut) + cutoff.Get();
                     }
                     else
                     {
@@ -994,46 +481,100 @@ namespace zcom
                 {
                     break;
                 }
-
-                if (_dwriteTextLayout)
-                    _dwriteTextLayout->Release();
             }
 
-            if (!_customHoverText)
+            _textTruncated = charactersCut > 0;
+
+            _currentLayoutSize = {
+                int(finalWidth + padding->left + padding->right),
+                int(finalHeight + padding->top + padding->bottom)
+            };
+            if (autoWidth || autoHeight)
             {
-                // Set hover text if contents are cut off
-                if (charactersCut > 0)
-                    Component::SetHoverText(_text);
-                else
-                    Component::SetHoverText(L"");
-            }
-
-            if (_hTextAlignment == TextAlignment::LEADING)
-                _dwriteTextLayout->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_LEADING);
-            else if (_hTextAlignment == TextAlignment::CENTER)
-                _dwriteTextLayout->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_CENTER);
-            else if (_hTextAlignment == TextAlignment::JUSTIFIED)
-                _dwriteTextLayout->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_JUSTIFIED);
-            else if (_hTextAlignment == TextAlignment::TRAILING)
-                _dwriteTextLayout->SetTextAlignment(DWRITE_TEXT_ALIGNMENT_TRAILING);
-
-            if (_underlineRange.length != 0)
-                _dwriteTextLayout->SetUnderline(true, _underlineRange);
-            if (_strikethroughRange.length != 0)
-                _dwriteTextLayout->SetStrikethrough(true, _strikethroughRange);
-
-            _currentLayoutWidth = int(finalWidth + _padding.left + _padding.right);
-            _currentLayoutHeight = int(finalHeight + _padding.top + _padding.bottom);
-            if (_autoWidth || _autoHeight)
-            {
-                int newBaseWidth = _autoWidth ? _currentLayoutWidth : GetBaseWidth();
-                int newBaseHeight = _autoHeight ? _currentLayoutHeight : GetBaseHeight();
-                //std::cout << _currentLayoutWidth << ":" << _currentLayoutHeight << '\n';
-                SetBaseSize(newBaseWidth, newBaseHeight);
+                selfSize_ = Size{
+                    autoWidth ? _currentLayoutSize.width : 0,
+                    autoHeight ? _currentLayoutSize.height : 0
+                };
             }
 
             InvokeRedraw();
-            _textLayoutChangedEvent->InvokeAll(this);
+        }
+
+    public:
+
+        constexpr std::vector<std::pair<int64_t, std::wstring>> FontWeightValueProxySelectionValues()
+        {
+            return {
+                { (int64_t)FontWeight::LIGHT, L"Light" },
+                { (int64_t)FontWeight::NORMAL, L"Normal" },
+                { (int64_t)FontWeight::MEDIUM, L"Medium" },
+                { (int64_t)FontWeight::SEMI_BOLD, L"Semi bold" },
+                { (int64_t)FontWeight::BOLD, L"Bold" }
+            };
+        }
+        constexpr std::vector<std::pair<int64_t, std::wstring>> FontStyleValueProxySelectionValues()
+        {
+            return {
+                { (int64_t)FontStyle::NORMAL, L"Normal" },
+                { (int64_t)FontStyle::OBLIQUE, L"Oblique" },
+                { (int64_t)FontStyle::ITALIC, L"Italic" }
+            };
+        }
+        constexpr std::vector<std::pair<int64_t, std::wstring>> FontStretchValueProxySelectionValues()
+        {
+            return {
+                { (int64_t)FontStretch::CONDENSED, L"Condensed" },
+                { (int64_t)FontStretch::NORMAL, L"Normal" },
+                { (int64_t)FontStretch::EXPANDED, L"Expanded" }
+            };
+        }
+        constexpr std::vector<std::pair<int64_t, std::wstring>> WordWrappingValueProxySelectionValues()
+        {
+            return {
+                { (int64_t)WordWrapping::NO_WRAP, L"No wrap" },
+                { (int64_t)WordWrapping::WRAP, L"Wrap" },
+                { (int64_t)WordWrapping::EMERGENCY_BREAK, L"Emergency break" },
+                { (int64_t)WordWrapping::WHOLE_WORD, L"Whole word" },
+                { (int64_t)WordWrapping::CHARACTER, L"Character" }
+            };
+        }
+
+        std::vector<std::pair<std::string, std::vector<ValueProxy>>> GetReflectionData()
+        {
+            std::vector<ValueProxy> values;
+
+            values.push_back(ValueProxy::BasicTextValueProxy("text", std::make_any<Value<std::wstring>*>(&text)));
+            values.push_back(ValueProxy::BasicEnumValueProxy<TextAlignment>("x text align", std::make_any<Value<TextAlignment>*>(&xTextAlign), TextAlignmentValueProxySelectionValues()));
+            values.push_back(ValueProxy::BasicEnumValueProxy<Alignment>("y text align", std::make_any<Value<Alignment>*>(&yTextAlign), AlignmentValueProxySelectionValues()));
+            values.push_back(ValueProxy::BasicBoolValueProxy("auto width", std::make_any<Value<bool>*>(&autoWidth)));
+            values.push_back(ValueProxy::BasicBoolValueProxy("auto height", std::make_any<Value<bool>*>(&autoHeight)));
+            values.push_back(ValueProxy::BasicOptionalIntValueProxy<int>("min auto width", std::make_any<Value<std::optional<int>>*>(&minAutoWidth), ValueProxy::Number(0)));
+            values.push_back(ValueProxy::BasicOptionalIntValueProxy<int>("min auto height", std::make_any<Value<std::optional<int>>*>(&minAutoHeight), ValueProxy::Number(0)));
+            values.push_back(ValueProxy::BasicOptionalIntValueProxy<int>("max auto width", std::make_any<Value<std::optional<int>>*>(&maxAutoWidth), ValueProxy::Number(0)));
+            values.push_back(ValueProxy::BasicOptionalIntValueProxy<int>("max auto height", std::make_any<Value<std::optional<int>>*>(&maxAutoHeight), ValueProxy::Number(0)));
+            values.push_back(RectF::LeftValueProxy("left padding", std::make_any<Value<RectF>*>(&padding), 3));
+            values.push_back(RectF::TopValueProxy("top padding", std::make_any<Value<RectF>*>(&padding), 3));
+            values.push_back(RectF::RightValueProxy("right padding", std::make_any<Value<RectF>*>(&padding), 3));
+            values.push_back(RectF::BottomValueProxy("bottom padding", std::make_any<Value<RectF>*>(&padding), 3));
+            values.push_back(ValueProxy::BasicEnumValueProxy<WordWrapping>("word wrapping", std::make_any<Value<WordWrapping>*>(&wordWrapping), WordWrappingValueProxySelectionValues()));
+            values.push_back(ValueProxy::BasicTextValueProxy("font", std::make_any<Value<std::wstring>*>(&font)));
+            values.push_back(ValueProxy::BasicFloatValueProxy<float>("font size", std::make_any<Value<float>*>(&fontSize), 3));
+            values.push_back(ValueProxy::BasicEnumValueProxy<FontWeight>("font weight", std::make_any<Value<FontWeight>*>(&fontWeight), FontWeightValueProxySelectionValues()));
+            values.push_back(ValueProxy::BasicEnumValueProxy<FontStyle>("font style", std::make_any<Value<FontStyle>*>(&fontStyle), FontStyleValueProxySelectionValues()));
+            values.push_back(ValueProxy::BasicEnumValueProxy<FontStretch>("font stretch", std::make_any<Value<FontStretch>*>(&fontStretch), FontStretchValueProxySelectionValues()));
+            values.push_back(ValueProxy::BasicColorValueProxy("font color", std::make_any<Value<Color>*>(&fontColor)));
+            //values.push_back(TextRangeValueProxy("underline [start length]", std::make_any<Value<DWRITE_TEXT_RANGE>*>(&underline)));
+            //values.push_back(TextRangeValueProxy("strikethrough [start length]", std::make_any<Value<DWRITE_TEXT_RANGE>*>(&strikethrough)));
+            values.push_back(ValueProxy::BasicTextValueProxy("cutoff", std::make_any<Value<std::wstring>*>(&cutoff)));
+            values.push_back(ValueProxy::BasicTextValueProxy("hover text", std::make_any<Value<std::wstring>*>(&hoverText)));
+            values.push_back(ValueProxy::BasicBoolValueProxy("show truncated text", std::make_any<Value<bool>*>(&showTruncatedText)));
+            values.push_back(ValueProxy::BasicBoolValueProxy("text selectable", std::make_any<Value<bool>*>(&textSelectable)));
+            //values.push_back(ValueProxy::BasicIntValueProxy<size_t>("selection start", std::make_any<Value<size_t>*>(&selectionStart), ValueProxy::Number(0)));
+            //values.push_back(ValueProxy::BasicIntValueProxy<size_t>("selection end", std::make_any<Value<size_t>*>(&selectionEnd), ValueProxy::Number(0)));
+
+            auto data = Component::GetReflectionData();
+            data.insert(data.begin(), { "Label", std::move(values) });
+            return data;
         }
     };
 }

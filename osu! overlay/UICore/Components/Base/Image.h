@@ -34,290 +34,171 @@ namespace zcom
         // Position the image in the bottom right corner
         BOTTOM_RIGHT,
     };
+    constexpr std::vector<std::pair<int64_t, std::wstring>> ImagePlacementValueProxySelectionValues()
+    {
+        return {
+            { (int64_t)ImagePlacement::NONE, L"None" },
+            { (int64_t)ImagePlacement::FILL, L"Fill" },
+            { (int64_t)ImagePlacement::FIT, L"Fit" },
+            { (int64_t)ImagePlacement::TOP_LEFT, L"Top left" },
+            { (int64_t)ImagePlacement::TOP_CENTER, L"Top center" },
+            { (int64_t)ImagePlacement::TOP_RIGHT, L"Top right" },
+            { (int64_t)ImagePlacement::CENTER_LEFT, L"Center left" },
+            { (int64_t)ImagePlacement::CENTER, L"Center" },
+            { (int64_t)ImagePlacement::CENTER_RIGHT, L"Center right" },
+            { (int64_t)ImagePlacement::BOTTOM_LEFT, L"Bottom left" },
+            { (int64_t)ImagePlacement::BOTTOM_CENTER, L"Bottom center" },
+            { (int64_t)ImagePlacement::BOTTOM_RIGHT, L"Bottom right" }
+        };
+    }
 
     class Image : public Component
     {
         DEFINE_COMPONENT(Image, Component)
         DEFAULT_DESTRUCTOR(Image)
     protected:
-        void Init(ID2D1Bitmap* image = nullptr)
+        void Init(std::optional<Bitmap> image = std::nullopt)
         {
-            _image = image;
+            this->image = image;
         }
 
     public:
-        void SetImage(ID2D1Bitmap* image)
-        {
-            if (image == _image)
-                return;
-
-            _image = image;
+        Value<std::optional<Bitmap>> image = Value<std::optional<Bitmap>>(std::optional<Bitmap>(std::nullopt), [=](std::optional<Bitmap>& currentValue, std::optional<Bitmap> const& image) {
+            currentValue = image;
             InvokeRedraw();
-        }
-
-        ID2D1Bitmap* GetImage() const
-        {
-            return _image;
-        }
-
+        });
         // Source image area to use
-        void SetSourceRect(RECT_F rect)
-        {
-            if (rect == _sourceRect)
-                return;
-
-            _sourceRect = rect;
+        Value<std::optional<RectF>> sourceRect = Value<std::optional<RectF>>(std::nullopt, [=](std::optional<RectF>& currentValue, const std::optional<RectF>& rect) {
+            currentValue = rect;
             InvokeRedraw();
-        }
-
-        RECT_F GetSourceRect() const
-        {
-            return _sourceRect;
-        }
-
-        // Set target area to draw to and perform calculations with
+        });
+        // Target area to draw to and perform calculations with
         // A target rect smaller than the draw area will NOT clip content, only scale it when needed
-        void SetTargetRect(RECT_F rect)
-        {
-            if (rect == _targetRect)
-                return;
-
-            _targetRect = rect;
+        Value<std::optional<RectF>> targetRect = Value<std::optional<RectF>>(std::nullopt, [=](std::optional<RectF>& currentValue, const std::optional<RectF>& rect) {
+            currentValue = rect;
             InvokeRedraw();
-        }
-
-        RECT_F GetTargetRect() const
-        {
-            return _targetRect;
-        }
-
-        void SetPlacement(ImagePlacement placement)
-        {
-            if (placement == _placement)
-                return;
-
-            _placement = placement;
+        });
+        Value<ImagePlacement> imagePlacement = Value<ImagePlacement>(ImagePlacement::NONE, [=](ImagePlacement& currentValue, const ImagePlacement& placement) {
+            currentValue = placement;
             InvokeRedraw();
-        }
-
-        ImagePlacement GetPlacement() const
-        {
-            return _placement;
-        }
-
-        void SetImageOffsetX(float offset)
-        {
-            SetImageOffset(offset, GetImageOffsetY());
-        }
-
-        void SetImageOffsetY(float offset)
-        {
-            SetImageOffset(GetImageOffsetX(), offset);
-        }
-
-        void SetImageOffset(float offsetX, float offsetY)
-        {
-            if (offsetX == _offsetX && offsetY == _offsetY)
-                return;
-
-            _offsetX = offsetX;
-            _offsetY = offsetY;
+        });
+        Value<float> xOffset = Value<float>(0.0f, [=](float& currentValue, const float& offset) {
+            currentValue = offset;
             InvokeRedraw();
-        }
-
-        float GetImageOffsetX() const
-        {
-            return _offsetX;
-        }
-
-        float GetImageOffsetY() const
-        {
-            return _offsetY;
-        }
-
-        // Sets whether the image should be snapped to pixels or positioned freely
-        void SetPixelSnap(bool snap)
-        {
-            if (snap == _snap)
-                return;
-
-            _snap = snap;
+        });
+        Value<float> yOffset = Value<float>(0.0f, [=](float& currentValue, const float& offset) {
+            currentValue = offset;
             InvokeRedraw();
-        }
-
-        bool GetPixelSnap() const
-        {
-            return _snap;
-        }
-
-        void SetScaleX(float scale)
-        {
-            SetScale(scale, GetScaleY());
-        }
-
-        void SetScaleY(float scale)
-        {
-            SetScale(GetScaleX(), scale);
-        }
-
-        // Scales the image by the specified amounts
+        });
+        // Scales the image on the x-axis by the specified amount
         // The scaling only applies to placement modes that do not size the image automatically
         // Scaled image size ignores pixel snapping (top left corner placement is still snapped)
-        void SetScale(float scaleX, float scaleY)
-        {
-            if (scaleX == _scaleX && scaleY == _scaleY)
-                return;
-
-            _scaleX = scaleX;
-            _scaleY = scaleY;
+        Value<float> xScale = Value<float>(1.0f, [=](float& currentValue, const float& scale) {
+            currentValue = scale;
             InvokeRedraw();
-        }
-
-        float GetScaleX() const
-        {
-            return _scaleX;
-        }
-
-        float GetScaleY() const
-        {
-            return _scaleY;
-        }
-
-        void SetImageOpacity(float opacity)
-        {
-            if (opacity == _imageOpacity)
-                return;
-
-            _imageOpacity = opacity;
+        });
+        // Scales the image on the y-axis by the specified amount
+        // The scaling only applies to placement modes that do not size the image automatically
+        // Scaled image size ignores pixel snapping (top left corner placement is still snapped)
+        Value<float> yScale = Value<float>(1.0f, [=](float& currentValue, const float& scale) {
+            currentValue = scale;
             InvokeRedraw();
-        }
-
-        float GetImageOpacity() const
-        {
-            return _imageOpacity;
-        }
-
-        void SetTintColor(D2D1_COLOR_F color)
-        {
-            if (color == _tintColor)
-                return;
-
-            _tintColor = color;
+        });
+        Value<bool> snapToPixels = Value<bool>(false, [=](bool& currentValue, const bool& snap) {
+            currentValue = snap;
             InvokeRedraw();
-        }
-
-        D2D1_COLOR_F GetTintColor() const
-        {
-            return _tintColor;
-        }
-
-    private:
-        ID2D1Bitmap* _image = nullptr;
-        RECT_F _sourceRect = {0.0f, 0.0f, std::numeric_limits<float>::max(), std::numeric_limits<float>::max() };
-        RECT_F _targetRect = { -1.0f, -1.0f, -1.0f, -1.0f };
-        ImagePlacement _placement = ImagePlacement::NONE;
-        float _offsetX = 0.0f;
-        float _offsetY = 0.0f;
-        float _scaleX = 1.0f;
-        float _scaleY = 1.0f;
-        bool _snap = false;
-        float _imageOpacity = 1.0f;
-        D2D1_COLOR_F _tintColor = D2D1::ColorF(1.0f, 1.0f, 1.0f);
+        });
+        Value<float> imageOpacity = Value<float>(1.0f, [=](float& currentValue, const float& opacity) {
+            currentValue = opacity;
+            InvokeRedraw();
+        });
+        Value<Color> tintColor = Value<Color>(Color(0xFFFFFF), [=](Color& currentValue, const Color& color) {
+            currentValue = color;
+            InvokeRedraw();
+        });
 
     protected:
-        void _OnDraw(Graphics g) override
+        void _OnDraw(Graphics* g) override
         {
-            if (!_image)
+            if (!image->has_value())
                 return;
 
-            D2D1_RECT_F srcRect = { _sourceRect.left, _sourceRect.top, _sourceRect.right, _sourceRect.bottom };
-            D2D1_RECT_F destRect = { 0.0f, 0.0f, g.target->GetSize().width, g.target->GetSize().height };
-            bool customTarget = _targetRect != RECT_F{ -1.0f, -1.0f, -1.0f, -1.0f };
-            RECT_F targetRect = { 0.0f, 0.0f, g.target->GetSize().width, g.target->GetSize().height };
-            if (customTarget)
-                targetRect = { _targetRect.left, _targetRect.top, _targetRect.right, _targetRect.bottom };
+            RectF srcRect = image.Get()->GetSize().ToRect().ToRectF();
+            if (sourceRect->has_value())
+                srcRect = srcRect.SubrectBounded(sourceRect->value());
 
-            // Bound src rect
-            if (srcRect.left < 0.0f)
-                srcRect.left = 0.0f;
-            if (srcRect.top < 0.0f)
-                srcRect.top = 0.0f;
-            if (srcRect.right > _image->GetSize().width)
-                srcRect.right = _image->GetSize().width;
-            if (srcRect.bottom > _image->GetSize().height)
-                srcRect.bottom = _image->GetSize().height;
+            RectF targetRect_ = g->GetTargetRect().ToRectF();
+            if (targetRect->has_value())
+                targetRect_ = targetRect->value();
 
-            // Calculate dest rect
-            if (_placement == ImagePlacement::NONE)
+            RectF destRect{};
+            if (imagePlacement == ImagePlacement::NONE)
             {
-                float width = (srcRect.right - srcRect.left) * _scaleX;
-                float height = (srcRect.bottom - srcRect.top) * _scaleY;
-                float left = targetRect.left + _offsetX;
-                float top = targetRect.top + _offsetY;
-                if (_snap)
+                float width = (srcRect.right - srcRect.left) * xScale;
+                float height = (srcRect.bottom - srcRect.top) * yScale;
+                float left = targetRect_.left + xOffset;
+                float top = targetRect_.top + yOffset;
+                if (snapToPixels)
                 {
                     left = std::roundf(left);
                     top = std::roundf(top);
                 }
                 destRect = { left, top, left + width, top + height };
             }
-            else if (_placement == ImagePlacement::FILL)
+            else if (imagePlacement == ImagePlacement::FILL)
             {
-                float left = targetRect.left + _offsetX;
-                float top = targetRect.top + _offsetY;
-                if (_snap)
+                float left = targetRect_.left + xOffset;
+                float top = targetRect_.top + yOffset;
+                if (snapToPixels)
                 {
                     left = std::roundf(left);
                     top = std::roundf(top);
                 }
-                float width = targetRect.right - targetRect.left;
-                float height = targetRect.bottom - targetRect.top;
+                float width = targetRect_.right - targetRect_.left;
+                float height = targetRect_.bottom - targetRect_.top;
                 destRect = { left, top, left + width, top + height};
             }
-            else if (_placement == ImagePlacement::FIT)
+            else if (imagePlacement == ImagePlacement::FIT)
             {
                 // Scale frame to preserve aspect ratio
                 float imageWidth = srcRect.right - srcRect.left;
                 float imageHeight = srcRect.bottom - srcRect.top;
-                float targetWidth = targetRect.right - targetRect.left;
-                float targetHeight = targetRect.bottom - targetRect.top;
+                float targetWidth = targetRect_.right - targetRect_.left;
+                float targetHeight = targetRect_.bottom - targetRect_.top;
                 if (imageWidth / imageHeight < targetWidth / targetHeight)
                 {
                     float scale = imageHeight / targetHeight;
                     float newWidth = imageWidth / scale;
-                    destRect = D2D1::Rect
-                    (
-                        targetRect.left + (targetWidth - newWidth) * 0.5f,
-                        targetRect.top,
-                        targetRect.left + (targetWidth - newWidth) * 0.5f + newWidth,
-                        targetRect.top + targetHeight
-                    );
+                    destRect = {
+                        targetRect_.left + (targetWidth - newWidth) * 0.5f,
+                        targetRect_.top,
+                        targetRect_.left + (targetWidth - newWidth) * 0.5f + newWidth,
+                        targetRect_.top + targetHeight
+                    };
                 }
                 else if (imageWidth / imageHeight > targetWidth / targetHeight)
                 {
                     float scale = imageWidth / targetWidth;
                     float newHeight = imageHeight / scale;
-                    destRect = D2D1::Rect
-                    (
-                        targetRect.left,
-                        targetRect.top + (targetHeight - newHeight) * 0.5f,
-                        targetRect.left + targetWidth,
-                        targetRect.top + (targetHeight - newHeight) * 0.5f + newHeight
-                    );
+                    destRect = {
+                        targetRect_.left,
+                        targetRect_.top + (targetHeight - newHeight) * 0.5f,
+                        targetRect_.left + targetWidth,
+                        targetRect_.top + (targetHeight - newHeight) * 0.5f + newHeight
+                    };
                 }
                 else
                 {
-                    destRect = D2D1::RectF(targetRect.left, targetRect.top, targetRect.left + targetWidth, targetRect.top + targetHeight);
+                    destRect = { targetRect_.left, targetRect_.top, targetRect_.left + targetWidth, targetRect_.top + targetHeight };
                 }
 
                 // Apply offset
-                destRect.left += _offsetX;
-                destRect.right += _offsetX;
-                destRect.top += _offsetY;
-                destRect.bottom += _offsetY;
+                destRect.left += xOffset;
+                destRect.right += xOffset;
+                destRect.top += yOffset;
+                destRect.bottom += yOffset;
 
-                // Snap to pixels
-                if (_snap)
+                if (snapToPixels)
                 {
                     float width = destRect.right - destRect.left;
                     float height = destRect.bottom - destRect.top;
@@ -331,13 +212,13 @@ namespace zcom
             else
             {
                 // Scale image
-                float width = (srcRect.right - srcRect.left) * _scaleX;
-                float height = (srcRect.bottom - srcRect.top) * _scaleY;
+                float width = (srcRect.right - srcRect.left) * xScale;
+                float height = (srcRect.bottom - srcRect.top) * yScale;
 
                 // Calculate placement
-                float left = targetRect.left;
-                float top = targetRect.top;
-                switch (_placement)
+                float left = targetRect_.left;
+                float top = targetRect_.top;
+                switch (imagePlacement)
                 {
                 case ImagePlacement::TOP_LEFT:
                 {
@@ -345,56 +226,55 @@ namespace zcom
                 }
                 case ImagePlacement::TOP_CENTER:
                 {
-                    left = targetRect.left + (targetRect.right - targetRect.left - width) * 0.5f;
+                    left = targetRect_.left + (targetRect_.right - targetRect_.left - width) * 0.5f;
                     break;
                 }
                 case ImagePlacement::TOP_RIGHT:
                 {
-                    left = targetRect.right - width;
+                    left = targetRect_.right - width;
                     break;
                 }
                 case ImagePlacement::CENTER_LEFT:
                 {
-                    top = targetRect.top + (targetRect.bottom - targetRect.top - height) * 0.5f;
+                    top = targetRect_.top + (targetRect_.bottom - targetRect_.top - height) * 0.5f;
                     break;
                 }
                 case ImagePlacement::CENTER:
                 {
-                    top = targetRect.top + (targetRect.bottom - targetRect.top - height) * 0.5f;
-                    left = targetRect.left + (targetRect.right - targetRect.left - width) * 0.5f;
+                    top = targetRect_.top + (targetRect_.bottom - targetRect_.top - height) * 0.5f;
+                    left = targetRect_.left + (targetRect_.right - targetRect_.left - width) * 0.5f;
                     break;
                 }
                 case ImagePlacement::CENTER_RIGHT:
                 {
-                    top = targetRect.top + (targetRect.bottom - targetRect.top - height) * 0.5f;
-                    left = targetRect.right - width;
+                    top = targetRect_.top + (targetRect_.bottom - targetRect_.top - height) * 0.5f;
+                    left = targetRect_.right - width;
                     break;
                 }
                 case ImagePlacement::BOTTOM_LEFT:
                 {
-                    top = targetRect.bottom - height;
+                    top = targetRect_.bottom - height;
                     break;
                 }
                 case ImagePlacement::BOTTOM_CENTER:
                 {
-                    top = targetRect.bottom - height;
-                    left = targetRect.left + (targetRect.right - targetRect.left - width) * 0.5f;
+                    top = targetRect_.bottom - height;
+                    left = targetRect_.left + (targetRect_.right - targetRect_.left - width) * 0.5f;
                     break;
                 }
                 case ImagePlacement::BOTTOM_RIGHT:
                 {
-                    top = targetRect.bottom - height;
-                    left = targetRect.right - width;
+                    top = targetRect_.bottom - height;
+                    left = targetRect_.right - width;
                     break;
                 }
                 default:
                     break;
                 }
 
-                // Snap to pixels
-                left += _offsetX;
-                top += _offsetY;
-                if (_snap)
+                left += xOffset;
+                top += yOffset;
+                if (snapToPixels)
                 {
                     left = std::roundf(left);
                     top = std::roundf(top);
@@ -403,65 +283,50 @@ namespace zcom
                 destRect = { left, top, left + width, top + height };
             }
 
-            if (!(_tintColor == D2D1::ColorF(1.0f, 1.0f, 1.0f)))
+            if (!(tintColor == Color(0xFFFFFF)))
             {
-                // Create tint effect
-                ID2D1Effect* tintEffect = nullptr;
-                HRESULT hr = g.target->CreateEffect(CLSID_CustomTintEffect, &tintEffect);
-                if (tintEffect)
+                // TODO: Content bitmap needs to be separate from image (image can be whatever)
+                auto contentBitmap = g->CreateBitmap(image.Get()->GetSize(), SEGMENT_POOL_AUX1);
+                if (contentBitmap)
                 {
-                    tintEffect->SetInput(0, _image);
-                    D2D1_VECTOR_4F premultiplied = { _tintColor.r, _tintColor.g, _tintColor.b, _tintColor.a };
-                    premultiplied.x *= premultiplied.w;
-                    premultiplied.y *= premultiplied.w;
-                    premultiplied.z *= premultiplied.w;
-                    tintEffect->SetValue(CUSTOM_TINT_PROP_COLOR, premultiplied);
+                    BitmapSourceEffect bitmapSource = BitmapSourceEffect(&image->value());
+                    TintEffect tintEffect = TintEffect(&bitmapSource, tintColor);
+                    g->PushAndClearTarget(contentBitmap.value());
+                    g->DrawEffect(&tintEffect);
+                    g->PopTarget();
+                    // TODO: add high quality cubic interpolation
+                    g->DrawBitmap(contentBitmap.value(), destRect, srcRect, imageOpacity);
 
-                    ID2D1Image* stash = nullptr;
-                    g.target->GetTarget(&stash);
-
-                    // Draw to separate render target and use 'DrawBitmap' for scaling/placement
-                    ID2D1Bitmap1* contentBitmap = nullptr;
-                    g.target->CreateBitmap(
-                        D2D1::SizeU((UINT32)_image->GetSize().width, (UINT32)_image->GetSize().height),
-                        nullptr,
-                        0,
-                        D2D1::BitmapProperties1(
-                            D2D1_BITMAP_OPTIONS_TARGET,
-                            { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
-                        ),
-                        &contentBitmap
-                    );
-                    if (contentBitmap)
-                    {
-                        g.target->SetTarget(contentBitmap);
-                        g.target->Clear();
-                        g.target->DrawImage(tintEffect);
-                        g.target->SetTarget(stash);
-                        stash->Release();
-                        // Flush here (before DrawBitmap) because otherwise some bullshit interaction causes things rendered to the
-                        // content bitmap to sometimes not show up (ONLY  when usiNG D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC!!@.!?!?!?2!)
-                        g.target->Flush();
-                        g.target->DrawBitmap(contentBitmap, destRect, _imageOpacity, D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC, srcRect);
-
-                        contentBitmap->Release();
-                    }
-                    else
-                    {
-                        // TODO: Logging
-                    }
-                    tintEffect->Release();
-                }
-                else
-                {
-                    // TODO: Logging
+                    // Comment from old implementation below, probably needs investigation
+                    
+                    // Flush here (before DrawBitmap) because otherwise some bullshit interaction causes things rendered to the
+                    // content bitmap to sometimes not show up (ONLY  when usiNG D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC!!@.!?!?!?2!)
                 }
             }
             else
             {
-                // Draw image normally
-                g.target->DrawBitmap(_image, destRect, _imageOpacity, D2D1_INTERPOLATION_MODE_HIGH_QUALITY_CUBIC, srcRect);
+                g->DrawBitmap(image->value(), destRect, srcRect, imageOpacity);
             }
+        }
+
+    public:
+        std::vector<std::pair<std::string, std::vector<ValueProxy>>> GetReflectionData()
+        {
+            std::vector<ValueProxy> values;
+            values.push_back(RectF::TextValueProxy("source rect", std::make_any<Value<std::optional<RectF>>*>(&sourceRect), true));
+            values.push_back(RectF::TextValueProxy("target rect", std::make_any<Value<std::optional<RectF>>*>(&targetRect), true));
+            values.push_back(ValueProxy::BasicEnumValueProxy<ImagePlacement>("image placement", std::make_any<Value<ImagePlacement>*>(&imagePlacement), ImagePlacementValueProxySelectionValues()));
+            values.push_back(ValueProxy::BasicFloatValueProxy<float>("x offset", std::make_any<Value<float>*>(&xOffset), 3));
+            values.push_back(ValueProxy::BasicFloatValueProxy<float>("y offset", std::make_any<Value<float>*>(&yOffset), 3));
+            values.push_back(ValueProxy::BasicFloatValueProxy<float>("x scale", std::make_any<Value<float>*>(&xScale), 3));
+            values.push_back(ValueProxy::BasicFloatValueProxy<float>("y scale", std::make_any<Value<float>*>(&yScale), 3));
+            values.push_back(ValueProxy::BasicBoolValueProxy("snap to pixels", std::make_any<Value<bool>*>(&snapToPixels)));
+            values.push_back(ValueProxy::BasicFloatValueProxy<float>("image opacity", std::make_any<Value<float>*>(&imageOpacity), 3));
+            values.push_back(ValueProxy::BasicColorValueProxy("tint color", std::make_any<Value<Color>*>(&tintColor)));
+
+            auto data = Component::GetReflectionData();
+            data.insert(data.begin(), { "Image", std::move(values) });
+            return data;
         }
     };
 }

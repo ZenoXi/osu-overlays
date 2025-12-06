@@ -16,33 +16,37 @@ void zcom::DefaultTitleBarScene::Init(SceneOptionsBase* options)
     _useCleartype = opt.useCleartype;
     _darkMode = opt.darkMode;
 
+    _contentPanel = Create<FlexPanel>(FlexDirection::RIGHT);
+    _contentPanel->parentSize = { 1.0f, 1.0f };
+    _basePanel->AddItem(_contentPanel.get());
+
     // The following functions set up the default title bar look
     // See the function implementations for details on achieving
     // the default look
 
     if (!_darkMode)
     {
-        SetBackground(D2D1::ColorF(0xFFFFFF));
+        SetBackground(Color(0xFFFFFF));
     }
     else
     {
-        SetBackground(D2D1::ColorF(0x202020));
-        _activeItemTint = D2D1::ColorF(0xE0E0E0);
+        SetBackground(Color(0x202020));
+        _activeItemTint = Color(0xE0E0E0);
     }
 
-    if (opt.showCloseButton)
-        AddCloseButton();
-    if (opt.showMaximizeButton)
-        AddMaximizeButton();
-    if (opt.showMinimizeButton)
-        AddMinimizeButton();
     if (opt.showIcon)
         AddIcon(_window->resourceManager.GetImage(opt.windowIconResourceName.value_or("window_app_icon")));
-    if (opt.showTitle)
-        AddTitle(opt.windowTitle);
     AddMenuButton(L"File");
     AddMenuButton(L"Edit");
     AddMenuButton(L"View");
+    if (opt.showTitle)
+        AddTitle(opt.windowTitle);
+    if (opt.showMinimizeButton)
+        AddMinimizeButton();
+    if (opt.showMaximizeButton)
+        AddMaximizeButton();
+    if (opt.showCloseButton)
+        AddCloseButton();
     // After the 'Add*Item*()' calls, the default item appearance and behavior can be modified through their variables
 
     SubscribeToWindowMessages();
@@ -51,56 +55,48 @@ void zcom::DefaultTitleBarScene::Init(SceneOptionsBase* options)
     }).Detach();
 }
 
-
-void zcom::DefaultTitleBarScene::SetBackground(D2D1_COLOR_F color)
+void zcom::DefaultTitleBarScene::Uninit()
 {
-    _basePanel->SetBackgroundColor(color);
+    _basePanel->ClearItems();
+}
+
+
+void zcom::DefaultTitleBarScene::SetBackground(Color color)
+{
+    _basePanel->backgroundColor = color;
     if (_titleLabel && _useCleartype)
-        _titleLabel->SetBackgroundColor(color);
+        _titleLabel->backgroundColor = color;
 }
 
 void zcom::DefaultTitleBarScene::AddCloseButton()
 {
     _closeButton = Create<Button>(ButtonPreset::NO_EFFECTS);
-    _closeButton->SetBaseSize(45, 29);
-    _closeButton->SetHorizontalAlignment(Alignment::END);
-    _closeButton->SetButtonImageAll(_window->resourceManager.GetImage("window_close"));
-    _closeButton->ButtonImage()->SetPlacement(ImagePlacement::CENTER);
-    _closeButton->ButtonImage()->SetPixelSnap(true);
-    _closeButton->UseImageParamsForAll(_closeButton->ButtonImage());
-    _closeButton->SetButtonColor(D2D1::ColorF(0, 0.0f));
-    _closeButton->SetButtonHoverColor(D2D1::ColorF(0xE81123));
-    _closeButton->SetButtonClickColor(D2D1::ColorF(0xE81123, 0.54f));
-    _closeButton->ButtonImage()->SetTintColor(_activeItemTint);
-    _closeButton->ButtonHoverImage()->SetTintColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
-    _closeButton->ButtonClickImage()->SetTintColor(D2D1::ColorF(1.0f, 1.0f, 1.0f));
-    _closeButton->SetSelectable(false);
-    //_closeButton->SetProperty(PROP_Shadow());
-    _closeButton->SetActivation(ButtonActivation::RELEASE);
+    _closeButton->AddTag("close_button");
+    _closeButton->size = { 45, 29 };
+    _closeButton->Image()->image = _window->resourceManager.GetImage("window_close");
+    _closeButton->Image()->imagePlacement = ImagePlacement::CENTER;
+    _closeButton->Image()->snapToPixels = true;
+    _closeButton->ValueFromButtonState<Color>(_closeButton->Image()->tintColor, _activeItemTint, Color(0xFFFFFF), Color(0xFFFFFF));
+    _closeButton->ValueFromButtonState<Color>(_closeButton->buttonColor, Color(0, 0.0f), Color(0xE81123, 1.0f), Color(0xE81123, 0.54f));
+    _closeButton->selectable = false;
     _closeButton->SubscribeOnActivated([&]() {
         _window->Close();
     }).Detach();
 
-    _basePanel->AddItem(_closeButton.get());
+    _contentPanel->AddItem(_closeButton.get());
 }
 
 void zcom::DefaultTitleBarScene::AddMaximizeButton()
 {
     _maximizeButton = Create<Button>(ButtonPreset::NO_EFFECTS);
-    _maximizeButton->SetBaseSize(45, 29);
-    _maximizeButton->SetHorizontalAlignment(Alignment::END);
-    if (_closeButton)
-        _maximizeButton->SetHorizontalOffsetPixels(-45);
-    _maximizeButton->SetButtonImageAll(_window->resourceManager.GetImage("window_maximize"));
-    _maximizeButton->ButtonImage()->SetPlacement(ImagePlacement::CENTER);
-    _maximizeButton->ButtonImage()->SetPixelSnap(true);
-    _maximizeButton->ButtonImage()->SetTintColor(_activeItemTint);
-    _maximizeButton->UseImageParamsForAll(_maximizeButton->ButtonImage());
-    _maximizeButton->SetButtonColor(D2D1::ColorF(0, 0.0f));
-    _maximizeButton->SetButtonHoverColor(D2D1::ColorF(0, 0.1f));
-    _maximizeButton->SetButtonClickColor(D2D1::ColorF(0, 0.2f));
-    _maximizeButton->SetSelectable(false);
-    _maximizeButton->SetActivation(ButtonActivation::RELEASE);
+    _maximizeButton->AddTag("maximize_button");
+    _maximizeButton->size = { 45, 29 };
+    _maximizeButton->Image()->image = _window->resourceManager.GetImage("window_maximize");
+    _maximizeButton->Image()->imagePlacement = ImagePlacement::CENTER;
+    _maximizeButton->Image()->snapToPixels = true;
+    _maximizeButton->ValueFromButtonState<Color>(_maximizeButton->Image()->tintColor, _activeItemTint, Color(0xFFFFFF), Color(0xFFFFFF));
+    _maximizeButton->ValueFromButtonState<Color>(_maximizeButton->buttonColor, Color(0, 0.0f), Color(0, 0.1f), Color(0, 0.2f));
+    _maximizeButton->selectable = false;
     _maximizeButton->SubscribeOnActivated([&]() {
         if (_window->Backend().Maximized())
             _window->Backend().Restore();
@@ -108,68 +104,61 @@ void zcom::DefaultTitleBarScene::AddMaximizeButton()
             _window->Backend().Maximize();
     }).Detach();
 
-    _basePanel->AddItem(_maximizeButton.get());
+    _contentPanel->AddItem(_maximizeButton.get());
 }
 
 void zcom::DefaultTitleBarScene::AddMinimizeButton()
 {
     _minimizeButton = Create<Button>(ButtonPreset::NO_EFFECTS);
-    _minimizeButton->SetBaseSize(45, 29);
-    _minimizeButton->SetHorizontalAlignment(Alignment::END);
-    if (_closeButton && _maximizeButton)
-        _minimizeButton->SetHorizontalOffsetPixels(-90);
-    else if (_closeButton || _maximizeButton)
-        _minimizeButton->SetHorizontalOffsetPixels(-45);
-    _minimizeButton->SetButtonImageAll(_window->resourceManager.GetImage("window_minimize"));
-    _minimizeButton->ButtonImage()->SetPlacement(ImagePlacement::CENTER);
-    _minimizeButton->ButtonImage()->SetPixelSnap(true);
-    _minimizeButton->ButtonImage()->SetTintColor(_activeItemTint);
-    _minimizeButton->UseImageParamsForAll(_minimizeButton->ButtonImage());
-    _minimizeButton->SetButtonColor(D2D1::ColorF(0, 0.0f));
-    _minimizeButton->SetButtonHoverColor(D2D1::ColorF(0, 0.1f));
-    _minimizeButton->SetButtonClickColor(D2D1::ColorF(0, 0.2f));
-    _minimizeButton->SetSelectable(false);
-    _minimizeButton->SetActivation(ButtonActivation::RELEASE);
+    _minimizeButton->AddTag("minimize_button");
+    _minimizeButton->size = { 45, 29 };
+    _minimizeButton->Image()->image = _window->resourceManager.GetImage("window_minimize");
+    _minimizeButton->Image()->imagePlacement = ImagePlacement::CENTER;
+    _minimizeButton->Image()->snapToPixels = true;
+    _minimizeButton->ValueFromButtonState<Color>(_minimizeButton->Image()->tintColor, _activeItemTint, Color(0xFFFFFF), Color(0xFFFFFF));
+    _minimizeButton->ValueFromButtonState<Color>(_minimizeButton->buttonColor, Color(0, 0.0f), Color(0, 0.1f), Color(0, 0.2f));
+    _minimizeButton->selectable = false;
     _minimizeButton->SubscribeOnActivated([&]() {
         _window->Backend().Minimize();
     }).Detach();
 
-    _basePanel->AddItem(_minimizeButton.get());
+    _contentPanel->AddItem(_minimizeButton.get());
 }
 
-void zcom::DefaultTitleBarScene::AddIcon(ID2D1Bitmap* icon)
+void zcom::DefaultTitleBarScene::AddIcon(std::optional<Bitmap> icon)
 {
     _iconImage = Create<Image>(icon);
-    _iconImage->SetBaseSize(29, 29);
-    _iconImage->SetPlacement(ImagePlacement::CENTER);
-    _iconImage->SetPixelSnap(true);
+    _iconImage->AddTag("icon_image");
+    _iconImage->size = { 29, 29 };
+    _iconImage->imagePlacement = ImagePlacement::CENTER;
+    _iconImage->snapToPixels = true;
     if (_tintIcon)
-        _iconImage->SetTintColor(D2D1::ColorF(0));
+        _iconImage->tintColor = Color(0);
 
-    _basePanel->AddItem(_iconImage.get());
+    _contentPanel->AddItem(_iconImage.get());
 }
 
 void zcom::DefaultTitleBarScene::AddTitle(std::wstring title)
 {
     _titleLabel = Create<Label>(title);
-    _titleLabel->SetFont(L"Segoe UI");
-    _titleLabel->SetFontSize(12.0f);
-    _titleLabel->SetFontColor(_activeItemTint);
-    _titleLabel->SetBaseSize((int)_titleLabel->GetTextWidth() + 1, 29);
-    _titleLabel->SetHorizontalOffsetPixels(5);
-    if (_iconImage)
-        _titleLabel->SetHorizontalOffsetPixels(_titleLabel->GetHorizontalOffsetPixels() + 29);
-    _titleLabel->SetHorizontalTextAlignment(TextAlignment::LEADING);
-    _titleLabel->SetVerticalTextAlignment(Alignment::CENTER);
+    _titleLabel->AddTag("title_label");
+    _titleLabel->font = L"Segoe UI";
+    _titleLabel->fontSize = 12.0f;
+    _titleLabel->fontColor = _activeItemTint;
+    _titleLabel->SetProperty(FlexGrow());
+    _titleLabel->size = { 0, 29 };
+    _titleLabel->padding = { 5.0f, 0.0f, 1.0f, 0.0f };
+    _titleLabel->xTextAlign = TextAlignment::LEADING;
+    _titleLabel->yTextAlign = Alignment::CENTER;
 
     // Enable ClearType
     if (_useCleartype)
     {
-        _titleLabel->IgnoreAlpha(true);
-        _titleLabel->SetBackgroundColor(_basePanel->GetBackgroundColor());
+        _titleLabel->ignoreAlpha = true;
+        _titleLabel->backgroundColor = _basePanel->backgroundColor.Get();
     }
 
-    _basePanel->AddItem(_titleLabel.get());
+    _contentPanel->AddItem(_titleLabel.get());
 }
 
 void zcom::DefaultTitleBarScene::AddMenuButton(std::wstring name)
@@ -193,10 +182,10 @@ RECT zcom::DefaultTitleBarScene::WindowMenuButtonRect()
     if (_iconImage)
     {
         return {
-            _iconImage->GetX(),
-            _iconImage->GetY(),
-            _iconImage->GetX() + _iconImage->GetWidth(),
-            _iconImage->GetY() + _iconImage->GetHeight()
+            _iconImage->position_->x,
+            _iconImage->position_->y,
+            _iconImage->position_->x + _iconImage->size_->width,
+            _iconImage->position_->y + _iconImage->size_->height
         };
     }
     else {
@@ -212,10 +201,10 @@ std::vector<RECT> zcom::DefaultTitleBarScene::ExcludedCaptionRects()
     if (_closeButton)
     {
         excludedRects.push_back({
-            _closeButton->GetX(),
-            _closeButton->GetY(),
-            _closeButton->GetX() + _closeButton->GetWidth(),
-            _closeButton->GetY() + _closeButton->GetHeight()
+            _closeButton->position_->x,
+            _closeButton->position_->y,
+            _closeButton->position_->x + _closeButton->size_->width,
+            _closeButton->position_->y + _closeButton->size_->height
         });
     }
 
@@ -223,10 +212,10 @@ std::vector<RECT> zcom::DefaultTitleBarScene::ExcludedCaptionRects()
     if (_minimizeButton)
     {
         excludedRects.push_back({
-            _minimizeButton->GetX(),
-            _minimizeButton->GetY(),
-            _minimizeButton->GetX() + _minimizeButton->GetWidth(),
-            _minimizeButton->GetY() + _minimizeButton->GetHeight()
+            _minimizeButton->position_->x,
+            _minimizeButton->position_->y,
+            _minimizeButton->position_->x + _minimizeButton->size_->width,
+            _minimizeButton->position_->y + _minimizeButton->size_->height
         });
     }
 
@@ -234,10 +223,10 @@ std::vector<RECT> zcom::DefaultTitleBarScene::ExcludedCaptionRects()
     if (_maximizeButton)
     {
         excludedRects.push_back({
-            _maximizeButton->GetX(),
-            _maximizeButton->GetY(),
-            _maximizeButton->GetX() + _maximizeButton->GetWidth(),
-            _maximizeButton->GetY() + _maximizeButton->GetHeight()
+            _maximizeButton->position_->x,
+            _maximizeButton->position_->y,
+            _maximizeButton->position_->x + _maximizeButton->size_->width,
+            _maximizeButton->position_->y + _maximizeButton->size_->height
         });
     }
 
@@ -245,10 +234,10 @@ std::vector<RECT> zcom::DefaultTitleBarScene::ExcludedCaptionRects()
     for (int i = 0; i < _menuButtons.size(); i++)
     {
         excludedRects.push_back({
-            _menuButtons[i]->GetX(),
-            _menuButtons[i]->GetY(),
-            _menuButtons[i]->GetX() + _menuButtons[i]->GetWidth(),
-            _menuButtons[i]->GetY() + _menuButtons[i]->GetHeight()
+            _menuButtons[i]->position_->x,
+            _menuButtons[i]->position_->y,
+            _menuButtons[i]->position_->x + _menuButtons[i]->size_->width,
+            _menuButtons[i]->position_->y + _menuButtons[i]->size_->height
         });
     }
 
@@ -269,26 +258,28 @@ void zcom::DefaultTitleBarScene::HandleWindowMessages()
             {
                 zwnd::WindowActivateMessage msg{};
                 msg.Decode(message);
-                D2D1_COLOR_F newColor{};
+                Color newColor{};
                 if (msg.activationType == zwnd::WindowActivateMessage::ACTIVATED || msg.activationType == zwnd::WindowActivateMessage::CLICK_ACTIVATED)
                 {
                     newColor = _activeItemTint;
+                    _windowIsActive = true;
                     _basePanel->InvokeRedraw();
                 }
                 else
                 {
                     newColor = _inactiveItemTint;
+                    _windowIsActive = false;
                     _basePanel->InvokeRedraw();
                 }
 
                 if (_closeButton)
-                    _closeButton->ButtonImage()->SetTintColor(newColor);
+                    _closeButton->ValueFromButtonState<Color>(_closeButton->Image()->tintColor, newColor, Color(0xFFFFFF), Color(0xFFFFFF));
                 if (_maximizeButton)
-                    _maximizeButton->ButtonImage()->SetTintColor(newColor);
+                    _maximizeButton->ValueFromButtonState<Color>(_maximizeButton->Image()->tintColor, newColor, Color(0xFFFFFF), Color(0xFFFFFF));
                 if (_minimizeButton)
-                    _minimizeButton->ButtonImage()->SetTintColor(newColor);
+                    _minimizeButton->ValueFromButtonState<Color>(_minimizeButton->Image()->tintColor, newColor, Color(0xFFFFFF), Color(0xFFFFFF));
                 if (_titleLabel)
-                    _titleLabel->SetFontColor(newColor);
+                    _titleLabel->fontColor = newColor;
             }
             else if (message.id == zwnd::WindowSizeExMessage::ID())
             {
@@ -298,9 +289,9 @@ void zcom::DefaultTitleBarScene::HandleWindowMessages()
                     msg.Decode(message);
 
                     if (msg.flags.windowMaximized)
-                        _maximizeButton->SetButtonImageAll(_window->resourceManager.GetImage("window_restore"));
+                        _maximizeButton->Image()->image = _window->resourceManager.GetImage("window_restore");
                     else if (msg.flags.windowRestored)
-                        _maximizeButton->SetButtonImageAll(_window->resourceManager.GetImage("window_maximize"));
+                        _maximizeButton->Image()->image = _window->resourceManager.GetImage("window_maximize");
                 }
             }
         });

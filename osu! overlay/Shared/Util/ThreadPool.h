@@ -54,6 +54,16 @@ public:
         return _threads.size();
     }
 
+    void ClearThreads()
+    {
+        for (auto& thread : _threads)
+            thread->stopFlag.store(true);
+        for (auto& thread : _threads)
+            if (thread->handle.joinable())
+                thread->handle.join();
+        _threads.clear();
+    }
+
 private:
     std::vector<std::unique_ptr<ThreadData>> _threads;
 

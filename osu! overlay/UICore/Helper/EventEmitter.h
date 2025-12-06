@@ -292,7 +292,7 @@ public:
         _emitter.reset();
     }
 
-    std::shared_ptr<_EventEmitter<_Ret, _Types...>> operator->()
+    std::shared_ptr<_EventEmitter<_Ret, _Types...>> operator->() const
     {
         return _emitter;
     }

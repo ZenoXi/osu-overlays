@@ -71,6 +71,11 @@ zwnd::WindowBackend::WindowBackend(HINSTANCE hInst, WindowProperties props, HWND
     {
         SystemParametersInfo(SPI_GETWORKAREA, 0, &workRect, 0);
     }
+
+    if (props.initialWidth < props.minWidth)
+        props.initialWidth = props.minWidth;
+    if (props.initialHeight < props.minHeight)
+        props.initialHeight = props.minHeight;
     int x = (workRect.right - props.initialWidth) / 2;
     int y = (workRect.bottom - props.initialHeight) / 2;
     int w = props.initialWidth;
@@ -108,7 +113,7 @@ zwnd::WindowBackend::WindowBackend(HINSTANCE hInst, WindowProperties props, HWND
     // WS_MAXIMIZEBOX: enables Aero snapping and the maximize option in the window menu
     // WS_MINIMIZEBOX: enables the minimize option in the window menu
     // WS_CAPTION: automatic window region updating
-    DWORD windowStyle = WS_THICKFRAME | WS_SYSMENU | WS_CAPTION;
+    DWORD windowStyle = WS_THICKFRAME;// | WS_SYSMENU | WS_CAPTION;
     if (!props.disableMaximizing)
         windowStyle |= WS_MAXIMIZEBOX;
     if (!props.disableMinimizing)
@@ -136,7 +141,8 @@ zwnd::WindowBackend::WindowBackend(HINSTANCE hInst, WindowProperties props, HWND
         DwmSetWindowAttribute(_hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, &attrib, sizeof(attrib));
     }
 
-    gfx.Initialize(&_hwnd);
+    //_disableVsync = props.disableVSync;
+    gfx.Initialize(&_hwnd, w, h, !props.disableVSync);
 
     int showFlag = SW_SHOWNORMAL;
     switch (props.initialDisplay)
@@ -170,6 +176,14 @@ zwnd::WindowBackend::WindowBackend(HINSTANCE hInst, WindowProperties props, HWND
         _m_msg.lock();
         _msgQueue.push(message.Encode());
         _m_msg.unlock();
+    }
+    else
+    {
+        // If ShowWindow isn't called, the _messageWidth and _messageHeight don't match the window size until display, which causes problems when monitor layout changes and WM_WINDOWPOSCHANGING is received
+        RECT rect{};
+        GetWindowRect(_hwnd, &rect);
+        _messageWidth = rect.right - rect.left;
+        _messageHeight = rect.bottom - rect.top;
     }
 }
 
@@ -235,6 +249,7 @@ void zwnd::WindowBackend::KillMessageLoop()
 void zwnd::WindowBackend::LockSize()
 {
     _m_windowSize.lock();
+    //_layeredWindowUpdateRequired = true;
 }
 
 void zwnd::WindowBackend::UnlockSize()
@@ -246,21 +261,50 @@ void zwnd::WindowBackend::UnlockSize()
 #pragma warning( pop )
 }
 
-void zwnd::WindowBackend::UpdateLayeredWindow()
+void zwnd::WindowBackend::ResizeBuffers(int width, int height)
 {
+    gfx.ResizeBuffers(width, height);
+    _layeredWindowUpdateRequired = true;
+}
+
+bool zwnd::WindowBackend::UpdateLayeredWindow()
+{
+    if (!_layeredWindowUpdateRequired)
+        return false;
+    _layeredWindowUpdateRequired = false;
+
     HRESULT hr;
     HDC hdc;
     ID2D1GdiInteropRenderTarget* GDIRT;
 
-    hr = gfx.GetGraphics().target->QueryInterface(&GDIRT);
+    SimpleTimer timer;
+    int64_t us1;
+    int64_t us2;
+    int64_t us3;
+
+    hr = gfx.GetGraphics()->GetRenderContext()->QueryInterface(&GDIRT);
     hr = GDIRT->GetDC(D2D1_DC_INITIALIZE_MODE_COPY, &hdc);
 
-    _linfo.SetWidth((UINT)GetWidth());
-    _linfo.SetHeight((UINT)GetHeight());
+    us1 = timer.MicrosElapsed();
+
+    auto size = gfx.GetGraphics()->GetRenderContext()->GetSize();
+    //std::cout << "Updating layered window\n";
+    _linfo.SetWidth((UINT)size.width);
+    _linfo.SetHeight((UINT)size.height);
+    //_linfo.SetWidth((UINT)GetWidth());
+    //_linfo.SetHeight((UINT)GetHeight());
     _linfo.Update(_hwnd, hdc);
+    //std::cout << "Updated layered window\n";
+
+    us2 = timer.MicrosElapsed();
 
     GDIRT->ReleaseDC(nullptr);
     GDIRT->Release();
+
+    us3 = timer.MicrosElapsed();
+
+    return true;
+    //std::cout << us1 << ' ' << us2 << ' ' << us3 << '\n';
 }
 
 void zwnd::WindowBackend::ProcessMessages()
@@ -285,7 +329,7 @@ void zwnd::WindowBackend::ProcessMessages()
     // unexpected behavior in certain cases. The main one is the following:
     // 
     // If you have 2 windows, one of which owns the other (when creating the second
-    // window, the hwnd of the first is used as hWndParent in CreateWindow(Ex) function),
+    // window, the hwnd of the first is used as hWndParent in CreateWindowEx() function),
     // switching focus between the two will cause the window that is being focused to
     // freeze for a short time. This is likely caused by the fact that the PeekMessage
     // call is delayed on the other window, but the weird part is that the freeze is way
@@ -379,7 +423,7 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     {
         // TODO: investigate why app crashes on a mutex lock when WM_CREATE isn't handled
 
-        if (_messageOnly)
+        if (_messageOnly && false)
         {
             RAWINPUTDEVICE Rid[1] = {};
             Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
@@ -389,7 +433,9 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
             RegisterRawInputDevices(Rid, 1, sizeof(Rid[0]));
         }
 
-        //MARGINS margins = { 0 };
+        //SetLayeredWindowAttributes(hWnd, 0, 0, LWA_ALPHA);
+
+        //MARGINS margins = { -1 };
         //DwmExtendFrameIntoClientArea(hWnd, &margins);
         //SetWindowPos(hWnd, NULL, 0, 0, 0, 0, SWP_SHOWWINDOW | SWP_NOMOVE | SWP_NOSIZE | SWP_FRAMECHANGED);
         break;
@@ -557,20 +603,26 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
 
         GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER));
 
-        RAWINPUT* raw = (RAWINPUT*)lpb;
-
-        if (raw->header.dwType == RIM_TYPEMOUSE)
+        for (UINT i = 0; i < dwSize; i++)
         {
-            int deltaX = raw->data.mouse.lLastX;
-            int deltaY = raw->data.mouse.lLastY;
-            //std::cout << _hwnd << " - " << deltaX << ":" << deltaY << '\n';
+            RAWINPUT* raw = (RAWINPUT*)(lpb + sizeof(RAWINPUT) * i);
+            if (raw->header.dwType == RIM_TYPEMOUSE)
+            {
+                int deltaX = raw->data.mouse.lLastX;
+                int deltaY = raw->data.mouse.lLastY;
+                //std::cout << _hwnd << " - " << deltaX << ":" << deltaY << '\n';
 
-            MouseInputMessage message = {};
-            message.deltaX = deltaX;
-            message.deltaY = deltaY;
-            _m_msg.lock();
-            _msgQueue.push(message.Encode());
-            _m_msg.unlock();
+                MouseInputMessage message = {};
+                message.deltaX = deltaX;
+                message.deltaY = deltaY;
+                _m_msg.lock();
+                _msgQueue.push(message.Encode());
+                _m_msg.unlock();
+            }
+            else if (raw->header.dwType == RIM_TYPEKEYBOARD)
+            {
+                //std::cout << raw->data.keyboard.ExtraInformation << '\n';
+            }
         }
         break;
     }
@@ -800,24 +852,6 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
         _sizingStarted = false;
         break;
     }
-    case WM_WINDOWPOSCHANGING:
-    {
-        WINDOWPOS* pos = (WINDOWPOS*)lParam;
-
-        // Check if sizing occurs
-        if (!(pos->flags & SWP_NOSIZE) && (_messageWidth != pos->cx || _messageHeight != pos->cy))
-        {
-            // Wait for window sizing to become available
-            if (!_insideInitialShowWindowCall)
-                _m_windowSize.lock();
-        }
-
-        // Disable unreleased mutex warning
-#pragma warning( push )
-#pragma warning( disable : 26115 )
-        return DefWindowProc(hWnd, msg, wParam, lParam);
-#pragma warning( pop )
-    }
     case WM_SIZE:
     {
         int w = LOWORD(lParam);
@@ -859,7 +893,14 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
             message.minimized = true;
         }
 
-        gfx.ResizeBuffers(w, h, false);
+        //gfx.ResizeBuffers(w, h, false);
+        //_layeredWindowUpdateRequired = true;
+        //SetWindowPos(hWnd, nullptr, 0, 0, w, h, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        //RedrawWindow(hWnd, nullptr, nullptr, RDW_INVALIDATE | RDW_FRAME | RDW_UPDATENOW);
+
+        //_m_windowSize.lock();
+        //_bufferResizeRequired = true;
+        //_m_windowSize.unlock();
 
         _m_msg.lock();
         _msgQueue.push(message.Encode());
@@ -868,8 +909,8 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
         // Disable not-locked mutex warning
 #pragma warning( push )
 #pragma warning( disable : 26117 26110 )
-        if (!_insideInitialShowWindowCall)
-            _m_windowSize.unlock();
+        //if (!_insideInitialShowWindowCall)
+        //    _m_windowSize.unlock();
         return DefWindowProc(hWnd, msg, wParam, lParam);
 #pragma warning( pop )
         break;
@@ -1076,6 +1117,17 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     default:
     {
+        _m_msg.lock();
+        for (auto& message : _registeredMessages)
+        {
+            if (message.id == msg)
+            {
+                _msgQueue.push(message.mapper(wParam, lParam));
+                break;
+            }
+        }
+        _m_msg.unlock();
+
         return DefWindowProc(hWnd, msg, wParam, lParam);
     }
     }
@@ -1205,6 +1257,13 @@ void zwnd::WindowBackend::AddDragDropHandler(IDragDropEventHandler* handler)
 bool zwnd::WindowBackend::RemoveDragDropHandler(IDragDropEventHandler* handler)
 {
     return _fileDropHandler->RemoveDragDropEventHandler(handler);
+}
+
+void zwnd::WindowBackend::RegisterMessage(UINT messageId, std::function<WindowMessage(WPARAM, LPARAM)> mapper)
+{
+    _m_msg.lock();
+    _registeredMessages.push_back({ messageId, mapper });
+    _m_msg.unlock();
 }
 
 RECT zwnd::WindowBackend::GetWindowRectangle()

@@ -4,6 +4,7 @@
 
 #include <string>
 #include <vector>
+#include <array>
 
 std::string wstring_to_string(const std::wstring& ws);
 std::wstring string_to_wstring(const std::string& s);
@@ -23,11 +24,15 @@ std::string float_to_str(float num);
 std::string double_to_str(double num);
 std::string to_uppercase(const std::string& str);
 std::string to_lowercase(const std::string& str);
+std::wstring to_uppercase(const std::wstring& str);
+std::wstring to_lowercase(const std::wstring& str);
 int find_text_in_vec(const std::string& str, const std::vector<std::string>& vec);
 int find_text_in_arr(const std::string& str, std::string arr[], int size);
 std::string extract_str_until(const std::string& str, char tc = ' ');
 void erase_str_until(std::string& str, char tc = ' ');
 std::string exer_str_until(std::string& str, char tc = ' ');
+std::string replace_all(const std::string& str, const std::string& target, const std::string& replacement);
+std::wstring replace_all(const std::wstring& str, const std::wstring& target, const std::wstring& replacement);
 
 template<size_t Count>
 void split_str(const std::string& str, std::array<std::string, Count>& output, char split, bool ignoreEmpty)

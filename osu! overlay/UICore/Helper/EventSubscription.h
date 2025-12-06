@@ -93,13 +93,17 @@ public:
     _ThisType& operator=(_ThisType&&) = delete;
     ~AsyncEventSubscription();
 
+    bool EventsPending()
+    {
+        std::lock_guard<std::mutex> lock(_m_handlerLock);
+        return !_pendingCalls.empty();
+    }
+
     void HandlePendingEvents(std::function<void(_Types...)> handlerFunc)
     {
         std::lock_guard<std::mutex> lock(_m_handlerLock);
         for (auto& eventArgs : _pendingCalls)
-        {
             std::apply(handlerFunc, eventArgs);
-        }
         _pendingCalls.clear();
     }
 
@@ -107,6 +111,13 @@ public:
     {
         std::lock_guard<std::mutex> lock(_m_handlerLock);
         _syncHandlerFunc = syncHandlerFunc;
+
+        if (!_pendingCalls.empty())
+        {
+            for (auto& eventArgs : _pendingCalls)
+                std::apply(_syncHandlerFunc, eventArgs);
+            _pendingCalls.clear();
+        }
     }
 
     void Unsubscribe()

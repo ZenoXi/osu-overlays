@@ -62,6 +62,13 @@ namespace zcom
         int value;
     };
 
+    class FlexIgnore : public Property
+    {
+    public:
+        static std::string _NAME_() { return "flex_ignore"; }
+        FlexIgnore() {}
+    };
+
     enum class FlexDirection
     {
         DOWN,
@@ -69,6 +76,15 @@ namespace zcom
         RIGHT,
         LEFT
     };
+    constexpr std::vector<std::pair<int64_t, std::wstring>> FlexDirectionValueProxySelectionValues()
+    {
+        return {
+            { (int64_t)FlexDirection::DOWN, L"Down" },
+            { (int64_t)FlexDirection::UP, L"Up" },
+            { (int64_t)FlexDirection::RIGHT, L"Right" },
+            { (int64_t)FlexDirection::LEFT, L"Left" }
+        };
+    }
 
     class FlexPanel : public Panel
     {
@@ -78,84 +94,49 @@ namespace zcom
         void Init(FlexDirection direction)
         {
             Panel::Init();
-            _direction = direction;
+            this->direction = direction;
         }
 
     public:
-        void SetSpacing(int spacing)
-        {
-            if (spacing == _spacing)
-                return;
+        Value<int> spacing = Value<int>(0, [=](int& currentValue, const int& spacing) {
+            currentValue = spacing;
+            _RecalculateLayout();
+        });
+        Value<FlexDirection> direction = Value<FlexDirection>(FlexDirection::DOWN, [=](FlexDirection& currentValue, const FlexDirection& direction) {
+            currentValue = direction;
+            _RecalculateLayout();
+        });
+        Value<std::optional<Alignment>> itemAlignment = Value<std::optional<Alignment>>(std::nullopt, [=](std::optional<Alignment>& currentValue, const std::optional<Alignment>& alignment) {
+            currentValue = alignment;
+            _RecalculateLayout();
+        });
+        Value<bool> autoWidth = Value<bool>(false, [=](bool& currentValue, const bool& value) {
+            currentValue = value;
+            _RecalculateLayout();
+        });
+        Value<bool> autoHeight = Value<bool>(false, [=](bool& currentValue, const bool& value) {
+            currentValue = value;
+            _RecalculateLayout();
+        });
 
-            _spacing = spacing;
-            _RecalculateLayout(GetWidth(), GetHeight());
-        }
-        void SetDirection(FlexDirection direction)
-        {
-            if (direction == _direction)
-                return;
-
-            _direction = direction;
-            _RecalculateLayout(GetWidth(), GetHeight());
-        }
-        // When alignment is not null, all items use the specified alignment
-        void SetItemAlignment(std::optional<Alignment> alignment)
-        {
-            if (alignment == _itemAlignment)
-                return;
-
-            _itemAlignment = alignment;
-            _RecalculateLayout(GetWidth(), GetHeight());
-        }
-        void SetSizeFixed(bool widthFixed, bool heightFixed)
-        {
-            if (widthFixed == _widthFixed && heightFixed == _heightFixed)
-                return;
-
-            _widthFixed = widthFixed;
-            _heightFixed = heightFixed;
-            _RecalculateLayout(GetWidth(), GetHeight());
-        }
-        void SetWidthFixed(bool widthFixed)
-        {
-            SetSizeFixed(widthFixed, IsHeightFixed());
-        }
-        void SetHeightFixed(bool heightFixed)
-        {
-            SetSizeFixed(IsWidthFixed(), heightFixed);
-        }
-        int GetSpacing() const { return _spacing; }
-        FlexDirection GetDirection() const { return _direction; }
-        std::optional<Alignment> GetItemAlignment() const { return _itemAlignment; }
-        bool IsWidthFixed() const { return _widthFixed; }
-        bool IsHeightFixed() const { return _heightFixed; }
-
-        void FillContainerWidth()
-        {
-            SetWidthFixed(true);
-            SetParentWidthPercent(1.0f);
-            SetBaseWidth(0);
-        }
-        void FillContainerHeight()
-        {
-            SetHeightFixed(true);
-            SetParentHeightPercent(1.0f);
-            SetBaseHeight(0);
-        }
-        void FillContainerSize()
-        {
-            FillContainerWidth();
-            FillContainerHeight();
-        }
-
-    private:
-        FlexDirection _direction = FlexDirection::DOWN;
-        int _spacing = 0;
-        std::optional<Alignment> _itemAlignment = std::nullopt;
-        bool _widthFixed = false;
-        bool _heightFixed = false;
 
     protected:
-        void _RecalculateLayout(int width, int height) override;
+        void _ComputeItemLayout() override;
+
+    public:
+        std::vector<std::pair<std::string, std::vector<ValueProxy>>> GetReflectionData()
+        {
+            std::vector<ValueProxy> values;
+
+            values.push_back(ValueProxy::BasicIntValueProxy<int>("spacing", std::make_any<Value<int>*>(&spacing)));
+            values.push_back(ValueProxy::BasicEnumValueProxy<FlexDirection>("direction", std::make_any<Value<FlexDirection>*>(&direction), FlexDirectionValueProxySelectionValues()));
+            values.push_back(ValueProxy::BasicOptionalEnumValueProxy<Alignment>("item alignment", std::make_any<Value<std::optional<Alignment>>*>(&itemAlignment), AlignmentValueProxySelectionValues()));
+            values.push_back(ValueProxy::BasicBoolValueProxy("auto width", std::make_any<Value<bool>*>(&autoWidth)));
+            values.push_back(ValueProxy::BasicBoolValueProxy("auto height", std::make_any<Value<bool>*>(&autoHeight)));
+
+            auto data = Panel::GetReflectionData();
+            data.insert(data.begin(), { "Flex panel", std::move(values) });
+            return data;
+        }
     };
 }

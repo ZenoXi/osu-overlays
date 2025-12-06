@@ -144,16 +144,16 @@ void ResourceManager::InitImage(std::string resourceName)
     _InitImages({ resourceName });
 }
 
-ID2D1Bitmap* ResourceManager::GetImage(std::string name)
+std::optional<zcom::Bitmap> ResourceManager::GetImage(std::string name)
 {
     for (auto& image : _images)
     {
         if (image.name == name)
         {
-            return image.bitmap;
+            return zcom::Bitmap(std::make_unique<zcom::StandaloneBitmap>(image.bitmap));
         }
     }
-    return nullptr;
+    return std::nullopt;
 }
 
 void ResourceManager::_InitImages(const std::vector<std::string>& resourceNames)

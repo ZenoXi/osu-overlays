@@ -54,6 +54,8 @@ namespace zwnd
         // Creating a window by default creates a hidden window for tooltips, which doesn't need to be created every time a tooltip is shown, increasing speed
         // This behavior can be disabled to reduce init time for windows which don't need this optimization
         bool disableFastTooltips = false;
+        // VSync caps the framerate to monitor refresh rate. Disabling it makes the framerate unlimited
+        bool disableVSync = false;
 
         //
         // Top level window properties
@@ -94,6 +96,7 @@ namespace zwnd
         WindowProperties& DisableWindowActivation() { disableWindowActivation = true; return *this; }
         WindowProperties& DisableMouseInteraction() { disableMouseInteraction = true; return *this; }
         WindowProperties& DisableFastTooltips() { disableFastTooltips = true; return *this; }
+        WindowProperties& DisableVSync() { disableVSync = true; return *this; }
         WindowProperties& MainWindow() { mainWindow = true; return *this; }
         WindowProperties& BlockParent() { blockParent = true; return *this; }
     };

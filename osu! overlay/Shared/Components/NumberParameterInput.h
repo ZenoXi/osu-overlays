@@ -46,31 +46,32 @@ namespace zcom
         void Init(NumberParameterInputParams<T> params)
         {
             FlexPanel::Init(FlexDirection::RIGHT);
-            FillContainerWidth();
-            SetSpacing(10);
-            SetPadding({ 15, 0, 15, 10 });
+            parentSize = { 1.0f, 0.0f };
+            autoHeight = true;
+            spacing = 10;
+            padding = { 15, 0, 15, 10 };
 
             _input = Create<NumberInput>();
-            _input->SetBaseSize(60, 26);
-            _input->SetValue(NumberInputValue(params.initialValue));
-            _input->SetMinValue(NumberInputValue(params.minValue));
-            _input->SetMaxValue(NumberInputValue(params.maxValue));
-            _input->SetStepSize(NumberInputValue(params.stepSize));
-            _input->SetBackgroundColor(D2D1::ColorF(0x101010));
-            _input->SetCornerRounding(2.0f);
+            _input->size = { 60, 26 };
+            _input->value = NumberInputValue(params.initialValue);
+            _input->minValue = NumberInputValue(params.minValue);
+            _input->maxValue = NumberInputValue(params.maxValue);
+            _input->stepSize = NumberInputValue(params.stepSize);
+            _input->backgroundColor = Color(0x101010);
+            _input->border.cornerRadius = 2.0f;
 
             _label = Create<Label>(params.inputTitle);
-            _label->SetBaseHeight(26);
-            _label->AutomaticWidth();
-            _label->SetVerticalTextAlignment(Alignment::CENTER);
-            _label->SetHoverText(params.inputDescription);
+            _label->size = { 0, 26 };
+            _label->autoWidth = true;
+            _label->yTextAlign = Alignment::CENTER;
+            _label->hoverText = params.inputDescription;
 
             AddItem(_input.get());
             AddItem(_label.get());
             if (params.requiresMemory)
             {
                 _icon = Create<Image>(_scene->GetWindow()->resourceManager.GetImage("osu_memory"));
-                _icon->SetBaseSize(26, 26);
+                _icon->size = { 26, 26 };
                 _label->SetProperty(FlexGrow());
                 AddItem(_icon.get());
             }

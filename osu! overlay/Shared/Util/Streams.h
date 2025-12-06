@@ -12,7 +12,8 @@ namespace streams
     class StreamPart
     {
     public:
-        virtual std::optional<std::pair<_CurT&, bool>> EvaluateItem() { return std::nullopt; }
+        // The boolean parameter indicates whether the value can modified
+        virtual std::optional<std::pair<_CurT*, bool>> EvaluateItem() { return std::nullopt; }
     };
 
     template<class _CurT, class _It>
@@ -26,13 +27,13 @@ namespace streams
             : _curIt(curIt), _endIt(endIt)
         {}
 
-        std::optional<std::pair<_CurT&, bool>> EvaluateItem()
+        std::optional<std::pair<_CurT*, bool>> EvaluateItem()
         {
             if (_curIt != _endIt)
             {
-                _CurT& item = *_curIt;
+                _CurT* item = const_cast<_CurT*>(&(*_curIt));
                 _curIt++;
-                return std::pair<_CurT&, bool>(item, false);
+                return std::pair<_CurT*, bool>(item, false);
             }
             else
             {
@@ -53,14 +54,14 @@ namespace streams
             : _mapper(mapper), _previousStream(previousStream)
         {}
 
-        std::optional<std::pair<_CurT&, bool>> EvaluateItem()
+        std::optional<std::pair<_CurT*, bool>> EvaluateItem()
         {
-            std::optional<std::pair<_PrevT&, bool>> previousItem = _previousStream->EvaluateItem();
+            std::optional<std::pair<_PrevT*, bool>> previousItem = _previousStream->EvaluateItem();
             if (!previousItem)
                 return std::nullopt;
 
-            _lastMappedValue = _mapper(previousItem.value().first);
-            return std::pair<_CurT&, bool>(_lastMappedValue.value(), true);
+            _lastMappedValue = _mapper(*(previousItem.value().first));
+            return std::pair<_CurT*, bool>(&(_lastMappedValue.value()), true);
         }
     };
 
@@ -75,12 +76,12 @@ namespace streams
             : _filter(filter), _previousStream(previousStream)
         {}
 
-        std::optional<std::pair<_CurT&, bool>> EvaluateItem()
+        std::optional<std::pair<_CurT*, bool>> EvaluateItem()
         {
-            std::optional<std::pair<_PrevT&, bool>> previousItem;
+            std::optional<std::pair<_PrevT*, bool>> previousItem;
             while (previousItem = _previousStream->EvaluateItem())
             {
-                if (_filter(previousItem.value().first))
+                if (_filter(*(previousItem.value().first)))
                     return previousItem;
             }
             return std::nullopt;
@@ -107,13 +108,13 @@ namespace streams
             if (!_sorted)
             {
                 // Collect and sort all items from previous steps
-                std::optional<std::pair<_PrevT&, bool>> previousItem;
+                std::optional<std::pair<_PrevT*, bool>> previousItem;
                 while (previousItem = _previousStream->EvaluateItem())
                 {
                     if (previousItem.value().second)
-                        _outputVector.push_back(std::move(previousItem.value().first));
+                        _outputVector.push_back(std::move(*(previousItem.value().first)));
                     else
-                        _outputVector.push_back(previousItem.value().first);
+                        _outputVector.push_back(*(previousItem.value().first));
                 }
                 std::sort(_outputVector.begin(), _outputVector.end(), _comparator);
                 _curIt = _outputVector.begin();
@@ -122,9 +123,9 @@ namespace streams
 
             if (_curIt != _outputVector.end())
             {
-                _CurT& item = *_curIt;
+                _CurT* item = &(*_curIt);
                 _curIt++;
-                return std::pair<_CurT&, bool>(item, true);
+                return std::pair<_CurT*, bool>(item, true);
             }
             else
             {
@@ -146,7 +147,7 @@ namespace streams
             : _start(start), _count(count), _currentItem(0), _previousStream(previousStream)
         {}
 
-        std::optional<std::pair<_CurT&, bool>> EvaluateItem()
+        std::optional<std::pair<_CurT*, bool>> EvaluateItem()
         {
             while (_currentItem >= _start && _currentItem < _start + _count)
             {
@@ -170,7 +171,7 @@ namespace streams
             : _count(count), _taken(0), _previousStream(previousStream)
         {}
 
-        std::optional<std::pair<_CurT&, bool>> EvaluateItem()
+        std::optional<std::pair<_CurT*, bool>> EvaluateItem()
         {
             if (_taken >= _count)
                 return std::nullopt;
@@ -193,13 +194,13 @@ namespace streams
         std::vector<_CurT> Evaluate()
         {
             std::vector<_CurT> result;
-            std::optional<std::pair<_PrevT&, bool>> previousItem;
+            std::optional<std::pair<_PrevT*, bool>> previousItem;
             while (previousItem = _previousStream->EvaluateItem())
             {
                 if (previousItem.value().second)
-                    result.push_back(std::move(previousItem.value().first));
+                    result.push_back(std::move(*(previousItem.value().first)));
                 else
-                    result.push_back(previousItem.value().first);
+                    result.push_back(*(previousItem.value().first));
             }
             return result;
         }
@@ -209,7 +210,7 @@ namespace streams
     class Stream
     {
         template<class _Container>
-        friend Stream<typename _Container::value_type> From(_Container&);
+        friend Stream<typename _Container::value_type> From(const _Container&);
         friend class Stream<_PrevT, _OtherT>; // Give access to previous stream
 
         std::shared_ptr<StreamPart<_CurT, _PrevT, _OtherT...>> _currentStream;
@@ -270,26 +271,26 @@ namespace streams
         std::vector<_CurT> ToVector()
         {
             std::vector<_CurT> result;
-            std::optional<std::pair<_CurT&, bool>> item;
+            std::optional<std::pair<_CurT*, bool>> item;
             while (item = _currentStream->EvaluateItem())
             {
                 if (item.value().second)
-                    result.push_back(std::move(item.value().first));
+                    result.push_back(std::move(*(item.value().first)));
                 else
-                    result.push_back(item.value().first);
+                    result.push_back(*(item.value().first));
             }
             return result;
         }
 
         std::optional<_CurT> FindFirst()
         {
-            std::optional<std::pair<_CurT&, bool>> item = _currentStream->EvaluateItem();
+            std::optional<std::pair<_CurT*, bool>> item = _currentStream->EvaluateItem();
             if (item)
             {
                 if (item.value().second)
-                    return std::move(item.value().first);
+                    return std::move(*(item.value().first));
                 else
-                    return item.value().first;
+                    return *(item.value().first);
             }
             else
             {
@@ -299,10 +300,10 @@ namespace streams
 
         bool AllMatch(std::function<bool(const _CurT&)> predicate)
         {
-            std::optional<std::pair<_CurT&, bool>> item;
+            std::optional<std::pair<_CurT*, bool>> item;
             while (item = _currentStream->EvaluateItem())
             {
-                if (!predicate(item.value().first))
+                if (!predicate(*(item.value().first)))
                     return false;
             }
             return true;
@@ -310,10 +311,10 @@ namespace streams
 
         bool AnyMatch(std::function<bool(const _CurT&)> predicate)
         {
-            std::optional<std::pair<_CurT&, bool>> item;
+            std::optional<std::pair<_CurT*, bool>> item;
             while (item = _currentStream->EvaluateItem())
             {
-                if (predicate(item.value().first))
+                if (predicate(*(item.value().first)))
                     return true;
             }
             return false;
@@ -321,10 +322,10 @@ namespace streams
 
         bool NoneMatch(std::function<bool(const _CurT&)> predicate)
         {
-            std::optional<std::pair<_CurT&, bool>> item;
+            std::optional<std::pair<_CurT*, bool>> item;
             while (item = _currentStream->EvaluateItem())
             {
-                if (predicate(item.value().first))
+                if (predicate(*(item.value().first)))
                     return false;
             }
             return true;
@@ -341,9 +342,9 @@ namespace streams
         _CurT Sum()
         {
             _CurT identity = 0;
-            std::optional<std::pair<_CurT&, bool>> item;
+            std::optional<std::pair<_CurT*, bool>> item;
             while (item = _currentStream->EvaluateItem())
-                identity = identity + item.value().first;
+                identity = identity + *(item.value().first);
             return identity;
         }
 
@@ -351,17 +352,16 @@ namespace streams
         {
             std::optional<std::pair<_CurT&, bool>> item;
             while (item = _currentStream->EvaluateItem())
-                identity = identity + item.value().first;
+                identity = identity + *(item.value().first);
             return identity;
         }
     };
 
     template<class _Container>
-    Stream<typename _Container::value_type> From(_Container& source)
+    Stream<typename _Container::value_type> From(const _Container& source)
     {
         using ElemType = typename _Container::value_type;
-        using IteratorType = typename _Container::iterator;
-        return Stream<ElemType>(std::make_shared<StreamSource<ElemType, IteratorType>>(source.begin(), source.end()));
+        using IteratorType = typename _Container::const_iterator;
+        return Stream<ElemType>(std::make_shared<StreamSource<ElemType, IteratorType>>(source.cbegin(), source.cend()));
     }
-
 }

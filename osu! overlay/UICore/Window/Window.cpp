@@ -40,9 +40,6 @@ zwnd::Window::Window(
     // Asynchronously create tooltip window
     if (!props.disableFastTooltips)
     {
-        // TODO: Wrap into shared_ptr, until project updates to C++23 and std::move_only_function becomes available
-        auto subscriptionWrapper = std::make_shared<std::unique_ptr<AsyncEventSubscription<void, zcom::TooltipParams>>>(std::move(_tooltipEventEmitter->SubscribeAsync()));
-
         _app->CreateToolWindowAsync(
             _id,
             zwnd::WindowProperties()
@@ -54,14 +51,13 @@ zwnd::Window::Window(
                 .DisableWindowActivation()
                 .DisableMouseInteraction()
                 .DisableFastTooltips(),
-            [subscriptionWrapper](zwnd::Window* wnd) mutable
+            [showEventEmitter = _showTooltipEventEmitter, hideEventEmitter = _hideTooltipEventEmitter](zwnd::Window* wnd) mutable
             {
                 wnd->LoadNonClientAreaScene<zcom::DefaultNonClientAreaScene>(nullptr);
 
                 zcom::TooltipSceneOptions opt;
-                opt.showRequestSubscriptionWrapper = subscriptionWrapper;
-                //opt.showRequestSubscription = std::move(sub);
-                //opt.showRequestEmitter = _tooltipEventEmitter;
+                opt.showRequestEventEmitter = showEventEmitter;
+                opt.hideRequestEventEmitter = hideEventEmitter;
                 wnd->LoadStartingScene<zcom::TooltipScene>(&opt);
             }
         );
@@ -134,14 +130,12 @@ void zwnd::Window::ShowTooltip(zcom::TooltipParams params)
     RECT windowRect = _window->GetWindowRectangle();
     params.xPos += windowRect.left;
     params.yPos += windowRect.top;
-    if (params.mouseMovementBounds)
-    {
-        params.mouseMovementBounds.value().left += windowRect.left;
-        params.mouseMovementBounds.value().right += windowRect.left;
-        params.mouseMovementBounds.value().top += windowRect.top;
-        params.mouseMovementBounds.value().bottom += windowRect.top;
-    }
-    _tooltipEventEmitter->InvokeAll(params);
+    _showTooltipEventEmitter->InvokeAll(params);
+}
+
+void zwnd::Window::HideTooltip(std::optional<uint64_t> displayId)
+{
+    _hideTooltipEventEmitter->InvokeAll(displayId);
 }
 
 void zwnd::Window::_UninitScene(std::string name)
@@ -215,11 +209,13 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        if (!_nonClientAreaScene->GetBasePanel()->GetMouseInside())
+        if (!_nonClientAreaScene->GetBasePanel()->hovered_)
             _nonClientAreaScene->GetBasePanel()->OnMouseEnter();
-        if (!_nonClientAreaScene->GetBasePanel()->GetMouseInsideArea())
+        if (!_nonClientAreaScene->GetBasePanel()->hoveredArea_)
             _nonClientAreaScene->GetBasePanel()->OnMouseEnterArea();
-        _nonClientAreaScene->GetBasePanel()->OnMouseMove(x, y);
+        auto context = _nonClientAreaScene->GetBasePanel()->OnMouseMove({ x, y });
+        if (!context.cursorIconSet)
+            Backend().SetCursorIcon(CursorIcon::ARROW);
     }
     else if (msg.id == MouseEnterMessage::ID())
     {
@@ -236,14 +232,14 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        zcom::EventTargets targets = _nonClientAreaScene->GetBasePanel()->OnLeftPressed(x, y);
+        zcom::EventContext context = _nonClientAreaScene->GetBasePanel()->OnLeftPressed({ x, y });
 
         // Update selected item
-        zcom::Component* mainTarget = targets.MainTarget();
+        zcom::Component* mainTarget = context.MainTarget();
         for (auto component : _nonClientAreaScene->GetBasePanel()->GetAllChildren())
-            if (component != mainTarget && component->Selected())
+            if (component != mainTarget && component->selected_)
                 component->OnDeselected();
-        if (mainTarget != nullptr && !mainTarget->Selected() && mainTarget->GetSelectable())
+        if (mainTarget != nullptr && !mainTarget->selected_ && mainTarget->selectable)
             mainTarget->OnSelected();
     }
     else if (msg.id == MouseRightPressedMessage::ID())
@@ -253,7 +249,7 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        _nonClientAreaScene->GetBasePanel()->OnRightPressed(x, y);
+        _nonClientAreaScene->GetBasePanel()->OnRightPressed({ x, y });
     }
     else if (msg.id == MouseLeftReleasedMessage::ID())
     {
@@ -262,7 +258,7 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        _nonClientAreaScene->GetBasePanel()->OnLeftReleased(x, y);
+        _nonClientAreaScene->GetBasePanel()->OnLeftReleased(std::optional<zcom::Point>({ x, y }));
     }
     else if (msg.id == MouseRightReleasedMessage::ID())
     {
@@ -271,7 +267,7 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        _nonClientAreaScene->GetBasePanel()->OnRightReleased(x, y);
+        _nonClientAreaScene->GetBasePanel()->OnRightReleased(std::optional<zcom::Point>({ x, y }));
     }
     else if (msg.id == MouseWheelUpMessage::ID())
     {
@@ -280,7 +276,7 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        _nonClientAreaScene->GetBasePanel()->OnWheelUp(x, y);
+        _nonClientAreaScene->GetBasePanel()->OnWheelUp({ x, y });
     }
     else if (msg.id == MouseWheelDownMessage::ID())
     {
@@ -289,7 +285,7 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
         int x = message.x;
         int y = message.y;
 
-        _nonClientAreaScene->GetBasePanel()->OnWheelDown(x, y);
+        _nonClientAreaScene->GetBasePanel()->OnWheelDown({ x, y });
     }
     else if (msg.id == KeyDownMessage::ID())
     {
@@ -302,7 +298,7 @@ void zwnd::Window::_HandleMessage(WindowMessage msg)
             bool reverse = keyboardManager.KeyState(VK_SHIFT);
             zcom::Component* itemToSelect = _nonClientAreaScene->GetBasePanel()->IterateTab(reverse);
             for (auto component : _nonClientAreaScene->GetBasePanel()->GetAllChildren())
-                if (component != itemToSelect && component->Selected())
+                if (component != itemToSelect && component->selected_)
                     component->OnDeselected();
             if (itemToSelect != nullptr)
                 itemToSelect->OnSelected(reverse);
@@ -347,7 +343,7 @@ void zwnd::Window::_MessageThread()
 
     // Pass the device context to the resource manager
     resourceManager.CoInit();
-    resourceManager.SetDeviceContext(_window->gfx.GetGraphics().target);
+    resourceManager.SetDeviceContext(_window->gfx.GetGraphics()->GetRenderContext());
 
     // Wait for scene and resource init
     _windowCreated.store(true);
@@ -386,42 +382,20 @@ void zwnd::Window::_MessageOnlyThread()
 
 void zwnd::Window::_UIThread()
 {
-    int framecounter = 0;
+    int frameCounter = 0;
     Clock frameTimer = Clock(0);
 
-    // Create frame number debug text rendering resources
-    IDWriteFactory* dwriteFactory = nullptr;
-    IDWriteTextFormat* dwriteTextFormat = nullptr;
-    DWriteCreateFactory(
-        DWRITE_FACTORY_TYPE_SHARED,
-        __uuidof(IDWriteFactory),
-        reinterpret_cast<IUnknown**>(&dwriteFactory)
-    );
-    if (dwriteFactory)
-    {
-        dwriteFactory->CreateTextFormat(
-            L"Calibri",
-            NULL,
-            DWRITE_FONT_WEIGHT_BOLD,
-            DWRITE_FONT_STYLE_NORMAL,
-            DWRITE_FONT_STRETCH_NORMAL,
-            20.0f,
-            L"en-us",
-            &dwriteTextFormat
-        );
-        if (!dwriteTextFormat)
-        {
-            // TODO: Logging
-        }
-    }
-    else
-    {
-        // TODO: Logging
-    }
+    zcom::TextDesc frameCounterTextDesc = zcom::TextDesc(L"", { 100, 30 })
+        .WithFontWeight(zcom::FontWeight::BOLD)
+        .WithFontSize(20.0f);
+
+    bool showingFrameCounter = false;
+    bool shouldShowFrameCounter = false;
+    int framesLeftToSync = 0;
 
     while (true)
     {
-        _window->LockSize();
+        //_window->LockSize();
 
         // TODO: these probably should be window/thread specific
         ztime::clock[CLOCK_GAME].Update();
@@ -433,6 +407,8 @@ void zwnd::Window::_UIThread()
         // Check for resize
         if (_windowSizeMessage.has_value())
         {
+            _window->ResizeBuffers(_windowSizeMessage->width, _windowSizeMessage->height);
+
             int newWidth = _windowSizeMessage->width;
             int newHeight = _windowSizeMessage->height;
             ResizeFlags resizeFlags;
@@ -471,71 +447,50 @@ void zwnd::Window::_UIThread()
         // Pass title bar item and non-client area scene properties to underlying window thread
         _PassParamsToHitTest();
 
+        // Display frame number while 'Ctrl + S + F' is held
+        shouldShowFrameCounter = (GetKeyState(VK_CONTROL) & 0x8000) &&
+            (GetKeyState('S') & 0x8000) &&
+            (GetKeyState('F') & 0x8000);
+
         // Update and render the UI
         _nonClientAreaScene->GetBasePanel()->Update();
-        bool redraw = _nonClientAreaScene->GetBasePanel()->Redraw();
+        bool redraw = _nonClientAreaScene->GetBasePanel()->Redraw() || (shouldShowFrameCounter != showingFrameCounter);
+        _uiDebugRenderCheckHookEventEmitter->InvokeAll(this, &redraw);
         if (redraw)
         {
-            //SimpleTimer drawTimer;
+            frameCounter++;
 
-            //if (_parentId.has_value())
-            //    std::cout << "Redrawn (" << framecounter++ << ")\n";
-            Graphics g = _window->gfx.GetGraphics();
-            g.target->BeginDraw();
-            g.target->Clear();
+            SimpleTimer frameTimer;
 
-            _nonClientAreaScene->GetBasePanel()->Draw(g);
-            g.target->DrawBitmap(_nonClientAreaScene->GetBasePanel()->ContentImage());
-
-            if (dwriteFactory && dwriteTextFormat)
-            {
-                // Display frame number while 'Ctrl + S + F' is held
-                if ((GetKeyState(VK_CONTROL) & 0x8000) &&
-                    (GetKeyState('S') & 0x8000) &&
-                    (GetKeyState('F') & 0x8000))
-                {
-                    IDWriteTextLayout* dwriteTextLayout = nullptr;
-
-                    std::wstringstream ss;
-                    ss << framecounter++;
-                    dwriteFactory->CreateTextLayout(
-                        ss.str().c_str(),
-                        (UINT32)ss.str().length(),
-                        dwriteTextFormat,
-                        100,
-                        30,
-                        &dwriteTextLayout
-                    );
-                    if (dwriteTextLayout)
-                    {
-                        ID2D1SolidColorBrush* brush;
-                        g.target->CreateSolidColorBrush(D2D1::ColorF(0.4f, 0.8f, 0.0f, 0.9f), &brush);
-                        if (brush)
-                        {
-                            g.target->DrawTextLayout(D2D1::Point2F(5.0f, 5.0f), dwriteTextLayout, brush);
-                            brush->Release();
-                        }
-                        else
-                        {
-                            // TODO: Logging
-                        }
-                        dwriteTextLayout->Release();
-                    }
-                    else
-                    {
-                        // TODO: Logging
-                    }
-                }
-            }
+            zcom::Graphics* g = _window->gfx.GetGraphics();
+            g->GetRenderContext()->BeginDraw();
 
             // Update layered window
-            _window->UpdateLayeredWindow();
+            g->Clear(zcom::Color(0, 0, 0, 1));
+            if (_window->UpdateLayeredWindow())
+                framesLeftToSync = 100;
+            g->Clear();
 
-            g.target->EndDraw();
-            //std::cout << drawTimer.MicrosElapsed() << "us\n";
+            auto bitmapOpt = _nonClientAreaScene->GetBasePanel()->Draw(g);
+            if (bitmapOpt)
+                g->DrawBitmap(*bitmapOpt);
+
+            showingFrameCounter = shouldShowFrameCounter;
+            if (showingFrameCounter)
+            {
+                std::wstringstream ss;
+                ss << frameCounter;
+                g->DrawTextLayout(frameCounterTextDesc.WithText(ss.str()), { 5.0f, 5.0f }, zcom::Color(0x66CC00, 0.9f));
+            }
+
+            _uiDebugRenderHookEventEmitter->InvokeAll(this, g);
+
+            g->GetRenderContext()->EndDraw();
+
+            //std::cout << frameTimer.MicrosElapsed() << '\n';
         }
 
-        _window->UnlockSize();
+        //_window->UnlockSize();
 
         // Uninit scenes
         while (!_scenesToUninitialize.empty())
@@ -544,7 +499,23 @@ void zwnd::Window::_UIThread()
             _scenesToUninitialize.pop_front();
         }
 
-        _window->gfx.EndFrame(redraw);
+        // If SwapChain::Present with 'syncInterval' of 0 is called after UpdateLayeredWindowIndirect, the entire system hangs
+        // Fully resolving this issue requires significant changes to how the window is managed (visuals need to be separated to their own child window)
+        // For now, the workaround is using syncInterval=1 for some frames after an UpdateLayeredWindowIndirect call
+        // I reproduced the freeze only with framesLeftToSync of 5 or less, so setting it to 100 should be ok in virtually all cases
+        bool sync = false;
+        if (framesLeftToSync > 0)
+        {
+            framesLeftToSync--;
+            sync = true;
+        }
+        _window->gfx.EndFrame(redraw, sync);
+
+        if (_lastUiDebugHookTime + _uiDebugHookInterval <= ztime::Main())
+        {
+            _uiDebugHookEventEmitter->InvokeAll(this);
+            _lastUiDebugHookTime = ztime::Main();
+        }
 
         if (_closed.load())
             break;
@@ -565,12 +536,6 @@ void zwnd::Window::_UIThread()
     }
     ((zcom::Scene*)_nonClientAreaScene.get())->Uninit();
     _nonClientAreaScene.reset();
-
-    // Release text rendering resources
-    if (dwriteTextFormat)
-        dwriteTextFormat->Release();
-    if (dwriteFactory)
-        dwriteFactory->Release();
 }
 
 void zwnd::Window::_PassParamsToHitTest()
@@ -580,10 +545,13 @@ void zwnd::Window::_PassParamsToHitTest()
         if (_type == WindowType::TOOL)
             _window->SetResizingBorderMargins({0, 0, 0, 0});
         else
-            _window->SetResizingBorderMargins(_nonClientAreaScene->GetResizingBorderWidths());
+        {
+            zcom::Rect rect = _nonClientAreaScene->GetResizingBorderWidths();
+            _window->SetResizingBorderMargins({ rect.left, rect.top, rect.right, rect.bottom });
+        }
 
-        RECT clientAreaMargins = _nonClientAreaScene->GetClientAreaMargins();
-        _window->SetClientAreaMargins(clientAreaMargins);
+        zcom::Rect clientAreaMargins = _nonClientAreaScene->GetClientAreaMargins();
+        _window->SetClientAreaMargins({ clientAreaMargins.left, clientAreaMargins.top, clientAreaMargins.right, clientAreaMargins.bottom });
 
         if (_TitleBarAvailable())
         {
@@ -623,7 +591,7 @@ void zwnd::Window::_PassParamsToHitTest()
 void zwnd::Window::_UpdateSceneZIndices()
 {
     for (int i = 0; i < _activeScenes.size(); i++)
-        _activeScenes[i]->GetBasePanel()->SetZIndex(i);
+        _activeScenes[i]->GetBasePanel()->zIndex = i;
 }
 
 bool zwnd::Window::_TitleBarAvailable()

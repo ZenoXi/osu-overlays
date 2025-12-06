@@ -9,9 +9,9 @@ void zcom::TestScene::Init(SceneOptionsBase* options)
         opt = *reinterpret_cast<const TestSceneOptions*>(options);
 
     auto button = Create<Button>(L"Test");
-    button->SetBaseSize(100, 40);
-    button->SetOffsetPixels(100, 100);
+    button->size = { 100, 40 };
+    button->position = { 100, 100 };
 
     _basePanel->AddItem(std::move(button));
-    _basePanel->SetBackgroundColor(D2D1::ColorF(0.1f, 0.1f, 0.1f, 0.0f));
+    _basePanel->backgroundColor = Color(0x1A1A1A);
 }

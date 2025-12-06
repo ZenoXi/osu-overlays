@@ -2,11 +2,13 @@
 
 #include "Scene.h"
 
-#include "Components/Base/ComponentBase.h"
-#include "Components/Base/Button.h"
-#include "Components/Base/Label.h"
-#include "Components/Base/Image.h"
-#include "Helper/EventEmitter.h"
+#include "../Components/Base/ComponentBase.h"
+#include "../Components/Base/FlexPanel.h"
+#include "../Components/Base/Button.h"
+#include "../Components/Base/Label.h"
+#include "../Components/Base/Image.h"
+#include "../Window/WindowMessage.h"
+#include "../Helper/EventEmitter.h"
 
 #include <optional>
 
@@ -33,14 +35,21 @@ namespace zcom
         DEFINE_SCENE(DefaultTitleBarScene, Scene)
     protected:
         void Init(SceneOptionsBase* options) override;
+        void Uninit() override;
     public:
-        void SetBackground(D2D1_COLOR_F color);
+        void SetBackground(Color color);
         void AddCloseButton();
         void AddMaximizeButton();
         void AddMinimizeButton();
-        void AddIcon(ID2D1Bitmap* icon);
+        void AddIcon(std::optional<Bitmap> icon);
         void AddTitle(std::wstring title);
         void AddMenuButton(std::wstring name);
+
+        Button* GetCloseButton() { return _closeButton.get(); }
+        Button* GetMaximizeButton() { return _maximizeButton.get(); }
+        Button* GetMinimizeButton() { return _minimizeButton.get(); }
+        Image* GetIconImage() { return _iconImage.get(); }
+        Label* GetTitleLabel() { return _titleLabel.get(); }
 
         void SubscribeToWindowMessages();
         void HandleWindowMessages();
@@ -55,6 +64,7 @@ namespace zcom
         virtual std::vector<RECT> ExcludedCaptionRects();
 
     protected:
+        std::unique_ptr<FlexPanel> _contentPanel = nullptr;
         std::unique_ptr<Button> _closeButton = nullptr;
         std::unique_ptr<Button> _maximizeButton = nullptr;
         std::unique_ptr<Button> _minimizeButton = nullptr;
@@ -62,14 +72,16 @@ namespace zcom
         std::unique_ptr<Label> _titleLabel = nullptr;
         std::vector<std::unique_ptr<Button>> _menuButtons;
 
+        Value<bool> _windowIsActive = true;
+
         int _titleBarHeight = 0;
         int _captionHeight = 0;
         bool _tintIcon = true;
         bool _darkMode = false;
         bool _useCleartype = true;
 
-        D2D1_COLOR_F _activeItemTint = D2D1::ColorF(0x000000);
-        D2D1_COLOR_F _inactiveItemTint = D2D1::ColorF(0x808080);
+        Color _activeItemTint = Color(0);
+        Color _inactiveItemTint = Color(0x808080);
         std::unique_ptr<AsyncEventSubscription<bool, zwnd::WindowMessage>> _windowMessageSubscription;
     };
 }

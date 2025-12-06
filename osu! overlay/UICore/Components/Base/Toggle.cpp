@@ -5,122 +5,53 @@
 
 #include "Helper/AnimationHelper.h"
 
-void zcom::Toggle::SetToggledOn(bool toggledOn, bool emitChangeEvent)
-{
-    if (_isToggledOn == toggledOn)
-        return;
-
-
-    if (emitChangeEvent)
-    {
-        // Toggle can be overriden to introduce custom effects like delays or just disable toggling
-        _onToggled->InvokeAll(&toggledOn);
-        if (_isToggledOn == toggledOn)
-            return;
-    }
-
-    _isToggledOn = toggledOn;
-    _animating = true;
-    _animationStartTime = ztime::Main();
-    InvokeRedraw();
-}
-
-void zcom::Toggle::SetToggledOnAnchorColor(D2D1_COLOR_F color)
-{
-    if (_toggledOnAnchorColor == color)
-        return;
-
-    _toggledOnAnchorColor = color;
-    if (IsToggledOn())
-        InvokeRedraw();
-}
-
-void zcom::Toggle::SetToggledOffAnchorColor(D2D1_COLOR_F color)
-{
-    if (_toggledOffAnchorColor == color)
-        return;
-
-    _toggledOffAnchorColor = color;
-    if (!IsToggledOn())
-        InvokeRedraw();
-}
-
-void zcom::Toggle::SetToggledOnBackgroundColor(D2D1_COLOR_F color)
-{
-    if (_toggledOnBackgroundColor == color)
-        return;
-
-    _toggledOnBackgroundColor = color;
-    if (IsToggledOn())
-        SetBackgroundColor(color);
-}
-
-void zcom::Toggle::SetToggledOffBackgroundColor(D2D1_COLOR_F color)
-{
-    if (_toggledOffBackgroundColor == color)
-        return;
-
-    _toggledOffBackgroundColor = color;
-    if (!IsToggledOn())
-        SetBackgroundColor(color);
-}
-
-void zcom::Toggle::SetMarginToBorder(float margin)
-{
-    if (_marginToBorder == margin)
-        return;
-
-    _marginToBorder = margin;
-    InvokeRedraw();
-}
-
 void zcom::Toggle::Init(bool toggledOn)
 {
-    _isToggledOn = toggledOn;
+    this->toggledOn = toggledOn;
 
     _customInactiveDraw = true;
-    SetDefaultCursor(zwnd::CursorIcon::HAND);
-    SetSelectable(true);
-    SetCornerRounding(5.0f);
-    SetBorderVisibility(true);
-    SetBorderColor(D2D1::ColorF(0.3f, 0.3f, 0.3f));
-    SetBackgroundColor(D2D1::ColorF(0.1f, 0.1f, 0.1f));
+    cursorIcon = zwnd::CursorIcon::HAND;
+    selectable = true;
+    border.cornerRadius = 5.0f;
+    border.visible = true;
+    border.color = Color(0x4D4D4D);
+    backgroundColor = Color(0x1A1A1A);
 }
 
 void zcom::Toggle::_OnUpdate()
 {
-    if (_animating)
+    if (animating_)
     {
-        _animationProgress = (ztime::Main() - _animationStartTime).GetTicks() / (float)_animationDuration.GetTicks();
-        if (_animationProgress >= 1.0f)
+        animationProgress_ = (ztime::Main() - animationStartTime_).GetTicks() / (float)animationDuration->GetTicks();
+        if (animationProgress_ >= 1.0f)
         {
-            _animating = false;
-            if (IsToggledOn())
-                SetBackgroundColor(_toggledOnBackgroundColor);
+            animating_ = false;
+            if (toggledOn)
+                backgroundColor = toggledOnBackgroundColor.Get();
             else
-                SetBackgroundColor(_toggledOffBackgroundColor);
+                backgroundColor = toggledOffBackgroundColor.Get();
         }
         else
         {
-            if (IsToggledOn())
+            if (toggledOn)
             {
-                float x = zanim::EaseOutQuad(_animationProgress);
-                D2D1_COLOR_F color = {};
-                color.r = zanim::Interpolate(_toggledOffBackgroundColor.r, _toggledOnBackgroundColor.r, x);
-                color.g = zanim::Interpolate(_toggledOffBackgroundColor.g, _toggledOnBackgroundColor.g, x);
-                color.b = zanim::Interpolate(_toggledOffBackgroundColor.b, _toggledOnBackgroundColor.b, x);
-                color.a = zanim::Interpolate(_toggledOffBackgroundColor.a, _toggledOnBackgroundColor.a, x);
-                SetBackgroundColor(color);
+                float x = zanim::EaseOutQuad(animationProgress_.Get());
+                Color color = {};
+                color.r = zanim::Interpolate(toggledOffBackgroundColor->r, toggledOnBackgroundColor->r, x);
+                color.g = zanim::Interpolate(toggledOffBackgroundColor->g, toggledOnBackgroundColor->g, x);
+                color.b = zanim::Interpolate(toggledOffBackgroundColor->b, toggledOnBackgroundColor->b, x);
+                color.a = zanim::Interpolate(toggledOffBackgroundColor->a, toggledOnBackgroundColor->a, x);
+                backgroundColor = color;
             }
             else
             {
-                float x = zanim::EaseOutQuad(_animationProgress);
-                D2D1_COLOR_F color = {};
-                color.r = zanim::Interpolate(_toggledOnBackgroundColor.r, _toggledOffBackgroundColor.r, x);
-                color.g = zanim::Interpolate(_toggledOnBackgroundColor.g, _toggledOffBackgroundColor.g, x);
-                color.b = zanim::Interpolate(_toggledOnBackgroundColor.b, _toggledOffBackgroundColor.b, x);
-                color.a = zanim::Interpolate(_toggledOnBackgroundColor.a, _toggledOffBackgroundColor.a, x);
-                SetBackgroundColor(color);
+                float x = zanim::EaseOutQuad(animationProgress_.Get());
+                Color color = {};
+                color.r = zanim::Interpolate(toggledOnBackgroundColor->r, toggledOffBackgroundColor->r, x);
+                color.g = zanim::Interpolate(toggledOnBackgroundColor->g, toggledOffBackgroundColor->g, x);
+                color.b = zanim::Interpolate(toggledOnBackgroundColor->b, toggledOffBackgroundColor->b, x);
+                color.a = zanim::Interpolate(toggledOnBackgroundColor->a, toggledOffBackgroundColor->a, x);
+                backgroundColor = color;
             }
         }
 
@@ -128,34 +59,33 @@ void zcom::Toggle::_OnUpdate()
     }
 }
 
-void zcom::Toggle::_OnDraw(Graphics g)
+void zcom::Toggle::_OnDraw(Graphics* g)
 {
-    D2D1_COLOR_F finalToggledOnColor = _toggledOnAnchorColor;
-    D2D1_COLOR_F finalToggledOffColor = _toggledOffAnchorColor;
-    if (!GetActive())
+    Color finalToggledOnColor = toggledOnAnchorColor;
+    Color finalToggledOffColor = toggledOffAnchorColor;
+    if (disabled)
     {
-        finalToggledOnColor.r *= 0.5f;
-        finalToggledOnColor.g *= 0.5f;
-        finalToggledOnColor.b *= 0.5f;
-        finalToggledOffColor.r *= 0.5f;
-        finalToggledOffColor.g *= 0.5f;
-        finalToggledOffColor.b *= 0.5f;
+        finalToggledOnColor.r = uint8_t(finalToggledOnColor.r * 0.5f);
+        finalToggledOnColor.g = uint8_t(finalToggledOnColor.g * 0.5f);
+        finalToggledOnColor.b = uint8_t(finalToggledOnColor.b * 0.5f);
+        finalToggledOffColor.r = uint8_t(finalToggledOffColor.r * 0.5f);
+        finalToggledOffColor.g = uint8_t(finalToggledOffColor.g * 0.5f);
+        finalToggledOffColor.b = uint8_t(finalToggledOffColor.b * 0.5f);
     }
 
-    float innerRounding = GetCornerRounding() - _marginToBorder;
+    float innerRounding = border.cornerRadius - marginToBorder;
     if (innerRounding < 0.0f)
         innerRounding = 0.0f;
 
-    auto size = g.target->GetSize();
-    float toggleSize = size.height - 2 * _marginToBorder;
+    float toggleSize = size_->height - 2 * marginToBorder;
     float xOffset = 0.0f;
-    float maxOffset = size.width - 2 * _marginToBorder - toggleSize;
-    if (IsToggledOn())
+    float maxOffset = size_->width - 2 * marginToBorder - toggleSize;
+    if (toggledOn)
     {
         xOffset = maxOffset;
-        if (_animating)
+        if (animating_)
         {
-            float x = zanim::EaseOutQuad(_animationProgress);
+            float x = zanim::EaseOutQuad(animationProgress_.Get());
             xOffset = maxOffset * x;
             finalToggledOnColor.r = zanim::Interpolate(finalToggledOffColor.r, finalToggledOnColor.r, x);
             finalToggledOnColor.g = zanim::Interpolate(finalToggledOffColor.g, finalToggledOnColor.g, x);
@@ -166,9 +96,9 @@ void zcom::Toggle::_OnDraw(Graphics g)
     else
     {
         xOffset = 0.0f;
-        if (_animating)
+        if (animating_)
         {
-            float x = zanim::EaseOutQuad(_animationProgress);
+            float x = zanim::EaseOutQuad(animationProgress_.Get());
             xOffset = maxOffset * (1.0f - x);
             finalToggledOffColor.r = zanim::Interpolate(finalToggledOnColor.r, finalToggledOffColor.r, x);
             finalToggledOffColor.g = zanim::Interpolate(finalToggledOnColor.g, finalToggledOffColor.g, x);
@@ -177,39 +107,33 @@ void zcom::Toggle::_OnDraw(Graphics g)
         }
     }
 
-    D2D1_ROUNDED_RECT rrect = {};
+    RoundedRect rrect{};
     rrect.radiusX = innerRounding;
     rrect.radiusY = innerRounding;
     rrect.rect = {
-        _marginToBorder + xOffset,
-        _marginToBorder,
-        _marginToBorder + toggleSize + xOffset,
-        _marginToBorder + toggleSize,
+        marginToBorder + xOffset,
+        marginToBorder,
+        marginToBorder + toggleSize + xOffset,
+        marginToBorder + toggleSize
     };
-    ID2D1SolidColorBrush* brush = nullptr;
-    g.target->CreateSolidColorBrush(IsToggledOn() ? finalToggledOnColor : finalToggledOffColor, &brush);
-    if (brush)
-    {
-        g.target->FillRoundedRectangle(rrect, brush);
-        brush->Release();
-    }
-    else
-    {
-        // TODO: Logging
-    }
+    g->FillRoundedRectangle(rrect, toggledOn ? finalToggledOnColor : finalToggledOffColor);
 }
 
-zcom::EventTargets zcom::Toggle::_OnLeftPressed(int x, int y)
+zcom::EventContext zcom::Toggle::_OnLeftPressed(Point point)
 {
-    SetToggledOn(!IsToggledOn());
-    return EventTargets().Add(this, x, y);
+    bool newValue = !toggledOn;
+    _onToggled->InvokeAll(&newValue);
+    toggledOn = newValue;
+    return EventContext().Add(this, point);
 }
 
 bool zcom::Toggle::_OnKeyDown(BYTE vkCode)
 {
     if (vkCode == VK_RETURN)
     {
-        SetToggledOn(!IsToggledOn());
+        bool newValue = !toggledOn;
+        _onToggled->InvokeAll(&newValue);
+        toggledOn = newValue;
         return true;
     }
     return false;

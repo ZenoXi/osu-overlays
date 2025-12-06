@@ -84,16 +84,10 @@
     <ClCompile Include="UICore\App.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SmokeSim\SmokeSimScene.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Shared\Util\Functions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Shared\Util\Navigation.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SmokeSim\SmokeSimParameterPanel.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="UICore\Components\Base\FlexPanel.cpp">
@@ -111,27 +105,6 @@
     <ClCompile Include="UICore\Components\Base\Slider.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Shared\Scenes\ColorSelectorScene.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ComboBar\ComboBarParameterPanel.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="ComboBar\ComboBarScene.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="CursorTrail\CursorTrailEffect.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="CursorTrail\CursorTrailParameterPanel.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="CursorTrail\CursorTrailScene.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="FontLoader\FontLoader.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="OsuDataProvider\DataProviderSetupScene.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -141,24 +114,165 @@
     <ClCompile Include="OsuDataProvider\GameState.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="SimplePPCounter\SimplePPCounterParameterPanel.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SimplePPCounter\SimplePPCounterScene.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="UICore\Helper\Config.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="UICore\Components\Base\Toggle.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Overlays\OverlayManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\OverlayScene.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\OverlayView.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\combo-counter\ComboCounterOverlay.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\combo-counter\ComboCounterOverlayComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\combo-counter\ComboCounterSetupComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\cursor-trail\CursorTrailEffect.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\cursor-trail\CursorTrailOverlay.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\cursor-trail\CursorTrailOverlayComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\cursor-trail\CursorTrailSetupComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\pp-counter\PPCounterOverlay.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\pp-counter\PPCounterOverlayComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\pp-counter\PPCounterSetupComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\rt-leaderboard\RTLeaderboardOverlay.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\rt-leaderboard\RTLeaderboardOverlayComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\rt-leaderboard\RTLeaderboardSetupComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\smoke-sim\enhanced-smoke\EnhancedSmokeOverlay.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\smoke-sim\enhanced-smoke\EnhancedSmokeSetupComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\smoke-sim\smoke-trail\SmokeTrailOverlay.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\smoke-sim\smoke-trail\SmokeTrailSetupComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\smoke-sim\SmokeSimOverlayComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\ur-counter\URCounterOverlay.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\ur-counter\URCounterOverlayComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Overlays\ur-counter\URCounterSetupComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="notification\NotificationDisplayComponent.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="notification\NotificationService.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="notification\StandardNotificationTemplate.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="OsuDataProvider\DataProviderView.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Settings\IntegrationSettingsPanel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Settings\OverlaySettingsPanel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Settings\SettingsScene.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Settings\SettingsWindowController.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Settings\UpdateSettingsPanel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="versioning\UpdateErrorScene.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="versioning\VersionManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Fonts\FontLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Window\BitmapAllocator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Window\Effects.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Window\Graphics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Window\SegmentedBitmapAllocator.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Window\TextRenderContext.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Scenes\ColorSelectorScene.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Scenes\DebugWindowScene.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Components\Base\ColorSelector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Components\Base\DropdownSelector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Components\Base\Panel.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Components\ComHelper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="UICore\Helper\Value.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Shared\Components\OverlayLayoutSetup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Shared\Scenes\TitleBarScene.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="UICore\Components\Base\Button.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="UICore\Components\Base\Canvas.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="UICore\Components\Base\Checkbox.h">
@@ -347,33 +461,6 @@
     <ClInclude Include="UICore\Helper\BinarySearchIterator.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="Shared\Util\Color.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Shared\Scenes\ColorSelectorScene.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ComboBar\ComboBarConfig.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ComboBar\ComboBarParameterPanel.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="ComboBar\ComboBarScene.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="CursorTrail\CursorTrailEffect.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="CursorTrail\CursorTrailParameterPanel.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="CursorTrail\CursorTrailScene.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="CursorTrail\CursorTrailConfig.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="FontLoader\Common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
@@ -402,15 +489,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="OsuDataProvider\WsClientWrapper.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SimplePPCounter\SimplePPCounterConfig.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SimplePPCounter\SimplePPCounterParameterPanel.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SimplePPCounter\SimplePPCounterScene.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="Shared\Util\Streams.h">
@@ -453,6 +531,276 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="UICore\Window\ResizeFlags.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\Overlay.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\OverlayConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\OverlayEvent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\OverlayManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\OverlayScene.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\OverlayView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\combo-counter\ComboCounterConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\combo-counter\ComboCounterOverlay.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\combo-counter\ComboCounterOverlayComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\combo-counter\ComboCounterSetupComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\cursor-trail\CursorTrailConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\cursor-trail\CursorTrailEffect.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\cursor-trail\CursorTrailOverlay.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\cursor-trail\CursorTrailOverlayComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\cursor-trail\CursorTrailSetupComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\pp-counter\PPCounterConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\pp-counter\PPCounterOverlay.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\pp-counter\PPCounterOverlayComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\pp-counter\PPCounterSetupComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\rt-leaderboard\LeaderboardCountries.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\rt-leaderboard\LeaderboardItem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\rt-leaderboard\RTLeaderboardConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\rt-leaderboard\RTLeaderboardOverlay.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\rt-leaderboard\RTLeaderboardOverlayComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\rt-leaderboard\RTLeaderboardSetupComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\smoke-sim\enhanced-smoke\EnhancedSmokeConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\smoke-sim\enhanced-smoke\EnhancedSmokeOverlay.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\smoke-sim\enhanced-smoke\EnhancedSmokeSetupComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\smoke-sim\smoke-trail\SmokeTrailConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\smoke-sim\smoke-trail\SmokeTrailOverlay.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\smoke-sim\smoke-trail\SmokeTrailSetupComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\smoke-sim\SmokeSimOverlayComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\smoke-sim\SmokeSimParams.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\smoke-sim\SmokeSimType.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\ur-counter\URCounterConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\ur-counter\URCounterOverlay.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\ur-counter\URCounterOverlayComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Overlays\ur-counter\URCounterSetupComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="notification\NotificationDisplayComponent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="notification\NotificationInfo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="notification\NotificationService.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="notification\StandardNotificationTemplate.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="OsuDataProvider\DataProviderView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="OsuWebApi\Response\BeatmapUserScore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="OsuWebApi\Response\LeaderboardPage.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="OsuWebApi\Response\PlayerData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="OsuWebApi\Response\User.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="OsuWebApi\Response\WebResponse.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="OsuWebApi\WebApi.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="OsuWebApi\WebApiConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Settings\IntegrationSettingsPanel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Settings\IntegrationSettingsTabOptions.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Settings\OverlaySettingsPanel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Settings\SettingsConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Settings\SettingsScene.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Settings\SettingsTab.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Settings\SettingsWindowController.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Settings\UpdateSettingsPanel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SharedContext.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="versioning\UpdateErrorScene.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="versioning\Version.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="versioning\VersionManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\WindowEvent.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Fonts\Common.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Fonts\FontLoader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Model\Bitmap.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Model\Color.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Model\Ellipse.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Model\LinearGradient.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Model\StrokeStyle.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Window\BitmapAllocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Window\DirectX.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Window\Effects.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Window\SegmentedBitmapAllocator.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Window\Text.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Window\TextRenderContext.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Scenes\ColorSelectorScene.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Scenes\DebugWindowScene.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Components\Base\ColorSelector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Components\Base\DropdownSelector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Components\Custom\ColorSliderInputGroup.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Helper\Value.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Helper\ValueProxy.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="UICore\Helper\WindowView.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Components\OverlayLayoutSetup.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Scenes\TitleBarScene.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Util\Eigen.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Util\Http.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Util\httplib.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Util\JsonParser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

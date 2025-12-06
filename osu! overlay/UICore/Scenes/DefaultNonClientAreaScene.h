@@ -14,8 +14,8 @@ namespace zcom
 
     struct DefaultNonClientAreaSceneOptions : public SceneOptionsBase
     {
-        RECT resizingBorderWidths = { 7, 7, 7, 7 };
-        RECT clientAreaMargins = { 7, 7, 7, 7 };
+        Rect resizingBorderWidths = { 7, 7, 7, 7 };
+        Rect clientAreaMargins = { 7, 7, 7, 7 };
         bool drawWindowShadow = true;
         bool drawWindowBorder = true;
     };
@@ -34,9 +34,9 @@ namespace zcom
         void ProcessWindowResize(int newWidth, int newHeight, zwnd::ResizeFlags flags);
 
         // Returns the width of the resizing area on each side of the window
-        virtual RECT GetResizingBorderWidths();
+        virtual Rect GetResizingBorderWidths();
         // Returns the margins on each side of the client area (title bar and content) to the window edges
-        virtual RECT GetClientAreaMargins();
+        virtual Rect GetClientAreaMargins();
 
     protected:
         std::unique_ptr<Panel> _nonClientAreaPanel = nullptr;
@@ -46,21 +46,21 @@ namespace zcom
 
         DefaultTitleBarScene* _titleBarScene = nullptr;
 
-        RECT _resizingBorderWidths{};
+        Rect _resizingBorderWidths{};
         // TODO: These don't work when window is maximized
-        RECT _clientAreaMargins{};
+        Rect _clientAreaMargins{};
         bool _drawWindowShadow = true;
         bool _drawWindowBorder = true;
 
         //D2D1_COLOR_F _borderColor = D2D1::ColorF(0.3f, 0.3f, 0.3f, 0.5f);
         //D2D1_VECTOR_4F _shadowColor = D2D1::Vector4F(0.0f, 0.0f, 0.0f, 0.4f);
-        D2D1_COLOR_F _borderColor = D2D1::ColorF(0.3f, 0.3f, 0.3f, 0.6f);
-        D2D1_COLOR_F _shadowColor = D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.6f);
+        Color _borderColor = Color(0x4D4D4D, 0.6f);
+        Color _shadowColor = Color(0, 0.6f);
         std::unique_ptr<AsyncEventSubscription<bool, zwnd::WindowMessage>> _windowActivationSubscription;
 
     private:
         void _Update();
-        void _Draw(Graphics g);
+        void _Draw(Graphics* g);
         void _UpdateClientAreaShadow();
     };
 }

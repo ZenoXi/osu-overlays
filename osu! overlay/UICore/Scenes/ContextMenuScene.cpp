@@ -8,12 +8,12 @@ void zcom::ContextMenuScene::Init(SceneOptionsBase* options)
     {
         ContextMenuSceneOptions* opt = reinterpret_cast<ContextMenuSceneOptions*>(options);
         _menuPanel = Create<MenuPanel>(std::move(opt->params));
-        _menuPanel->Resize(_menuPanel->GetBaseWidth(), _menuPanel->GetBaseHeight());
+        _menuPanel->parentSize = { 1.0f, 1.0f };
         _basePanel->AddItem(_menuPanel.get());
     }
 
-    _basePanel->SetBackgroundColor(D2D1::ColorF(0.05f, 0.05f, 0.05f));
-    _basePanel->SubscribeOnMouseMove([](zcom::Component* item, int x, int y, int dx, int dy) {
+    _basePanel->backgroundColor = Color(0x0D0D0D);
+    _basePanel->SubscribeOnMouseMove([](zcom::Component* item, Point point, Point deltaPos) {
         //std::cout << item->GetMousePosX() << ":" << item->GetMousePosY() << '\n';
     }).Detach();
 }

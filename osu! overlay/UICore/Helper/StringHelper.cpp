@@ -2,6 +2,7 @@
 
 #include <sstream>
 #include <codecvt>
+#include <cwctype>
 
 // Use converter (.to_bytes: wstr->str, .from_bytes: str->wstr)
 std::string wstring_to_string(const std::wstring& ws)
@@ -54,13 +55,13 @@ void split_str(const std::string& str, std::vector<std::string>& output, char sp
         if (beginIndex == str.length())
             break;
 
-        int i = beginIndex;
+        size_t i = beginIndex;
         for (; i < str.length(); i++)
         {
             if (str[i] == split)
             {
                 output.push_back(str.substr(beginIndex, i - beginIndex));
-                beginIndex = i + 1;
+                beginIndex = int(i + 1);
                 break;
             }
         }
@@ -86,13 +87,13 @@ void split_wstr(const std::wstring& str, std::vector<std::wstring>& output, wcha
         if (beginIndex == str.length())
             break;
 
-        int i = beginIndex;
+        size_t i = beginIndex;
         for (; i < str.length(); i++)
         {
             if (str[i] == split)
             {
                 output.push_back(str.substr(beginIndex, i - beginIndex));
-                beginIndex = i + 1;
+                beginIndex = int(i + 1);
                 break;
             }
         }
@@ -195,6 +196,26 @@ std::string to_lowercase(const std::string& str)
     return newStr;
 }
 
+std::wstring to_uppercase(const std::wstring& str)
+{
+    std::wstring newStr = str;
+    for (int i = 0; i < newStr.size(); i++)
+    {
+        newStr[i] = std::towupper(newStr[i]);
+    }
+    return newStr;
+}
+
+std::wstring to_lowercase(const std::wstring& str)
+{
+    std::wstring newStr = str;
+    for (int i = 0; i < newStr.size(); i++)
+    {
+        newStr[i] = std::towlower(newStr[i]);
+    }
+    return newStr;
+}
+
 int find_text_in_vec(const std::string& str, std::vector<std::string> vec)
 {
     for (int i = 0; i < vec.size(); i++)
@@ -248,4 +269,38 @@ std::string exer_str_until(std::string& str, char tc)
     }
 
     return s;
+}
+
+std::string replace_all(const std::string& str, const std::string& target, const std::string& replacement)
+{
+    std::string result;
+
+    size_t startPos = 0;
+    size_t endPos;
+    while ((endPos = str.find(target, startPos)) != std::string::npos)
+    {
+        result.append(str.substr(startPos, endPos - startPos));
+        result.append(replacement);
+        startPos = endPos + target.length();
+    }
+    result.append(str.substr(startPos));
+
+    return result;
+}
+
+std::wstring replace_all(const std::wstring& str, const std::wstring& target, const std::wstring& replacement)
+{
+    std::wstring result;
+
+    size_t startPos = 0;
+    size_t endPos;
+    while ((endPos = str.find(target, startPos)) != std::wstring::npos)
+    {
+        result.append(str.substr(startPos, endPos - startPos));
+        result.append(replacement);
+        startPos = endPos + target.length();
+    }
+    result.append(target.substr(startPos));
+
+    return result;
 }

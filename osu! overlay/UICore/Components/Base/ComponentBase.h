@@ -6,14 +6,19 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <map>
 #include <atomic>
 
-#include "Window/Graphics.h"
-#include "Window/CursorIcon.h"
-#include "Window/MouseEventHandler.h"
-#include "Helper/EventEmitter.h"
-#include "Helper/Time.h"
-#include "Helper/CollectionsHelper.h"
+#include "UICore/Components/ComHelper.h"
+#include "UICore/Window/Graphics.h"
+#include "UICore/Window/CursorIcon.h"
+#include "UICore/Window/MouseEventHandler.h"
+#include "UICore/Model/Color.h"
+#include "UICore/Helper/EventEmitter.h"
+#include "UICore/Helper/Value.h"
+#include "UICore/Helper/Time.h"
+#include "UICore/Helper/CollectionsHelper.h"
+#include "UICore/Helper/ValueProxy.h"
 
 // Component boilerplate. All components except Canvas should have this exact class setup
 #define DEFINE_COMPONENT(component_name, parent) \
@@ -41,7 +46,6 @@ protected: \
 void Init() {} \
 private:
 
-
 namespace zcom
 {
     enum class Alignment
@@ -49,6 +53,20 @@ namespace zcom
         START,
         CENTER,
         END
+    };
+    constexpr std::vector<std::pair<int64_t, std::wstring>> AlignmentValueProxySelectionValues()
+    {
+        return {
+            { (int64_t)Alignment::START, L"Start" },
+            { (int64_t)Alignment::CENTER, L"Center" },
+            { (int64_t)Alignment::END, L"End" }
+        };
+    }
+
+    struct ContentBitmap
+    {
+        Rect rect;
+        ID2D1Bitmap1* bitmap;
     };
 
     // Releases the resource
@@ -70,49 +88,64 @@ namespace zcom
 
     class Component;
     // Class that contains all components that handled an event.
-    class EventTargets
+    class EventContext
     {
     public:
         struct Params
         {
             Component* target;
-            int x;
-            int y;
+            std::optional<Point> point;
         };
+
+        bool cursorIconSet = false;
+        bool hoverTextHandled = false;
 
     private:
         std::vector<Params> _targets;
 
     public:
-        EventTargets()
+        EventContext()
         {
             // Reserve initial capacity to prevent reallocations in most cases
             _targets.reserve(16);
         }
-        EventTargets(EventTargets&& other) noexcept
+        EventContext(EventContext&& other) noexcept
         {
             _targets = std::move(other._targets);
+            cursorIconSet = other.cursorIconSet;
+            hoverTextHandled = other.hoverTextHandled;
         }
-        EventTargets& operator=(EventTargets&& other) noexcept
+        EventContext& operator=(EventContext&& other) noexcept
         {
             if (this != &other)
             {
                 _targets = std::move(other._targets);
+                cursorIconSet = other.cursorIconSet;
+                hoverTextHandled = other.hoverTextHandled;
             }
             return *this;
         }
-        EventTargets(const EventTargets& other) = delete;
-        EventTargets& operator=(const EventTargets& other) = delete;
+        EventContext(const EventContext& other) = delete;
+        EventContext& operator=(const EventContext& other) = delete;
 
-        EventTargets Add(Component* item, int x = std::numeric_limits<int>::min(), int y = std::numeric_limits<int>::min()) &&
+        EventContext Add(Component* item, std::optional<Point> point) &&
         {
-            _targets.push_back({ item, x, y });
+            _targets.push_back({ item, point });
             return std::move(*this);
         }
-
-        EventTargets& Add(Component* item, int x = std::numeric_limits<int>::min(), int y = std::numeric_limits<int>::min()) &
+        EventContext& Add(Component* item, std::optional<Point> point) &
         {
-            _targets.push_back({ item, x, y });
+            _targets.push_back({ item, point });
+            return *this;
+        }
+        EventContext Add(Component* item) &&
+        {
+            _targets.push_back({ item, std::nullopt });
+            return std::move(*this);
+        }
+        EventContext& Add(Component* item) &
+        {
+            _targets.push_back({ item, std::nullopt });
             return *this;
         }
 
@@ -122,28 +155,23 @@ namespace zcom
             if (it != _targets.end())
                 _targets.erase(it);
         }
-
         void RemoveLast()
         {
             if (!_targets.empty())
                 _targets.pop_back();
         }
-
         bool Empty() const
         {
             return _targets.empty();
         }
-
         size_t Size() const
         {
             return _targets.size();
         }
-
         bool Contains(Component* item) const
         {
             return std::find_if(_targets.begin(), _targets.end(), [item](Params p) { return p.target == item; }) != _targets.end();
         }
-
         Component* MainTarget() const
         {
             if (!_targets.empty())
@@ -151,7 +179,6 @@ namespace zcom
             else
                 return nullptr;
         }
-
         std::vector<Params> GetTargets() const
         {
             return _targets;
@@ -175,13 +202,6 @@ namespace zcom
             _pendingActions.push_back({ std::move(func), ztime::Main() + delay });
         }
 
-        // A shorthand to check whether the given coordinates represent the special invalid position
-        // Invalid positions are used for invoking mouse events without a specific position
-        bool CoordinatesInvalid(int x, int y)
-        {
-            return x == std::numeric_limits<int>::min() && y == std::numeric_limits<int>::min();
-        }
-
         // Component creation
         template<class T, typename... Args>
         std::unique_ptr<T> Create(Args&&... args)
@@ -192,84 +212,170 @@ namespace zcom
         }
     protected:
         Scene* _scene = nullptr;
-    private:
+    public:
+        Scene* GetScene() const { return _scene; }
 
-        ID2D1Bitmap1* _canvas = nullptr;
+    protected:
+        std::optional<Bitmap> _canvas = std::nullopt;
+    private:
         bool _redraw = true;
 
         uint64_t _id = _GenerateId();
         static uint64_t _GenerateId()
         {
-            static std::atomic<uint64_t> _ID_COUNTER = 0;
+            static std::atomic<uint64_t> _ID_COUNTER = 1;
             return _ID_COUNTER.fetch_add(1);
         }
+    public:
+        uint64_t GetId() const { return _id; }
 
-        // Position description
-        Alignment _hPosAlign = Alignment::START;
-        Alignment _vPosAlign = Alignment::START;
-        float _hPosPercentOffset = 0.0f;
-        float _vPosPercentOffset = 0.0f;
-        int _hPosPixelOffset = 0;
-        int _vPosPixelOffset = 0;
+    private:
+        template<typename T>
+        void _SetValueWithLayoutChange(T& currentValue, const T& newValue)
+        {
+            currentValue = newValue;
+            _onLayoutChanged->InvokeAll();
+        }
+        template<typename T>
+        void _SetValueWithRedraw(T& currentValue, const T& newValue)
+        {
+            currentValue = newValue;
+            _redraw = true;
+        }
+    public:
+        Value<Size> size = Value<Size>({ 0, 0 }, [=](Size& cur, const Size& new_) { _SetValueWithLayoutChange(cur, new_); });
+        Value<SizeF> parentSize = Value<SizeF>({ 0.0f, 0.0f }, [=](SizeF& cur, const SizeF& new_) { _SetValueWithLayoutChange(cur, new_); });
+        Value<Point> position = Value<Point>({ 0, 0 }, [=](Point& cur, const Point& new_) { _SetValueWithLayoutChange(cur, new_); });
+        Value<PointF> parentPosition = Value<PointF>({ 0.0f, 0.0f }, [=](PointF& cur, const PointF& new_) { _SetValueWithLayoutChange(cur, new_); });
+        Value<Alignment> xAlign = Value<Alignment>(Alignment::START, [=](Alignment& cur, const Alignment& new_) { _SetValueWithLayoutChange(cur, new_); });
+        Value<Alignment> yAlign = Value<Alignment>(Alignment::START, [=](Alignment& cur, const Alignment& new_) { _SetValueWithLayoutChange(cur, new_); });
 
-        // Size description
-        float _hSizeParentPercent = 0.0f;
-        float _vSizeParentPercent = 0.0f;
-        int _hSize = 0;
-        int _vSize = 0;
+        Value<float> opacity = Value<float>(1.0f, [=](float& cur, const float& new_) { _SetValueWithRedraw(cur, new_); });
+        Value<bool> disabled = Value<bool>(false, [=](bool& currentValue, const bool& disabled) {
+            if (disabled)
+            {
+                OnDeselected();
+                OnLeftReleased();
+                OnRightReleased();
+                OnMouseLeaveArea();
+                OnMouseLeave();
+            }
+            _SetValueWithRedraw(currentValue, disabled);
+        });
+        Value<bool> visible = Value<bool>(true, [=](bool& currentValue, const bool& visible) {
+            if (!visible)
+            {
+                OnDeselected();
+                OnLeftReleased();
+                OnRightReleased();
+                OnMouseLeaveArea();
+                OnMouseLeave();
+            }
+            currentValue = visible;
+            _redraw = true;
+            _onLayoutChanged->InvokeAll();
+        });
+        Value<bool> interactable = Value<bool>(true, [=](bool& currentValue, const bool& interactable) {
+            if (!interactable)
+            {
+                OnLeftReleased();
+                OnRightReleased();
+                OnMouseLeaveArea();
+                OnMouseLeave();
+            }
+            currentValue = interactable;
+        });
+        Value<int> zIndex = Value<int>(-1, [=](int& cur, const int& new_) { _SetValueWithRedraw(cur, new_); });
+        Value<bool> eatScrollEvents = false;
+        Value<bool> ignoreAlpha = Value<bool>(false, [=](bool& currentValue, const bool& ignoreAlpha) {
+            currentValue = ignoreAlpha;
+            if (_canvas)
+            {
+                _canvas = std::nullopt;
+                _redraw = true;
+            }
+        });
+        
+        Value<bool> selectable = false;
+        Value<int> tabIndex = -1;
 
-        // Main
-        int _x = 0;
-        int _y = 0;
-        int _windowX = 0;
-        int _windowY = 0;
-        int _width = 100;
-        int _height = 100;
-        float _opacity = 1.0f;
-        bool _active = true;
+        struct Border
+        {
+            Value<bool> visible;
+            Value<float> width;
+            Value<float> cornerRadius;
+            Value<Color> color;
+            Value<Color> selectedColor;
+        };
+        Border border = {
+            .visible = Value<bool>(false, [=](bool& cur, const bool& new_) { _SetValueWithRedraw(cur, new_); }),
+            .width = Value<float>(1.0f, [=](float& cur, const float& new_) { _SetValueWithRedraw(cur, new_); }),
+            .cornerRadius = Value<float>(0.0f, [=](float& cur, const float& new_) { _SetValueWithRedraw(cur, new_); }),
+            .color = Value<Color>(Color(0xFFFFFF), [=](Color& cur, const Color& new_) { _SetValueWithRedraw(cur, new_); }),
+            .selectedColor = Value<Color>(Color(0x0080CA), [=](Color& cur, const Color& new_) { _SetValueWithRedraw(cur, new_); })
+        };
+
+        Value<Color> backgroundColor = Value<Color>(Color(), [=](Color& cur, const Color& new_) { _SetValueWithRedraw(cur, new_); });
+        Value<std::optional<Bitmap>> backgroundImage = Value<std::optional<Bitmap>>(std::optional<Bitmap>(std::nullopt), [=](std::optional<Bitmap>& cur, std::optional<Bitmap> const& new_) { _SetValueWithRedraw(cur, new_); });
+
+        Value<zwnd::CursorIcon> cursorIcon = zwnd::CursorIcon::ARROW;
+
+        Value<std::wstring> hoverText = std::wstring();
+        Value<Duration> hoverTextDelay = Duration(400, MILLISECONDS);
+    private:
+        TimePoint _hoverStart = ztime::Main();
+        bool _hoverWaiting = false;
+    public:
+
+        Value<Size> selfSize_ = Value<Size>({ 0, 0 }, [=](Size& cur, const Size& new_) { _SetValueWithLayoutChange(cur, new_); });
+
+        Value<Size> size_ = Size{ 0, 0 };
+        Value<Point> position_ = Point{ 0, 0 };
+        Value<Point> windowPosition_ = Point{ 0, 0 };
+
+        void SetSize(Size size)
+        {
+            if (size.width < 0) size.width = 0;
+            if (size.height < 0) size.height = 0;
+            if (size_ == size)
+                return;
+
+            size_ = size;
+            if (_canvas)
+                _canvas = std::nullopt;
+            _redraw = true;
+        }
+        void SetPosition(Point position)
+        {
+            position_ = position;
+        }
+        void SetWindowPosition(Point position)
+        {
+            if (windowPosition_ == position)
+                return;
+
+            windowPosition_ = position;
+            _OnWindowPosChange(windowPosition_);
+        }
+
+        Value<bool> selected_ = false;
+
+        Value<bool> hovered_ = false;
+        Value<bool> hoveredArea_ = false;
+        Value<bool> leftClicked_ = false;
+        Value<bool> rightClicked_ = false;
+        Value<Point> mousePosition_ = Point{ 0, 0 };
+
     protected:
         // Child components set this to true, if they
         // want to do custom rendering when inactive
         bool _customInactiveDraw = false;
     private:
-        bool _visible = true;
-        bool _interactable = true;
-        bool _eatScrollEvents = false;
-
-        // Rendering
-        bool _ignoreAlpha = false;
-
-        // Selection
-        bool _selectable = false;
-        bool _selected = false;
-        int _tabIndex = -1;
-        int _zIndex = -1;
-
-        // Border
-        bool _borderVisible = false;
-        float _borderWidth = 1.0f;
-        D2D1_COLOR_F _borderColor = D2D1::ColorF(1.0f, 1.0f, 1.0f);
-        D2D1_COLOR_F _selectedBorderColor = D2D1::ColorF(0.0f, 0.5f, 0.8f);
-
-        // Background
-        D2D1_COLOR_F _backgroundColor = D2D1::ColorF(0, 0);
-        ID2D1Bitmap* _background = nullptr;
-
-        // Cursor
-        zwnd::CursorIcon _cursor = zwnd::CursorIcon::ARROW;
-
-        // Hover text
-        std::wstring _hoverText = L"";
-        Duration _hoverTextDelay = Duration(400, MILLISECONDS);
-        TimePoint _hoverStart = ztime::Main();
-        bool _hoverWaiting = false;
-
-        // Rounding
-        float _cornerRounding = 0.0f;
 
         // Other properties
         std::unordered_map<std::string, std::unique_ptr<Property>> _properties;
         std::unordered_set<std::string> _tags;
+        std::unordered_map<std::string, std::unique_ptr<Value<int>>> _styleComputers;
 
         // Synchronous execution
         struct PendingAction
@@ -280,425 +386,60 @@ namespace zcom
         std::vector<PendingAction> _pendingActions;
         std::mutex _m_pendingActions;
 
-        // Mouse events
-        bool _mouseInside = false;
-        bool _mouseInsideArea = false;
-        bool _mouseLeftClicked = false;
-        bool _mouseRightClicked = false;
-        int _mousePosX = 0;
-        int _mousePosY = 0;
-
     protected:
         // Pre default handling
-        EventEmitter<void, Component*, int, int, int, int> _onMouseMove;
+        EventEmitter<void, Component*, Point, Point> _onMouseMove;
         EventEmitter<void, Component*> _onMouseEnter;
         EventEmitter<void, Component*> _onMouseEnterArea;
         EventEmitter<void, Component*> _onMouseLeave;
         EventEmitter<void, Component*> _onMouseLeaveArea;
-        EventEmitter<void, Component*, int, int> _onLeftPressed;
-        EventEmitter<void, Component*, int, int> _onRightPressed;
-        EventEmitter<void, Component*, int, int> _onLeftReleased;
-        EventEmitter<void, Component*, int, int> _onRightReleased;
-        EventEmitter<void, Component*, int, int> _onWheelUp;
-        EventEmitter<void, Component*, int, int> _onWheelDown;
+        EventEmitter<void, Component*, Point> _onLeftPressed;
+        EventEmitter<void, Component*, Point> _onRightPressed;
+        EventEmitter<void, Component*, std::optional<Point>> _onLeftReleased;
+        EventEmitter<void, Component*, std::optional<Point>> _onRightReleased;
+        EventEmitter<void, Component*, Point> _onWheelUp;
+        EventEmitter<void, Component*, Point> _onWheelDown;
         EventEmitter<void, Component*, bool> _onSelected;
         EventEmitter<void, Component*> _onDeselected;
-        EventEmitter<void, Component*, Graphics> _onDraw;
-        EventEmitter<void, Component*, Graphics> _preContentDraw;
+        EventEmitter<void, Component*, Graphics*> _onDraw;
+        EventEmitter<void, Component*, Graphics*> _preContentDraw;
 
         // Post default handling
-        EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int, int, int> _postMouseMove;
-        EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postLeftPressed;
-        EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postRightPressed;
-        EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postLeftReleased;
-        EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postRightReleased;
-        EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postWheelUp;
-        EventEmitter<void, Component*, std::vector<EventTargets::Params>, int, int> _postWheelDown;
+        EventEmitter<void, Component*, std::vector<EventContext::Params>, Point, Point> _postMouseMove;
+        EventEmitter<void, Component*, std::vector<EventContext::Params>, Point> _postLeftPressed;
+        EventEmitter<void, Component*, std::vector<EventContext::Params>, Point> _postRightPressed;
+        EventEmitter<void, Component*, std::vector<EventContext::Params>, std::optional<Point>> _postLeftReleased;
+        EventEmitter<void, Component*, std::vector<EventContext::Params>, std::optional<Point>> _postRightReleased;
+        EventEmitter<void, Component*, std::vector<EventContext::Params>, Point> _postWheelUp;
+        EventEmitter<void, Component*, std::vector<EventContext::Params>, Point> _postWheelDown;
         EventEmitter<void> _postUpdate;
-        EventEmitter<void, Component*, Graphics> _postDraw;
-        EventEmitter<void, Component*, Graphics> _postContentDraw;
+        EventEmitter<void, Component*, Graphics*> _postDraw;
+        EventEmitter<void, Component*, Graphics*> _postContentDraw;
 
         // Layout events
         EventEmitter<void> _onLayoutChanged;
+
+        // Destroy event
+        EventEmitter<void, Component*> _onDestroyed;
 
     public:
         Component(Scene* scene) : _scene(scene) {}
         virtual ~Component()
         {
-            SafeFullRelease((IUnknown**)&_canvas);
+            if (_canvas)
+                _canvas = std::nullopt;
+            _onDestroyed->InvokeAll(this);
         }
         Component(Component&&) = delete;
         Component& operator=(Component&&) = delete;
         Component(const Component&) = delete;
         Component& operator=(const Component&) = delete;
 
-        // Position description
-        Alignment GetHorizontalAlignment() const { return _hPosAlign; }
-        Alignment GetVerticalAlignment() const { return _vPosAlign; }
-        float GetHorizontalOffsetPercent() const { return _hPosPercentOffset; }
-        float GetVerticalOffsetPercent() const { return _vPosPercentOffset; }
-        int GetHorizontalOffsetPixels() const { return _hPosPixelOffset; }
-        int GetVerticalOffsetPixels() const { return _vPosPixelOffset; }
-
-        void SetHorizontalAlignment(Alignment alignment)
-        {
-            SetAlignment(alignment, GetVerticalAlignment());
-        }
-        void SetVerticalAlignment(Alignment alignment)
-        {
-            SetAlignment(GetHorizontalAlignment(), alignment);
-        }
-        void SetAlignment(Alignment horizontal, Alignment vertical)
-        {
-            bool changed = false;
-            if (_hPosAlign != horizontal || _vPosAlign != vertical)
-                changed = true;
-
-            _hPosAlign = horizontal;
-            _vPosAlign = vertical;
-
-            if (changed)
-                _onLayoutChanged->InvokeAll();
-        }
-        void SetHorizontalOffsetPercent(float offset)
-        {
-            SetOffsetPercent(offset, GetVerticalOffsetPercent());
-        }
-        void SetVerticalOffsetPercent(float offset)
-        {
-            SetOffsetPercent(GetHorizontalOffsetPercent(), offset);
-        }
-        void SetOffsetPercent(float horizontal, float vertical)
-        {
-            bool changed = false;
-            if (_hPosPercentOffset != horizontal || _vPosPercentOffset != vertical)
-                changed = true;
-
-            _hPosPercentOffset = horizontal;
-            _vPosPercentOffset = vertical;
-
-            if (changed)
-                _onLayoutChanged->InvokeAll();
-        }
-        void SetHorizontalOffsetPixels(int offset)
-        {
-            SetOffsetPixels(offset, GetVerticalOffsetPixels());
-        }
-        void SetVerticalOffsetPixels(int offset)
-        {
-            SetOffsetPixels(GetHorizontalOffsetPixels(), offset);
-        }
-        void SetOffsetPixels(int horizontal, int vertical)
-        {
-            if (_hPosPixelOffset == horizontal && _vPosPixelOffset == vertical)
-                return;
-
-            _hPosPixelOffset = horizontal;
-            _vPosPixelOffset = vertical;
-            _onLayoutChanged->InvokeAll();
-        }
-
-        // Size description
-        float GetParentWidthPercent() const { return _hSizeParentPercent; }
-        float GetParentHeightPercent() const { return _vSizeParentPercent; }
-        int GetBaseWidth() const { return _hSize; }
-        int GetBaseHeight() const { return _vSize; }
-
-        void SetParentWidthPercent(float width)
-        {
-            SetParentSizePercent(width, GetParentHeightPercent());
-        }
-        void SetParentHeightPercent(float height)
-        {
-            SetParentSizePercent(GetParentWidthPercent(), height);
-        }
-        void SetParentSizePercent(float width, float height)
-        {
-            if (_hSizeParentPercent == width && _vSizeParentPercent == height)
-                return;
-
-            _hSizeParentPercent = width;
-            _vSizeParentPercent = height;
-            _onLayoutChanged->InvokeAll();
-        }
-        void SetBaseWidth(int width)
-        {
-            SetBaseSize(width, GetBaseHeight());
-        }
-        void SetBaseHeight(int height)
-        {
-            SetBaseSize(GetBaseWidth(), height);
-        }
-        void SetBaseSize(int width, int height)
-        {
-            if (_hSize == width && _vSize == height)
-                return;
-
-            _hSize = width;
-            _vSize = height;
-            _onLayoutChanged->InvokeAll();
-        }
-
-        // Common
-        int GetX() const { return _x; }
-        int GetY() const { return _y; }
-        int GetWindowX() const { return _windowX; }
-        int GetWindowY() const { return _windowY; }
-        int GetWidth() const { return _width; }
-        int GetHeight() const { return _height; }
-        float GetOpacity() const { return _opacity; }
-        bool GetActive() const { return _active; }
-        bool GetVisible() const { return _visible; }
-        bool GetInteractable() const { return _interactable; }
-        bool GetEatScrollEvents() const { return _eatScrollEvents; }
-
-        void SetX(int x)
-        {
-            SetPosition(x, _y);
-        }
-        void SetY(int y)
-        {
-            SetPosition(_x, y);
-        }
-        void SetPosition(int x, int y)
-        {
-            _x = x;
-            _y = y;
-        }
-        void SetWindowX(int x)
-        {
-            SetWindowPosition(x, _windowY);
-        }
-        void SetWindowY(int y)
-        {
-            SetWindowPosition(_windowX, y);
-        }
-        void SetWindowPosition(int x, int y)
-        {
-            _windowX = x;
-            _windowY = y;
-            _OnWindowPosChange(_windowX, _windowY);
-        }
-        void SetWidth(int width)
-        {
-            SetSize(width, _height);
-        }
-        void SetHeight(int height)
-        {
-            SetSize(_width, height);
-        }
-        void SetSize(int width, int height)
-        {
-            if (width == _width && height == _height)
-                return;
-
-            if (width < 0) width = 0;
-            if (height < 0) height = 0;
-            _width = width;
-            _height = height;
-            SafeFullRelease((IUnknown**)&_canvas);
-            _redraw = true;
-            //if (_canvas)
-            //{
-            //    _canvas->Release();
-            //    _canvas = nullptr;
-            //}
-        }
-        void SetOpacity(float opacity)
-        {
-            if (opacity == _opacity)
-                return;
-
-            _opacity = opacity;
-            _redraw = true;
-        }
-        void SetActive(bool active)
-        {
-            if (active == _active)
-                return;
-
-            if (!active)
-            {
-                OnDeselected();
-                OnLeftReleased();
-                OnRightReleased();
-            }
-            _active = active;
-            _redraw = true;
-        }
-        void SetVisible(bool visible)
-        {
-            if (visible == _visible)
-                return;
-
-            if (!visible)
-            {
-                OnDeselected();
-                OnLeftReleased();
-                OnRightReleased();
-            }
-            _visible = visible;
-            _redraw = true;
-            _onLayoutChanged->InvokeAll();
-        }
-        void SetInteractable(bool interactable)
-        {
-            if (interactable == _interactable)
-                return;
-
-            if (!interactable)
-            {
-                OnLeftReleased();
-                OnRightReleased();
-            }
-            _interactable = interactable;
-        }
-        // If set to true, the default scroll event handler (if not overridden) will set this component as the main event target,
-        // usually preventing scrolling of the parent components
-        void SetEatScrollEvents(bool eat)
-        {
-            _eatScrollEvents = eat;
-        }
-
-        // Rendering
-        bool IgnoreAlpha() const { return _ignoreAlpha; }
-
-        void IgnoreAlpha(bool ignore)
-        {
-            if (ignore == _ignoreAlpha)
-                return;
-
-            _ignoreAlpha = ignore;
-            if (_canvas)
-            {
-                SafeFullRelease((IUnknown**)&_canvas);
-                _redraw = true;
-            }
-        }
-
-        // Selection
-        bool GetSelectable() const { return _selectable; }
-        bool Selected() const { return _selected; }
-        int GetZIndex() const { return _zIndex; }
-        int GetTabIndex() const { return _tabIndex; }
-
-        void SetSelectable(bool selectable)
-        {
-            _selectable = selectable;
-        }
-        void SetZIndex(int index)
-        {
-            if (index == _zIndex)
-                return;
-
-            _zIndex = index;
-            _redraw = true;
-        }
-        void SetTabIndex(int index)
-        {
-            _tabIndex = index;
-        }
-
-        // Border
-        bool GetBorderVisibility() const { return _borderVisible; }
-        float GetBorderWidth() const { return _borderWidth; }
-        D2D1_COLOR_F GetBorderColor() const { return _borderColor; }
-        D2D1_COLOR_F GetSelectedBorderColor() const { return _selectedBorderColor; }
-
-        void SetBorderVisibility(bool visible)
-        {
-            if (visible == _borderVisible)
-                return;
-
-            _borderVisible = visible;
-            _redraw = true;
-        }
-        void SetBorderWidth(float width)
-        {
-            if (width == _borderWidth)
-                return;
-
-            _borderWidth = width;
-            _redraw = true;
-        }
-        void SetBorderColor(D2D1_COLOR_F color)
-        {
-            if (color == _borderColor)
-                return;
-
-            _borderColor = color;
-            _redraw = true;
-        }
-        void SetSelectedBorderColor(D2D1_COLOR_F color)
-        {
-            if (color == _selectedBorderColor)
-                return;
-
-            _selectedBorderColor = color;
-            _redraw = true;
-        }
-
-        // Background
-        D2D1_COLOR_F GetBackgroundColor() const { return _backgroundColor; }
-        ID2D1Bitmap* GetBackgroundImage() const { return _background; }
-
-        void SetBackgroundColor(D2D1_COLOR_F color)
-        {
-            if (color == _backgroundColor)
-                return;
-
-            _backgroundColor = color;
-            _redraw = true;
-        }
-        void SetBackgroundImage(ID2D1Bitmap* image)
-        {
-            if (image == _background)
-                return;
-
-            _background = image;
-            _redraw = true;
-        }
-
-        // Cursor
-        zwnd::CursorIcon GetDefaultCursor() const { return _cursor; }
-
-        void SetDefaultCursor(zwnd::CursorIcon cursor)
-        {
-            _cursor = cursor;
-        }
-
     private:
         void _ApplyCursor();
-    public:
-
-        // Hover text
-        std::wstring GetHoverText() const { return _hoverText; }
-        Duration GetHoverTextDelay() const { return _hoverTextDelay; }
-
-        void SetHoverText(std::wstring text)
-        {
-            _hoverText = text;
-        }
-        void SetHoverTextDelay(Duration delay)
-        {
-            _hoverTextDelay = delay;
-        }
-
-    private:
         void _ShowHoverText();
+        void _HideHoverText();
     public:
-
-        // Corner rounding
-        float GetCornerRounding() const { return _cornerRounding; }
-
-        void SetCornerRounding(float rounding)
-        {
-            if (rounding == _cornerRounding)
-                return;
-
-            _cornerRounding = rounding;
-            _redraw = true;
-        }
 
         // Other properties
         template<class _Prop>
@@ -720,6 +461,7 @@ namespace zcom
             // Properties might not change the visuals,
             // but optimising for that scenario is unnecessary
             _redraw = true;
+            _onLayoutChanged->InvokeAll();
         }
 
         template<class _Prop>
@@ -767,208 +509,221 @@ namespace zcom
             _tags.erase(tag);
         }
 
-        // Mouse events
-        EventTargets OnMouseMove(int x, int y)
+        template <typename T>
+        struct identity
         {
-            if (!_active)
-                return EventTargets();
+            typedef T type;
+        };
 
-            int deltaX = x - _mousePosX;
-            int deltaY = y - _mousePosY;
-            _mousePosX = x;
-            _mousePosY = y;
-            _onMouseMove->InvokeAll(this, x, y, deltaX, deltaY);
-            auto targets = _OnMouseMove(x, y, deltaX, deltaY);
-            _postMouseMove->InvokeAll(this, targets.GetTargets(), x, y, deltaX, deltaY);
-
-            if (!targets.Empty())
-                OnMouseEnter();
-            if (targets.Size() == 1 && targets.MainTarget() == this)
+        template<class... _Val>
+        void SetComputedStyle(std::string styleName, typename identity<std::function<void(Component*, _Val...)>>::type consumer, Value<_Val>&... vals)
+        {
+            if (!_styleComputers.contains(styleName))
             {
-                // Set cursor
-                _ApplyCursor();
-
-                // Show hover text
-                if (!_hoverText.empty())
-                {
-                    _hoverStart = ztime::Main();
-                    _hoverWaiting = true;
-                }
+                auto value = std::make_unique<Value<int>>(0);
+                value->ComputedFrom([component = this, consumer](_Val... args) {
+                    consumer(component, args...);
+                    return 0;
+                }, vals...);
+                _styleComputers.insert({ styleName, std::move(value) });
             }
-            return targets;
+            else
+            {
+                _styleComputers[styleName]->ComputedFrom([component = this, consumer](_Val... args) {
+                    consumer(component, args...);
+                    return 0;
+                }, vals...);
+            }
+        }
+
+        void RemoveComputedStyle(std::string styleName)
+        {
+            _styleComputers.erase(styleName);
+        }
+
+        // Mouse events
+        EventContext OnMouseMove(Point point)
+        {
+            if (disabled)
+                return EventContext();
+
+            Point deltaPos = point - mousePosition_;
+            mousePosition_ = point;
+            _onMouseMove->InvokeAll(this, point, deltaPos);
+            auto context = _OnMouseMove(point, deltaPos);
+            _postMouseMove->InvokeAll(this, context.GetTargets(), point, deltaPos);
+
+            if (!context.Empty())
+                OnMouseEnter();
+
+            if (!context.cursorIconSet && cursorIcon != zwnd::CursorIcon::ARROW)
+            {
+                _ApplyCursor();
+                context.cursorIconSet = true;
+            }
+            if (!context.hoverTextHandled && !hoverText->empty())
+            {
+                _hoverStart = ztime::Main();
+                _hoverWaiting = true;
+                context.hoverTextHandled = true;
+            }
+
+            return context;
         }
         void OnMouseEnter()
         {
-            if (!_active)
-                return;
-            if (_mouseInside)
+            if (disabled || hovered_)
                 return;
 
-            _mouseInside = true;
+            hovered_ = true;
             _onMouseEnter->InvokeAll(this);
             _OnMouseEnter();
         }
         void OnMouseLeave()
         {
-            if (!_active)
-                return;
-            if (!_mouseInside)
+            if (disabled || !hovered_)
                 return;
 
-            _mouseInside = false;
+            hovered_ = false;
             _onMouseLeave->InvokeAll(this);
             _OnMouseLeave();
             _hoverWaiting = false;
+            _HideHoverText();
         }
         void OnMouseEnterArea()
         {
-            if (!_active)
-                return;
-            if (_mouseInsideArea)
+            if (disabled || hoveredArea_)
                 return;
 
-            _mouseInsideArea = true;
+            hoveredArea_ = true;
             _onMouseEnterArea->InvokeAll(this);
             _OnMouseEnterArea();
         }
         void OnMouseLeaveArea()
         {
-            if (!_active)
-                return;
-            if (!_mouseInsideArea)
+            if (disabled || !hoveredArea_)
                 return;
 
-            _mouseInsideArea = false;
+            hoveredArea_ = false;
             _onMouseLeaveArea->InvokeAll(this);
             _OnMouseLeaveArea();
         }
-        EventTargets OnLeftPressed(int x, int y)
+        EventContext OnLeftPressed(Point point)
         {
-            if (!_active || _mouseLeftClicked)
-                return EventTargets();
+            if (disabled || leftClicked_)
+                return EventContext();
 
             // Correct mouse position if it doesn't match click position
-            if (_mousePosX != x || _mousePosY != y)
-                OnMouseMove(x, y);
+            if (mousePosition_ != point)
+                OnMouseMove(point);
 
-            _mouseLeftClicked = true;
-            _onLeftPressed->InvokeAll(this, x, y);
-            auto targets = _OnLeftPressed(x, y);
-            _postLeftPressed->InvokeAll(this, targets.GetTargets(), x, y);
-            return targets;
+            leftClicked_ = true;
+            _onLeftPressed->InvokeAll(this, point);
+            auto context = _OnLeftPressed(point);
+            _postLeftPressed->InvokeAll(this, context.GetTargets(), point);
+            return context;
         }
-        EventTargets OnLeftReleased(int x = std::numeric_limits<int>::min(), int y = std::numeric_limits<int>::min())
+        EventContext OnLeftReleased(std::optional<Point> point = std::nullopt)
         {
-            if (!_active || !_mouseLeftClicked)
-                return EventTargets();
+            if (disabled || !leftClicked_)
+                return EventContext();
 
             // Correct mouse position if it doesn't match release position
-            if (!CoordinatesInvalid(x, y) && (_mousePosX != x || _mousePosY != y))
-                OnMouseMove(x, y);
+            if (point.has_value() && mousePosition_ != point.value())
+                OnMouseMove(point.value());
 
-            _mouseLeftClicked = false;
-            _onLeftReleased->InvokeAll(this, x, y);
-            auto targets = _OnLeftReleased(x, y);
-            _postLeftReleased->InvokeAll(this, targets.GetTargets(), x, y);
-            return targets;
+            leftClicked_ = false;
+            _onLeftReleased->InvokeAll(this, point);
+            auto context = _OnLeftReleased(point);
+            _postLeftReleased->InvokeAll(this, context.GetTargets(), point);
+            return context;
         }
-        EventTargets OnRightPressed(int x, int y)
+        EventContext OnRightPressed(Point point)
         {
-            if (!_active || _mouseRightClicked)
-                return EventTargets();
+            if (disabled || rightClicked_)
+                return EventContext();
 
             // Correct mouse position if it doesn't match click position
-            if (_mousePosX != x || _mousePosY != y)
-                OnMouseMove(x, y);
+            if (mousePosition_ != point)
+                OnMouseMove(point);
 
-            _mouseRightClicked = true;
-            _onRightPressed->InvokeAll(this, x, y);
-            auto targets = _OnRightPressed(x, y);
-            _postRightPressed->InvokeAll(this, targets.GetTargets(), x, y);
-            return targets;
+            rightClicked_ = true;
+            _onRightPressed->InvokeAll(this, point);
+            auto context = _OnRightPressed(point);
+            _postRightPressed->InvokeAll(this, context.GetTargets(), point);
+            return context;
         }
-        EventTargets OnRightReleased(int x = std::numeric_limits<int>::min(), int y = std::numeric_limits<int>::min())
+        EventContext OnRightReleased(std::optional<Point> point = std::nullopt)
         {
-            if (!_active || !_mouseRightClicked)
-                return EventTargets();
+            if (disabled || !rightClicked_)
+                return EventContext();
 
             // Correct mouse position if it doesn't match release position
-            if (!CoordinatesInvalid(x, y) && (_mousePosX != x || _mousePosY != y))
-                OnMouseMove(x, y);
+            if (point.has_value() && mousePosition_ != point.value())
+                OnMouseMove(point.value());
 
-            _mouseRightClicked = false;
-            _onRightReleased->InvokeAll(this, x, y);
-            auto targets = _OnRightReleased(x, y);
-            _postRightReleased->InvokeAll(this, targets.GetTargets(), x, y);
-            return targets;
+            rightClicked_ = false;
+            _onRightReleased->InvokeAll(this, point);
+            auto context = _OnRightReleased(point);
+            _postRightReleased->InvokeAll(this, context.GetTargets(), point);
+            return context;
         }
-        EventTargets OnWheelUp(int x, int y)
+        EventContext OnWheelUp(Point point)
         {
-            if (!_active)
-                return EventTargets();
+            if (disabled)
+                return EventContext();
 
-            _onWheelUp->InvokeAll(this, x, y);
-            auto targets = _OnWheelUp(x, y);
-            _postWheelUp->InvokeAll(this, targets.GetTargets(), x, y);
-            return targets;
+            _onWheelUp->InvokeAll(this, point);
+            auto context = _OnWheelUp(point);
+            _postWheelUp->InvokeAll(this, context.GetTargets(), point);
+            return context;
         }
-        EventTargets OnWheelDown(int x, int y)
+        EventContext OnWheelDown(Point point)
         {
-            if (!_active)
-                return EventTargets();
+            if (disabled)
+                return EventContext();
 
-            _onWheelDown->InvokeAll(this, x, y);
-            auto targets = _OnWheelDown(x, y);
-            _postWheelDown->InvokeAll(this, targets.GetTargets(), x, y);
-            return targets;
+            _onWheelDown->InvokeAll(this, point);
+            auto context = _OnWheelDown(point);
+            _postWheelDown->InvokeAll(this, context.GetTargets(), point);
+            return context;
         }
         void OnSelected(bool reverse = false)
         {
-            if (!_active)
-                return;
-            if (_selected)
+            if (disabled || selected_)
                 return;
 
-            _selected = true;
+            selected_ = true;
             _redraw = true;
             _onSelected->InvokeAll(this, reverse);
             _OnSelected(reverse);
         }
         void OnDeselected()
         {
-            if (!_active)
-                return;
-            if (!_selected)
+            if (disabled || !selected_)
                 return;
 
-            _selected = false;
+            selected_ = false;
             _redraw = true;
             _onDeselected->InvokeAll(this);
             _OnDeselected();
         }
     protected:
-        virtual EventTargets _OnMouseMove(int x, int y, int deltaX, int deltaY) { return EventTargets().Add(this, x, y); }
+        virtual EventContext _OnMouseMove(Point point, Point deltaPos) { return EventContext().Add(this, point); }
         virtual void _OnMouseEnter() {}
         virtual void _OnMouseLeave() {}
         virtual void _OnMouseEnterArea() {}
         virtual void _OnMouseLeaveArea() {}
-        virtual EventTargets _OnLeftPressed(int x, int y) { return EventTargets().Add(this, x, y); }
-        virtual EventTargets _OnRightPressed(int x, int y) { return EventTargets().Add(this, x, y); }
-        virtual EventTargets _OnLeftReleased(int x = std::numeric_limits<int>::min(), int y = std::numeric_limits<int>::min()) { return EventTargets().Add(this, x, y); }
-        virtual EventTargets _OnRightReleased(int x = std::numeric_limits<int>::min(), int y = std::numeric_limits<int>::min()) { return EventTargets().Add(this, x, y); }
-        virtual EventTargets _OnWheelUp(int x, int y) { return _eatScrollEvents ? EventTargets().Add(this, x, y) : EventTargets(); }
-        virtual EventTargets _OnWheelDown(int x, int y) { return _eatScrollEvents ? EventTargets().Add(this, x, y) : EventTargets(); }
+        virtual EventContext _OnLeftPressed(Point point) { return EventContext().Add(this, point); }
+        virtual EventContext _OnRightPressed(Point point) { return EventContext().Add(this, point); }
+        virtual EventContext _OnLeftReleased(std::optional<Point> point) { return EventContext().Add(this, point); }
+        virtual EventContext _OnRightReleased(std::optional<Point> point) { return EventContext().Add(this, point); }
+        virtual EventContext _OnWheelUp(Point point) { return eatScrollEvents ? EventContext().Add(this, point) : EventContext(); }
+        virtual EventContext _OnWheelDown(Point point) { return eatScrollEvents ? EventContext().Add(this, point) : EventContext(); }
         virtual void _OnSelected(bool reverse) {}
         virtual void _OnDeselected() {}
     public:
-        bool GetMouseInside() const { return _mouseInside; }
-        bool GetMouseInsideArea() const { return _mouseInsideArea; }
-        bool GetMouseLeftClicked() const { return _mouseLeftClicked; }
-        bool GetMouseRightClicked() const { return _mouseRightClicked; }
-        int GetMousePosX() const { return _mousePosX; }
-        int GetMousePosY() const { return _mousePosY; }
-
-        [[nodiscard]] EventSubscription<void, Component*, int, int, int, int> SubscribeOnMouseMove(std::function<void(Component*, int, int, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, Point, Point> SubscribeOnMouseMove(std::function<void(Component*, Point, Point)> handler)
         {
             return _onMouseMove->Subscribe(handler);
         }
@@ -988,27 +743,27 @@ namespace zcom
         {
             return _onMouseLeaveArea->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, int, int> SubscribeOnLeftPressed(std::function<void(Component*, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, Point> SubscribeOnLeftPressed(std::function<void(Component*, Point)> handler)
         {
             return _onLeftPressed->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, int, int> SubscribeOnRightPressed(std::function<void(Component*, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, Point> SubscribeOnRightPressed(std::function<void(Component*, Point)> handler)
         {
             return _onRightPressed->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, int, int> SubscribeOnLeftReleased(std::function<void(Component*, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::optional<Point>> SubscribeOnLeftReleased(std::function<void(Component*, std::optional<Point>)> handler)
         {
             return _onLeftReleased->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, int, int> SubscribeOnRightReleased(std::function<void(Component*, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::optional<Point>> SubscribeOnRightReleased(std::function<void(Component*, std::optional<Point>)> handler)
         {
             return _onRightReleased->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, int, int> SubscribeOnWheelUp(std::function<void(Component*, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, Point> SubscribeOnWheelUp(std::function<void(Component*, Point)> handler)
         {
             return _onWheelUp->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, int, int> SubscribeOnWheelDown(std::function<void(Component*, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, Point> SubscribeOnWheelDown(std::function<void(Component*, Point)> handler)
         {
             return _onWheelDown->Subscribe(handler);
         }
@@ -1020,40 +775,40 @@ namespace zcom
         {
             return _onDeselected->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, Graphics> SubscribeOnDraw(std::function<void(Component*, Graphics)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, Graphics*> SubscribeOnDraw(std::function<void(Component*, Graphics*)> handler)
         {
             return _onDraw->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, Graphics> SubscribePreContentDraw(std::function<void(Component*, Graphics)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, Graphics*> SubscribePreContentDraw(std::function<void(Component*, Graphics*)> handler)
         {
             return _preContentDraw->Subscribe(handler);
         }
 
-        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int, int, int> SubscribePostMouseMove(std::function<void(Component*, std::vector<EventTargets::Params>, int, int, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventContext::Params>, Point, Point> SubscribePostMouseMove(std::function<void(Component*, std::vector<EventContext::Params>, Point, Point)> handler)
         {
             return _postMouseMove->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostLeftPressed(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventContext::Params>, Point> SubscribePostLeftPressed(std::function<void(Component*, std::vector<EventContext::Params>, Point)> handler)
         {
             return _postLeftPressed->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostRightPressed(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventContext::Params>, Point> SubscribePostRightPressed(std::function<void(Component*, std::vector<EventContext::Params>, Point)> handler)
         {
             return _postRightPressed->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostLeftReleased(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventContext::Params>, std::optional<Point>> SubscribePostLeftReleased(std::function<void(Component*, std::vector<EventContext::Params>, std::optional<Point>)> handler)
         {
             return _postLeftReleased->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostRightReleased(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventContext::Params>, std::optional<Point>> SubscribePostRightReleased(std::function<void(Component*, std::vector<EventContext::Params>, std::optional<Point>)> handler)
         {
             return _postRightReleased->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostWheelUp(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventContext::Params>, Point> SubscribePostWheelUp(std::function<void(Component*, std::vector<EventContext::Params>, Point)> handler)
         {
             return _postWheelUp->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventTargets::Params>, int, int> SubscribePostWheelDown(std::function<void(Component*, std::vector<EventTargets::Params>, int, int)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, std::vector<EventContext::Params>, Point> SubscribePostWheelDown(std::function<void(Component*, std::vector<EventContext::Params>, Point)> handler)
         {
             return _postWheelDown->Subscribe(handler);
         }
@@ -1061,11 +816,11 @@ namespace zcom
         {
             return _postUpdate->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, Graphics> SubscribePostDraw(std::function<void(Component*, Graphics)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, Graphics*> SubscribePostDraw(std::function<void(Component*, Graphics*)> handler)
         {
             return _postDraw->Subscribe(handler);
         }
-        [[nodiscard]] EventSubscription<void, Component*, Graphics> SubscribePostContentDraw(std::function<void(Component*, Graphics)> handler)
+        [[nodiscard]] EventSubscription<void, Component*, Graphics*> SubscribePostContentDraw(std::function<void(Component*, Graphics*)> handler)
         {
             return _postContentDraw->Subscribe(handler);
         }
@@ -1082,365 +837,45 @@ namespace zcom
             _onLayoutChanged->InvokeAll();
         }
 
+        // Destroy events
+
+        // NOTE: Handling destruction events should be done with extra caution, since they
+        // often fire in the middle of complex component destruction, when other members can
+        // already be destroyed, possibly leading to bad access if component logic is invoked
+        [[nodiscard]] EventSubscription<void, Component*> SubscribeOnDestroyed(std::function<void(Component*)> handler)
+        {
+            return _onDestroyed->Subscribe(handler);
+        }
+
         // //////////////
         // Main functions
         // //////////////
 
-        virtual void Update()
-        {
-            //if (!_active) return;
-
-            // Execute pending actions
-            // A (possibly expensive, but not relevant for now) copy of the pending actions is
-            // created to allow the pending action itself call 'ExecutePending'.
-            // TODO: This safeguard is not always necessary, so it would make sense to provide
-            // the ability to disable this behavior for a component (or maybe opt-in)
-            std::unique_lock<std::mutex> lock(_m_pendingActions);
-            std::vector<PendingAction> pendingActionsToExecute = zutil::Extract(_pendingActions, [](const PendingAction& action) { return action.executionTime <= ztime::Main(); });
-            lock.unlock();
-            for (auto& action : pendingActionsToExecute)
-                action.action();
-
-            // Show hover text
-            if (_hoverWaiting && (ztime::Main() - _hoverStart) >= _hoverTextDelay)
-            {
-                _hoverWaiting = false;
-                _ShowHoverText();
-            }
-
-            _OnUpdate();
-            _postUpdate->InvokeAll();
-        }
-
-        // If this function returns true, the 'Draw()' function should be called
-        // to redraw any visual changes
-        virtual bool Redraw()
-        {
-            return _redraw || (!_canvas && _width != 0 && _height != 0) || _Redraw();
-        }
-
-        virtual void InvokeRedraw()
-        {
-            _redraw = true;
-        }
-
-        virtual ID2D1Bitmap* Draw(Graphics g)
-        {
-            _redraw = false;
-
-            //static int counter = 0;
-            //std::cout << counter++ << '\n';
-
-            if (_width == 0 || _height == 0)
-                return nullptr;
-
-            if (!_canvas)
-            {
-                g.target->CreateBitmap(
-                    D2D1::SizeU(_width, _height),
-                    nullptr,
-                    0,
-                    D2D1::BitmapProperties1(
-                        D2D1_BITMAP_OPTIONS_TARGET,
-                        { DXGI_FORMAT_B8G8R8A8_UNORM, _ignoreAlpha ? D2D1_ALPHA_MODE_IGNORE : D2D1_ALPHA_MODE_PREMULTIPLIED }
-                    ),
-                    &_canvas
-                );
-                g.refs->push_back({ (IUnknown**)&_canvas, std::string("Base canvas: ") + GetName() });
-            }
-
-            // Stash current target
-            ID2D1Image* target;
-            g.target->GetTarget(&target);
-
-            // Set canvas as target
-            g.target->SetTarget(_canvas);
-            g.target->Clear();
-
-            if (_visible)
-            {
-                // Invoke pre draw handlers
-                _onDraw->InvokeAll(this, g);
-
-                ID2D1Image* stash = nullptr;
-                ID2D1Bitmap1* contentBitmap = nullptr;
-                const float rounding = _cornerRounding; // Use const value in this function in case '_cornerRouding' is modified
-
-                if (rounding > 0.0f)
-                {
-                    // Create separate target for content
-                    g.target->CreateBitmap(
-                        D2D1::SizeU(_width, _height),
-                        nullptr,
-                        0,
-                        D2D1::BitmapProperties1(
-                            D2D1_BITMAP_OPTIONS_TARGET,
-                            { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
-                        ),
-                        &contentBitmap
-                    );
-                    if (contentBitmap)
-                    {
-                        g.target->GetTarget(&stash);
-                        g.target->SetTarget(contentBitmap);
-                    }
-                    else
-                    {
-                        // TODO: Logging
-                    }
-                }
-
-                // Draw background
-                g.target->Clear(GetBackgroundColor());
-                if (_background)
-                {
-                    g.target->DrawBitmap
-                    (
-                        _background,
-                        D2D1::RectF(0, 0, g.target->GetSize().width, g.target->GetSize().height)
-                    );
-                }
-
-
-                // Draw component
-                _preContentDraw->InvokeAll(this, g);
-                _OnDraw(g);
-                _postContentDraw->InvokeAll(this, g);
-
-                if (rounding > 0.0f)
-                {
-                    if (contentBitmap)
-                    {
-                        // Round corners
-                        ID2D1Bitmap1* opacityMask = nullptr;
-                        g.target->CreateBitmap(
-                            D2D1::SizeU(_width, _height),
-                            nullptr,
-                            0,
-                            D2D1::BitmapProperties1(
-                                D2D1_BITMAP_OPTIONS_TARGET,
-                                { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
-                            ),
-                            &opacityMask
-                        );
-                        if (opacityMask)
-                        {
-                            g.target->SetTarget(opacityMask);
-                            g.target->Clear();
-
-                            D2D1_ROUNDED_RECT roundedrect{};
-                            roundedrect.radiusX = _cornerRounding;
-                            roundedrect.radiusY = _cornerRounding;
-                            roundedrect.rect.left = 0;
-                            roundedrect.rect.top = 0;
-                            roundedrect.rect.right = (float)_width;
-                            roundedrect.rect.bottom = (float)_height;
-                            ID2D1SolidColorBrush* opacityBrush;
-                            g.target->CreateSolidColorBrush(D2D1::ColorF(0), &opacityBrush);
-                            if (opacityBrush)
-                            {
-                                g.target->FillRoundedRectangle(roundedrect, opacityBrush);
-                                opacityBrush->Release();
-                            }
-                            else
-                            {
-                                // TODO: Logging
-                            }
-
-                            g.target->SetTarget(stash);
-                            stash->Release();
-
-                            ID2D1BitmapBrush* bitmapBrush;
-                            g.target->CreateBitmapBrush(
-                                contentBitmap,
-                                D2D1::BitmapBrushProperties(
-                                    D2D1_EXTEND_MODE_CLAMP,
-                                    D2D1_EXTEND_MODE_CLAMP,
-                                    D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR
-                                ),
-                                &bitmapBrush
-                            );
-                            if (bitmapBrush)
-                            {
-                                g.target->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
-                                g.target->FillOpacityMask(opacityMask, bitmapBrush, D2D1_OPACITY_MASK_CONTENT_GRAPHICS);
-                                g.target->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
-                                g.target->Flush();
-                                bitmapBrush->Release();
-                            }
-                            else
-                            {
-                                // TODO: Logging
-                            }
-                            opacityMask->Release();
-                        }
-                        else
-                        {
-                            // TODO: Logging
-                        }
-                        contentBitmap->Release();
-                    }
-                    else
-                    {
-                        // TODO: Logging
-                    }
-                }
-
-                // Draw border
-                if (_borderVisible)
-                {
-                    ID2D1SolidColorBrush* borderBrush = nullptr;
-                    g.target->CreateSolidColorBrush(_borderColor, &borderBrush);
-                    if (borderBrush)
-                    {
-                        float offset = _borderWidth * 0.5f;
-                        if (rounding > 0.0f)
-                        {
-                            D2D1_ROUNDED_RECT roundedrect{};
-                            roundedrect.radiusX = _cornerRounding - offset;
-                            roundedrect.radiusY = _cornerRounding - offset;
-                            roundedrect.rect = D2D1::RectF(offset, offset, _width - offset, _height - offset);
-                            g.target->DrawRoundedRectangle(roundedrect, borderBrush, _borderWidth);
-                        }
-                        else
-                        {
-                            g.target->DrawRectangle(D2D1::RectF(offset, offset, _width - offset, _height - offset), borderBrush, _borderWidth);
-                        }
-                        borderBrush->Release();
-                    }
-                    else
-                    {
-                        // TODO: Logging
-                    }
-                }
-                if (_selected)
-                {
-                    ID2D1SolidColorBrush* borderBrush = nullptr;
-                    g.target->CreateSolidColorBrush(_selectedBorderColor, &borderBrush);
-                    if (borderBrush)
-                    {
-                        float offset = _borderWidth * 0.5f;
-                        if (rounding > 0.0f)
-                        {
-                            D2D1_ROUNDED_RECT roundedrect{};
-                            roundedrect.radiusX = _cornerRounding - offset;
-                            roundedrect.radiusY = _cornerRounding - offset;
-                            roundedrect.rect = D2D1::RectF(offset, offset, _width - offset, _height - offset);
-                            g.target->DrawRoundedRectangle(roundedrect, borderBrush, _borderWidth);
-                        }
-                        else
-                        {
-                            g.target->DrawRectangle(D2D1::RectF(offset, offset, _width - offset, _height - offset), borderBrush, _borderWidth);
-                        }
-                        borderBrush->Release();
-                    }
-                    else
-                    {
-                        // TODO: Logging
-                    }
-                }
-
-                // If inactive, gray out the canvas
-                if (!_active && !_customInactiveDraw)
-                {
-                    ID2D1Bitmap1* grayscaleBitmap = nullptr;
-                    g.target->CreateBitmap(
-                        D2D1::SizeU(_width, _height),
-                        nullptr,
-                        0,
-                        D2D1::BitmapProperties1(
-                            D2D1_BITMAP_OPTIONS_TARGET,
-                            { DXGI_FORMAT_B8G8R8A8_UNORM, D2D1_ALPHA_MODE_PREMULTIPLIED }
-                        ),
-                        &grayscaleBitmap
-                    );
-
-                    if (grayscaleBitmap)
-                    {
-                        ID2D1Effect* grayscaleEffect;
-                        g.target->CreateEffect(CLSID_D2D1Grayscale, &grayscaleEffect);
-                        ID2D1Effect* brightnessEffect;
-                        g.target->CreateEffect(CLSID_D2D1Brightness, &brightnessEffect);
-                        if (grayscaleEffect && brightnessEffect)
-                        {
-                            grayscaleEffect->SetInput(0, _canvas);
-                            brightnessEffect->SetInputEffect(0, grayscaleEffect);
-                            brightnessEffect->SetValue(D2D1_BRIGHTNESS_PROP_WHITE_POINT, D2D1::Vector2F(1.0f, 0.6f));
-                            brightnessEffect->SetValue(D2D1_BRIGHTNESS_PROP_BLACK_POINT, D2D1::Vector2F(1.0f, 0.6f));
-
-                            g.target->GetTarget(&stash);
-                            g.target->SetTarget(grayscaleBitmap);
-                            g.target->Clear();
-                            g.target->DrawImage(brightnessEffect);
-                            g.target->SetTarget(stash);
-                            g.target->Clear();
-                            g.target->DrawBitmap(grayscaleBitmap);
-
-                            stash->Release();
-                            if (brightnessEffect)
-                                brightnessEffect->Release();
-                            if (grayscaleEffect)
-                                grayscaleEffect->Release();
-                        }
-                        else
-                        {
-                            // TODO: Logging
-                        }
-                        grayscaleBitmap->Release();
-                    }
-                    else
-                    {
-                        // TODO: Logging
-                    }
-                }
-
-                // Invoke post draw handlers
-                _postDraw->InvokeAll(this, g);
-            }
-            else if (_Redraw())
-            {
-                _OnDraw(g);
-                g.target->Clear();
-            }
-
-            // Unstash target
-            g.target->SetTarget(target);
-            target->Release();
-
-            return _canvas;
-        }
-
-        virtual ID2D1Bitmap* ContentImage()
-        {
-            return _canvas;
-        }
-
-        virtual void Resize(int width, int height)
-        {
-            if (width != _width || height != _height)
-            {
-                SetSize(width, height);
-                _OnResize(_width, _height);
-            }
-        }
+        virtual void Update();
+        // If this function returns true, the 'Draw()' function should be called to redraw any visual changes
+        virtual bool Redraw();
+        virtual void InvokeRedraw() { _redraw = true; }
+        virtual std::optional<Bitmap> Draw(Graphics* g);
+        virtual std::optional<Bitmap> ContentImage();
+        virtual void Resize(Size size);
 
         // ////////////////////
         // Additional functions
         // ////////////////////
 
-        virtual std::list<Component*> GetChildren()
+        virtual std::vector<Component*> GetChildren()
         {
-            return std::list<Component*>();
+            return std::vector<Component*>();
         }
 
-        virtual std::list<Component*> GetAllChildren()
+        virtual std::vector<Component*> GetAllChildren()
         {
-            return std::list<Component*>();
+            return std::vector<Component*>();
         }
 
         virtual Component* IterateTab(bool reverse = false)
         {
-            if (!Selected())
+            if (!selected_)
                 return this;
             else
                 return nullptr;
@@ -1449,20 +884,65 @@ namespace zcom
     protected:
         virtual void _OnUpdate() {}
         virtual bool _Redraw() { return false; }
-        virtual void _OnDraw(Graphics g) {}
-        virtual void _OnResize(int width, int height) {}
-        virtual void _OnWindowPosChange(int x, int y) {}
+        virtual void _OnDraw(Graphics* g) {}
+        virtual void _OnResize(Size size) {}
+        virtual void _OnWindowPosChange(Point position) {}
 
     public:
         virtual const char* GetName() const { return "base"; }
+
+    public:
+        virtual std::vector<std::pair<std::string, std::vector<ValueProxy>>> GetReflectionData()
+        {
+            std::vector<ValueProxy> values;
+            values.push_back(Size::WidthValueProxy("width", std::make_any<Value<Size>*>(&size)));
+            values.push_back(Size::HeightValueProxy("height", std::make_any<Value<Size>*>(&size)));
+            values.push_back(SizeF::WidthValueProxy("parent width", std::make_any<Value<SizeF>*>(&parentSize), 3));
+            values.push_back(SizeF::HeightValueProxy("parent height", std::make_any<Value<SizeF>*>(&parentSize), 3));
+            values.push_back(Point::XValueProxy("x", std::make_any<Value<Point>*>(&position)));
+            values.push_back(Point::YValueProxy("y", std::make_any<Value<Point>*>(&position)));
+            values.push_back(PointF::XValueProxy("parent x", std::make_any<Value<PointF>*>(&parentPosition), 3));
+            values.push_back(PointF::YValueProxy("parent y", std::make_any<Value<PointF>*>(&parentPosition), 3));
+            values.push_back(Size::WidthValueProxy("calculated width", std::make_any<Value<Size>*>(&size_)).Computed());
+            values.push_back(Size::HeightValueProxy("calculated height", std::make_any<Value<Size>*>(&size_)).Computed());
+            values.push_back(Size::WidthValueProxy("calculated self width", std::make_any<Value<Size>*>(&selfSize_)).Computed());
+            values.push_back(Size::HeightValueProxy("calculated self height", std::make_any<Value<Size>*>(&selfSize_)).Computed());
+            values.push_back(Point::XValueProxy("calculated x", std::make_any<Value<Point>*>(&position_)).Computed());
+            values.push_back(Point::YValueProxy("calculated y", std::make_any<Value<Point>*>(&position_)).Computed());
+            values.push_back(Point::XValueProxy("calculated window x", std::make_any<Value<Point>*>(&windowPosition_)).Computed());
+            values.push_back(Point::YValueProxy("calculated window y", std::make_any<Value<Point>*>(&windowPosition_)).Computed());
+            values.push_back(ValueProxy::BasicEnumValueProxy<Alignment>("x align", std::make_any<Value<Alignment>*>(&xAlign), AlignmentValueProxySelectionValues()));
+            values.push_back(ValueProxy::BasicEnumValueProxy<Alignment>("y align", std::make_any<Value<Alignment>*>(&yAlign), AlignmentValueProxySelectionValues()));
+            values.push_back(ValueProxy::BasicFloatValueProxy<float>("opacity", std::make_any<Value<float>*>(&opacity), 3, ValueProxy::Number(0), ValueProxy::Number(1), ValueProxy::Number("0.1")));
+            values.push_back(ValueProxy::BasicBoolValueProxy("disabled", std::make_any<Value<bool>*>(&disabled)));
+            values.push_back(ValueProxy::BasicBoolValueProxy("visible", std::make_any<Value<bool>*>(&visible)));
+            values.push_back(ValueProxy::BasicBoolValueProxy("interactable", std::make_any<Value<bool>*>(&interactable)));
+            values.push_back(ValueProxy::BasicIntValueProxy<int>("z-index", std::make_any<Value<int>*>(&zIndex)));
+            values.push_back(ValueProxy::BasicBoolValueProxy("eat scroll events", std::make_any<Value<bool>*>(&eatScrollEvents)));
+            values.push_back(ValueProxy::BasicBoolValueProxy("ignore alpha", std::make_any<Value<bool>*>(&ignoreAlpha)));
+            values.push_back(ValueProxy::BasicBoolValueProxy("selectable", std::make_any<Value<bool>*>(&selectable)));
+            values.push_back(ValueProxy::BasicIntValueProxy<int>("tab index", std::make_any<Value<int>*>(&tabIndex)));
+            values.push_back(ValueProxy::BasicBoolValueProxy("border visible", std::make_any<Value<bool>*>(&border.visible)));
+            values.push_back(ValueProxy::BasicFloatValueProxy<float>("border width", std::make_any<Value<float>*>(&border.width), 3));
+            values.push_back(ValueProxy::BasicFloatValueProxy<float>("corner radius", std::make_any<Value<float>*>(&border.cornerRadius), 3));
+            values.push_back(ValueProxy::BasicColorValueProxy("border color", std::make_any<Value<Color>*>(&border.color)));
+            values.push_back(ValueProxy::BasicColorValueProxy("selected border color", std::make_any<Value<Color>*>(&border.selectedColor)));
+            values.push_back(ValueProxy::BasicColorValueProxy("background color", std::make_any<Value<Color>*>(&backgroundColor)));
+            values.push_back(ValueProxy::BasicEnumValueProxy<zwnd::CursorIcon>("cursor icon", std::make_any<Value<zwnd::CursorIcon>*>(&cursorIcon), zwnd::CursorIconValueProxySelectionValues(), true));
+            values.push_back(ValueProxy::BasicTextValueProxy("hover text", std::make_any<Value<std::wstring>*>(&hoverText)));
+            values.push_back(DurationValueProxy("hover text delay (ms)", std::make_any<Value<Duration>*>(&hoverTextDelay), MILLISECONDS));
+            values.push_back(ValueProxy::BasicBoolValueProxy("selected", std::make_any<Value<bool>*>(&selected_)).Computed());
+            values.push_back(ValueProxy::BasicBoolValueProxy("hovered", std::make_any<Value<bool>*>(&hovered_)).Computed());
+            values.push_back(ValueProxy::BasicBoolValueProxy("area hovered", std::make_any<Value<bool>*>(&hoveredArea_)).Computed());
+            values.push_back(ValueProxy::BasicBoolValueProxy("left clicked", std::make_any<Value<bool>*>(&leftClicked_)).Computed());
+            values.push_back(ValueProxy::BasicBoolValueProxy("right clicked", std::make_any<Value<bool>*>(&rightClicked_)).Computed());
+            values.push_back(Point::XValueProxy("mouse x position", std::make_any<Value<Point>*>(&mousePosition_)).Computed());
+            values.push_back(Point::YValueProxy("mouse y position", std::make_any<Value<Point>*>(&mousePosition_)).Computed());
+
+            std::vector<std::pair<std::string, std::vector<ValueProxy>>> data;
+            data.push_back({ "Base", std::move(values) });
+            return data;
+        }
     };
 
 }
-
-//#include "Scene.h"
-//
-//template<class T, typename... Args>
-//std::unique_ptr<T> zcom::Base::Create(Args&&... args)
-//{
-//    return _scene->Create(std::forward<Args>(args)...);
-//}

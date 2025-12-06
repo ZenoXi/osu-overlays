@@ -6,19 +6,19 @@
 
 namespace zcom
 {
-    const D2D1_COLOR_F SEPARATOR_COLOR = D2D1::ColorF(0x404040);
-    const D2D1_COLOR_F ON_INDICATOR_COLOR = D2D1::ColorF(0x30B020);
-    const D2D1_COLOR_F OFF_INDICATOR_COLOR = D2D1::ColorF(0xB03020);
+    const Color SEPARATOR_COLOR = Color(0x404040);
+    const Color ON_INDICATOR_COLOR = Color(0x30B020);
+    const Color OFF_INDICATOR_COLOR = Color(0xB03020);
 
 
     struct RoundedLiftedButtonStyle
     {
         static void Apply(Button* button)
         {
-            button->SetBorderVisibility(false);
-            button->SetCornerRounding(3.0f);
-            button->SetSelectedBorderColor(D2D1::ColorF(0, 0.0f));
-            button->SetProperty(PROP_Shadow{});
+            button->border.visible = false;
+            button->border.cornerRadius = 3.0f;
+            button->border.selectedColor = Color(0, 0.0f);
+            button->SetProperty(Shadow().WithColor(Color(0, 0.3f)));
         }
     };
 
@@ -27,10 +27,8 @@ namespace zcom
         static void Apply(Button* button)
         {
             RoundedLiftedButtonStyle::Apply(button);
-            button->SetBackgroundColor(D2D1::ColorF(0x303030));
-            button->SetButtonColor(D2D1::ColorF(0, 0.0f));
-            button->SetButtonHoverColor(D2D1::ColorF(0xFFFFFF, 0.1f));
-            button->SetButtonClickColor(D2D1::ColorF(0x000000, 0.1f));
+            button->backgroundColor.ComputedFrom([](bool disabled) { return disabled ? Color(0x484848) : Color(0x303030); }, button->disabled);
+            button->ValueFromButtonState<Color>(button->buttonColor, Color(0, 0.0f), Color(0xFFFFFF, 0.1f), Color(0x000000, 0.1f));
         }
     };
 
@@ -39,10 +37,8 @@ namespace zcom
         static void Apply(Button* button)
         {
             RoundedLiftedButtonStyle::Apply(button);
-            button->Label()->SetFontColor(D2D1::ColorF(0xEAEAEA));
-            button->SetButtonColor(D2D1::ColorF(0x307020));
-            button->SetButtonHoverColor(D2D1::ColorF(0x309020));
-            button->SetButtonClickColor(D2D1::ColorF(0x308020));
+            button->Label()->fontColor = Color(0xEAEAEA);
+            button->ValueFromButtonState<Color>(button->buttonColor, Color(0x307020), Color(0x309020), Color(0x308020));
         }
     };
 
@@ -51,10 +47,8 @@ namespace zcom
         static void Apply(Button* button)
         {
             RoundedLiftedButtonStyle::Apply(button);
-            button->Label()->SetFontColor(D2D1::ColorF(0xEAEAEA));
-            button->SetButtonColor(D2D1::ColorF(0x703020));
-            button->SetButtonHoverColor(D2D1::ColorF(0x903020));
-            button->SetButtonClickColor(D2D1::ColorF(0x803020));
+            button->Label()->fontColor = Color(0xEAEAEA);
+            button->ValueFromButtonState<Color>(button->buttonColor, Color(0x703020), Color(0x903020), Color(0x803020));
         }
     };
 
@@ -62,10 +56,10 @@ namespace zcom
     {
         static void Apply(Component* item, int horizontalMargins = 0)
         {
-            item->SetParentWidthPercent(1.0f);
-            item->SetBaseSize(horizontalMargins * -2, 1);
-            item->SetHorizontalAlignment(Alignment::CENTER);
-            item->SetBackgroundColor(SEPARATOR_COLOR);
+            item->parentSize = { 1.0f, 0.0f };
+            item->size = { horizontalMargins * -2, 1 };
+            item->xAlign = Alignment::CENTER;
+            item->backgroundColor = SEPARATOR_COLOR;
         }
     };
 
@@ -73,10 +67,10 @@ namespace zcom
     {
         static void Apply(Component* item, int verticalMargins = 0)
         {
-            item->SetParentHeightPercent(1.0f);
-            item->SetBaseSize(1, verticalMargins * -2);
-            item->SetVerticalAlignment(Alignment::CENTER);
-            item->SetBackgroundColor(SEPARATOR_COLOR);
+            item->parentSize = { 0.0f, 1.0f };
+            item->size = { 1, verticalMargins * -2 };
+            item->yAlign = Alignment::CENTER;
+            item->backgroundColor = SEPARATOR_COLOR;
         }
     };
 }

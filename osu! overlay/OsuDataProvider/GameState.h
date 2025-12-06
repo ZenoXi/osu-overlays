@@ -35,8 +35,8 @@ namespace osu
         TimePoint currentTime = 0;
         TimePoint lastObjectTime = 0;
         Duration mp3Length = 0;
-        int mapId = 0;
-        int setId = 0;
+        std::string mapId;
+        std::string setId;
         std::string md5;
         RankedStatus rankedStatus = RankedStatus::UNKNOWN;
         std::string artist;
@@ -134,7 +134,7 @@ namespace osu
         std::string maxGradeThisPlay;
         float unstableRate = 0;
         std::vector<int> hitErrorArray;
-        int currentPP = 0;
+        float currentPP = 0;
         int PPforFC = 0;
         int maxPPForThisPlay = 0;
         Leaderboard leaderboard;
@@ -142,8 +142,157 @@ namespace osu
 
     struct GameState
     {
-        MenuState menuState;
-        GameplayState gameplayState;
+        std::string client;
+        std::string server;
+
+        struct State
+        {
+            int number;
+            std::string name;
+        };
+        State state;
+
+        struct Session
+        {
+            int64_t playTime;
+            int64_t playCount;
+        };
+        Session session;
+
+        struct Settings
+        {
+            struct Mode
+            {
+                int number;
+                std::string name;
+            };
+            Mode mode;
+        };
+        Settings settings;
+
+        struct Profile
+        {
+            struct BanchoStatus
+            {
+                int number;
+                std::string name;
+            };
+            BanchoStatus banchoStatus;
+
+            int64_t id;
+            std::string name;
+
+            struct Mode
+            {
+                int64_t number;
+                std::string name;
+            };
+            Mode mode;
+        };
+        Profile profile;
+
+        struct Beatmap
+        {
+            struct Time
+            {
+                TimePoint live;
+                TimePoint firstObject;
+                TimePoint lastObject;
+                Duration mp3Length;
+            };
+            Time time;
+
+            struct Status
+            {
+                int number;
+                std::string name;
+            };
+            Status status;
+
+            std::string id;
+
+            struct Mode
+            {
+                int number;
+                std::string name;
+            };
+            Mode mode;
+        };
+        Beatmap beatmap;
+
+        struct Play
+        {
+            std::string playerName;
+
+            struct Mode
+            {
+                int number;
+                std::string name;
+            };
+            Mode mode;
+
+            int64_t score;
+            float accuracy;
+
+            struct Hits
+            {
+                int count300;
+                int count100;
+                int count50;
+                int countMiss;
+            };
+            Hits hits;
+
+            struct Combo
+            {
+                int current;
+            };
+            Combo combo;
+
+            struct Mods
+            {
+                float rate;
+            };
+            Mods mods;
+
+            struct PP
+            {
+                float current;
+            };
+            PP pp;
+
+            float unstableRate;
+        };
+        Play play;
+
+        struct Performance
+        {
+            struct Graph
+            {
+                std::vector<float> aim;
+                std::vector<float> aimNoSliders;
+                std::vector<float> flashlight;
+                std::vector<float> speed;
+                std::vector<int64_t> xaxis;
+            };
+            Graph graph;
+        };
+        Performance performance;
+
+        struct ResultsScreen
+        {
+            int64_t scoreId;
+            std::string playerName;
+
+            struct PP
+            {
+                float current;
+            };
+            PP pp;
+
+            std::string createdAt;
+        };
+        ResultsScreen resultsScreen;
     };
 
     void ParseJson(GameState& state, const std::string& inputStr);

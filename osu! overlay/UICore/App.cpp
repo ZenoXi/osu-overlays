@@ -3,8 +3,7 @@
 App::App(HINSTANCE hinst)
     : _hinst(hinst)
     , config(L"config")
-    , _windowCreatedEvent(EventEmitterThreadMode::MULTITHREADED)
-    , _windowClosedEvent(EventEmitterThreadMode::MULTITHREADED)
+    , _windowEvent(EventEmitterThreadMode::MULTITHREADED)
 {
     config.LoadConfig();
     _messageWindow = std::make_unique<zwnd::Window>(_hinst);
@@ -30,7 +29,7 @@ std::optional<zwnd::WindowId> App::CreateTopWindow(zwnd::WindowProperties props,
     });
     zwnd::WindowId windowId = _windows.back().window->GetWindowId();
     lock.unlock();
-    _windowCreatedEvent->InvokeAll(windowId, zwnd::WindowType::TOP, props);
+    _windowEvent->InvokeAll(WindowEvent{ WindowEvent::CREATED, windowId, zwnd::WindowType::TOP, props });
     return windowId;
 }
 
@@ -67,7 +66,7 @@ std::optional<zwnd::WindowId> App::CreateChildWindow(zwnd::WindowId parentWindow
     zwnd::WindowId windowId = _windows.back().window->GetWindowId();
     //parentWindow->SetBlockingWindow(windowId);
     lock.unlock();
-    _windowCreatedEvent->InvokeAll(windowId, zwnd::WindowType::CHILD, props);
+    _windowEvent->InvokeAll(WindowEvent{ WindowEvent::CREATED, windowId, zwnd::WindowType::CHILD, props });
     return windowId;
 }
 
@@ -90,7 +89,7 @@ std::optional<zwnd::WindowId> App::CreateToolWindow(zwnd::WindowId parentWindowI
 
     zwnd::WindowId windowId = _windows.back().window->GetWindowId();
     lock.unlock();
-    _windowCreatedEvent->InvokeAll(windowId, zwnd::WindowType::TOP, props);
+    _windowEvent->InvokeAll(WindowEvent{ WindowEvent::CREATED, windowId, zwnd::WindowType::TOP, props });
     return windowId;
 }
 
@@ -119,14 +118,9 @@ std::future<std::optional<zwnd::WindowId>> App::CreateToolWindowAsync(zwnd::Wind
     return future;
 }
 
-std::unique_ptr<AsyncEventSubscription<void, zwnd::WindowId, zwnd::WindowType, zwnd::WindowProperties>> App::SubscribeOnWindowCreated(std::function<void(zwnd::WindowId, zwnd::WindowType, zwnd::WindowProperties)> handler)
+std::unique_ptr<AsyncEventSubscription<void, WindowEvent>> App::SubscribeOnWindowEvent(std::function<void(WindowEvent)> handler)
 {
-    return _windowCreatedEvent->SubscribeAsync(handler);
-}
-
-std::unique_ptr<AsyncEventSubscription<void, zwnd::WindowId>> App::SubscribeOnWindowClosed(std::function<void(zwnd::WindowId)> handler)
-{
-    return _windowClosedEvent->SubscribeAsync(handler);
+    return _windowEvent->SubscribeAsync(handler);
 }
 
 Handle<zwnd::Window> App::GetWindow(zwnd::WindowId windowId)
@@ -181,6 +175,15 @@ Handle<zwnd::Window> App::FindWindowByClassName(std::wstring className)
     return Handle<zwnd::Window>(nullptr, [&]() {});
 }
 
+std::vector<zwnd::WindowId> App::GetWindowList()
+{
+    std::lock_guard<std::mutex> lock(_m_windows);
+    std::vector<zwnd::WindowId> ids;
+    for (auto& window : _windows)
+        ids.push_back(window.window->GetWindowId());
+    return ids;
+}
+
 zwnd::Window* App::GetMessageWindow()
 {
     return _messageWindow.get();
@@ -190,6 +193,13 @@ bool App::WindowsClosed()
 {
     std::lock_guard<std::mutex> lock(_m_windows);
     return _windows.empty();
+}
+
+void App::Exit()
+{
+    std::lock_guard<std::mutex> lock(_m_windows);
+    for (auto& window : _windows)
+        window.window->Close();
 }
 
 zwnd::Window* App::_FindWindow(zwnd::WindowId windowId)
@@ -268,7 +278,7 @@ void App::_TryDestruct(zwnd::WindowId windowId)
                 }
             }
 
-            _windowClosedEvent->InvokeAll(it->window->GetWindowId());
+            _windowEvent->InvokeAll(WindowEvent{ WindowEvent::CLOSED, it->window->GetWindowId(), std::nullopt, std::nullopt });
             it->markedForDeleting = true;
         }
         else if (it->window->GetWindowType() == zwnd::WindowType::CHILD)
@@ -293,7 +303,7 @@ void App::_TryDestruct(zwnd::WindowId windowId)
             if (childWindowsExist)
                 return;
 
-            _windowClosedEvent->InvokeAll(it->window->GetWindowId());
+            _windowEvent->InvokeAll(WindowEvent{ WindowEvent::CLOSED, it->window->GetWindowId(), std::nullopt, std::nullopt });
             it->markedForDeleting = true;
             
             // Invoke parent destruction check
@@ -301,7 +311,7 @@ void App::_TryDestruct(zwnd::WindowId windowId)
         }
         else if (it->window->GetWindowType() == zwnd::WindowType::TOOL)
         {
-            _windowClosedEvent->InvokeAll(it->window->GetWindowId());
+            _windowEvent->InvokeAll(WindowEvent{ WindowEvent::CLOSED, it->window->GetWindowId(), std::nullopt, std::nullopt });
             it->markedForDeleting = true;
 
             // Invoke parent destruction check

@@ -10,6 +10,7 @@
 #include "Helper/decimal.h"
 
 #include <iostream>
+#include <limits>
 
 #define MAX_DEC_PRECISION 7
 
@@ -25,99 +26,54 @@ namespace zcom
         void Init();
 
     public:
-        NumberInputValue GetValue() const
-        {
-            return _value;
-        }
-
-        int GetPrecision() const
-        {
-            return _precision;
-        }
-
-        NumberInputValue GetStepSize() const
-        {
-            return _stepSize;
-        }
-
-        NumberInputValue GetMinValue() const
-        {
-            return _minValue;
-        }
-
-        NumberInputValue GetMaxValue() const
-        {
-            return _maxValue;
-        }
-
-        void SetValue(NumberInputValue value, bool emitChangeEvent = true)
-        {
-            if (value == _value)
-                return;
-
-            _value = value;
-            if (emitChangeEvent)
-                _valueChangedEvent->InvokeAll(_value);
+        Value<NumberInputValue> value = Value<NumberInputValue>([=](NumberInputValue& currentValue, const NumberInputValue& value) {
+            currentValue = value;
             _BoundValue();
             _UpdateText();
-        }
+        });
+        Value<int> precision = Value<int>(0, [=](int& currentValue, const int& precision) {
+
+            if (precision < 0)
+                currentValue = 0;
+            else if (precision > MAX_DEC_PRECISION)
+                currentValue = MAX_DEC_PRECISION;
+            else
+                currentValue = precision;
+
+            _UpdateText();
+        });
+        Value<NumberInputValue> stepSize = NumberInputValue(1);
+        Value<NumberInputValue> minValue = Value<NumberInputValue>(NumberInputValue(std::numeric_limits<int32_t>::min()), [=](NumberInputValue& currentValue, const NumberInputValue& value) {
+            currentValue = value;
+            if (value > maxValue)
+                maxValue = value;
+            _BoundValue();
+        });
+        Value<NumberInputValue> maxValue = Value<NumberInputValue>(NumberInputValue(std::numeric_limits<int32_t>::max()), [=](NumberInputValue& currentValue, const NumberInputValue& value) {
+            currentValue = value;
+            if (value < minValue)
+                minValue = value;
+            _BoundValue();
+        });
+        Value<float> arrowImageGap = 1.0f;
 
         void StepUp()
         {
-            SetValue(GetValue() + GetStepSize());
+            value = value.Get() + stepSize.Get();
         }
 
         void StepDown()
         {
-            SetValue(GetValue() - GetStepSize());
+            value = value.Get() - stepSize.Get();
         }
 
-        void SetPrecision(int precision)
-        {
-            if (precision < 0)
-                precision = 0;
-            if (precision > MAX_DEC_PRECISION)
-                precision = MAX_DEC_PRECISION;
-            if (precision == _precision)
-                return;
-
-            _precision = precision;
-            _UpdateText();
-        }
-
-        void SetStepSize(NumberInputValue stepSize)
-        {
-            _stepSize = stepSize;
-        }
-
-        void SetMinValue(NumberInputValue value)
-        {
-            _minValue = value;
-            if (_maxValue < _minValue)
-                _maxValue = _minValue;
-            _BoundValue();
-        }
-
-        void SetMaxValue(NumberInputValue value)
-        {
-            _maxValue = value;
-            if (_minValue > _maxValue)
-                _minValue = _maxValue;
-            _BoundValue();
-        }
-
+        [[nodiscard]]
         EventSubscription<void, NumberInputValue> SubscribeOnValueChanged(std::function<void(NumberInputValue)> handler)
         {
             return _valueChangedEvent->Subscribe(handler);
         }
 
     private:
-        NumberInputValue _value;
-        int _precision = 0;
-        NumberInputValue _stepSize;
-        NumberInputValue _minValue;
-        NumberInputValue _maxValue;
-
         bool _internalChange = false;
 
         EventEmitter<void, NumberInputValue> _valueChangedEvent;
@@ -125,33 +81,33 @@ namespace zcom
 
         void _UpdateValue()
         {
-            SetValue(NumberInputValue(wstring_to_string(Text()->GetText())));
+            value = NumberInputValue(wstring_to_string(text));
         }
 
         void _UpdateText()
         {
             std::ostringstream ss;
-            ss << _value;
+            ss << value.Get();
             std::string s = ss.str();
             std::wstring str = std::wstring(s.begin(), s.end());
 
             // Cut off unnecessary decimal points
-            if (_precision == 0)
+            if (precision == 0)
                 str = str.substr(0, str.length() - (MAX_DEC_PRECISION + 1));
             else
-                str = str.substr(0, str.length() - MAX_DEC_PRECISION + _precision);
+                str = str.substr(0, str.length() - MAX_DEC_PRECISION + precision);
 
             _internalChange = true;
-            Text()->SetText(str);
+            text = str;
             _internalChange = false;
         }
 
         void _BoundValue()
         {
-            if (_value < _minValue)
-                SetValue(_minValue);
-            else if (_value > _maxValue)
-                SetValue(_maxValue);
+            if (value.Get() < minValue.Get())
+                value = minValue.Get();
+            else if (value.Get() > maxValue.Get())
+                value = maxValue.Get();
         }
 
     protected:
@@ -161,18 +117,34 @@ namespace zcom
             _UpdateValue();
         }
 
-        EventTargets _OnWheelUp(int x, int y) override
+        EventContext _OnWheelUp(Point point) override
         {
-            _UpdateValue();
-            SetValue(_value + _stepSize);
-            return EventTargets().Add(this, x, y);
+            StepUp();
+            _valueChangedEvent->InvokeAll(value);
+            return EventContext().Add(this, point);
         }
 
-        EventTargets _OnWheelDown(int x, int y) override
+        EventContext _OnWheelDown(Point point) override
         {
-            _UpdateValue();
-            SetValue(_value - _stepSize);
-            return EventTargets().Add(this, x, y);
+            StepDown();
+            _valueChangedEvent->InvokeAll(value);
+            return EventContext().Add(this, point);
+        }
+
+    public:
+        std::vector<std::pair<std::string, std::vector<ValueProxy>>> GetReflectionData()
+        {
+            std::vector<ValueProxy> values;
+            values.push_back(ValueProxy::BasicNumberValueProxy("value", std::make_any<Value<ValueProxy::Number>*>(&value), 3));
+            values.push_back(ValueProxy::BasicIntValueProxy<int>("precision", std::make_any<Value<int>*>(&precision), ValueProxy::Number(0), ValueProxy::Number(MAX_DEC_PRECISION)));
+            values.push_back(ValueProxy::BasicNumberValueProxy("step size", std::make_any<Value<ValueProxy::Number>*>(&stepSize), MAX_DEC_PRECISION));
+            values.push_back(ValueProxy::BasicNumberValueProxy("min value", std::make_any<Value<ValueProxy::Number>*>(&minValue), MAX_DEC_PRECISION));
+            values.push_back(ValueProxy::BasicNumberValueProxy("max value", std::make_any<Value<ValueProxy::Number>*>(&maxValue), MAX_DEC_PRECISION));
+            values.push_back(ValueProxy::BasicFloatValueProxy<float>("arrow image gap", std::make_any<Value<float>*>(&arrowImageGap), 3));
+
+            auto data = TextInput::GetReflectionData();
+            data.insert(data.begin(), { "Number input", std::move(values) });
+            return data;
         }
     };
 }

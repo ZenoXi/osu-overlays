@@ -7,6 +7,7 @@
 #include "Scenes/TooltipParams.h"
 
 #include "Window/KeyboardManager.h"
+#include "Window/TextRenderContext.h"
 #include "Helper/ResourceManager.h"
 #include "Scenes/Scene.h"
 #include "Scenes/DefaultTitleBarScene.h"
@@ -157,10 +158,24 @@ namespace zwnd
         // Shows a popup tooltip with the given text until the mouse is moved
         // 'params.xPos' and 'params.yPos' parameters describe the position from which to calculate tooltip placement in window coordinates
         void ShowTooltip(zcom::TooltipParams params);
+        // Hides currently shown popup tooltip with the provided display id
+        void HideTooltip(std::optional<uint64_t> displayId);
 
-    public: // Managers
+        // Returns a subscription that fires at the end of each UI thread cycle
+        // This can be used to synchronously retrieve UI data from another window
+        [[nodiscard]] EventSubscription<void, Window*> SubscribeToUIDebugHookEvents(std::function<void(Window*)> handler) { return _uiDebugHookEventEmitter->Subscribe(handler); }
+        // Returns a subscription that fires before window drawing begins
+        // Modifying the bool parameter to true forces the window to draw on this cycle
+        [[nodiscard]] EventSubscription<void, Window*, bool*> SubscribeToUIDebugRenderCheckHookEvents(std::function<void(Window*, bool*)> handler) { return _uiDebugRenderCheckHookEventEmitter->Subscribe(handler); }
+        // Returns a subscription that fires after window drawing is done, but before frame is displayed
+        // Draw calls can be issued to the received graphics object
+        [[nodiscard]] EventSubscription<void, Window*, zcom::Graphics*> SubscribeToUIDebugRenderHookEvents(std::function<void(Window*, zcom::Graphics*)> handler) { return _uiDebugRenderHookEventEmitter->Subscribe(handler); }
+
+
+    public:
         KeyboardManager keyboardManager;
         ResourceManager resourceManager;
+        zcom::TextRenderContext* GetTextRenderContext() { return _window->gfx.GetTextRenderContext(); }
 
     public: // Window messages
         std::unique_ptr<AsyncEventSubscription<bool, WindowMessage>> SubscribeToWindowMessages(const std::function<bool(WindowMessage)>& handler)
@@ -226,7 +241,15 @@ namespace zwnd
     private: // Other
 
         // Tooltip
-        EventEmitter<void, zcom::TooltipParams> _tooltipEventEmitter = EventEmitter<void, zcom::TooltipParams>(EventEmitterThreadMode::MULTITHREADED);
+        EventEmitter<void, zcom::TooltipParams> _showTooltipEventEmitter = EventEmitter<void, zcom::TooltipParams>(EventEmitterThreadMode::MULTITHREADED);
+        EventEmitter<void, std::optional<uint64_t>> _hideTooltipEventEmitter = EventEmitter<void, std::optional<uint64_t>>(EventEmitterThreadMode::MULTITHREADED);
+
+        // Debug
+        Duration _uiDebugHookInterval = Duration(100, MILLISECONDS);
+        TimePoint _lastUiDebugHookTime = TimePoint(0);
+        EventEmitter<void, Window*> _uiDebugHookEventEmitter = EventEmitter<void, Window*>(EventEmitterThreadMode::MULTITHREADED);
+        EventEmitter<void, Window*, bool*> _uiDebugRenderCheckHookEventEmitter = EventEmitter<void, Window*, bool*>(EventEmitterThreadMode::MULTITHREADED);
+        EventEmitter<void, Window*, zcom::Graphics*> _uiDebugRenderHookEventEmitter = EventEmitter<void, Window*, zcom::Graphics*>(EventEmitterThreadMode::MULTITHREADED);
 
     private: // Threads
         void _MessageThread();
@@ -237,8 +260,6 @@ namespace zwnd
 
     private:
         void _PassParamsToHitTest();
-        // Returns a panel containing main panels from all scenes, in screen space
-        std::unique_ptr<zcom::Panel> _BuildMasterPanel();
         void _UpdateSceneZIndices();
         bool _TitleBarAvailable();
     };
@@ -333,9 +354,9 @@ namespace zwnd
         if (index == _activeScenes.size() - 1)
             return true;
 
-        auto sceneSPtr = std::move(_activeScenes[index]);
+        std::unique_ptr<zcom::Scene> scenePtr = std::move(_activeScenes[index]);
         _activeScenes.erase(_activeScenes.begin() + index);
-        _activeScenes.push_back(std::move(sceneSPtr));
+        _activeScenes.push_back(std::move(scenePtr));
         _UpdateSceneZIndices();
         return true;
     }
@@ -350,9 +371,9 @@ namespace zwnd
         if (index == 0)
             return true;
 
-        auto sceneSPtr = std::move(_activeScenes[index]);
+        std::unique_ptr<zcom::Scene>  scenePtr = std::move(_activeScenes[index]);
         _activeScenes.erase(_activeScenes.begin() + index);
-        _activeScenes.insert(_activeScenes.begin(), std::move(sceneSPtr));
+        _activeScenes.insert(_activeScenes.begin(), std::move(scenePtr));
         _UpdateSceneZIndices();
         return true;
     }
@@ -368,7 +389,7 @@ namespace zwnd
         if (index == _activeScenes.size() - 1)
             return true;
 
-        std::swap(_activeScenes[index], _activeScenes[index + 1]);
+        std::swap(_activeScenes[index], _activeScenes[(size_t)index + 1]);
         _UpdateSceneZIndices();
         return true;
     }
@@ -384,7 +405,7 @@ namespace zwnd
         if (index == 0)
             return true;
 
-        std::swap(_activeScenes[index], _activeScenes[index - 1]);
+        std::swap(_activeScenes[index], _activeScenes[(size_t)index - 1]);
         _UpdateSceneZIndices();
         return true;
     }
@@ -402,9 +423,9 @@ namespace zwnd
         if (sceneIndex < behindSceneIndex)
             return true;
 
-        auto sceneSPtr = std::move(_activeScenes[sceneIndex]);
+        std::unique_ptr<zcom::Scene> scenePtr = std::move(_activeScenes[sceneIndex]);
         _activeScenes.erase(_activeScenes.begin() + sceneIndex);
-        _activeScenes.insert(_activeScenes.begin() + behindSceneIndex, std::move(sceneSPtr));
+        _activeScenes.insert(_activeScenes.begin() + behindSceneIndex, std::move(scenePtr));
         _UpdateSceneZIndices();
         return true;
     }
@@ -422,9 +443,9 @@ namespace zwnd
         if (sceneIndex > inFrontSceneIndex)
             return true;
 
-        auto sceneSPtr = std::move(_activeScenes[sceneIndex]);
+        std::unique_ptr<zcom::Scene>  scenePtr = std::move(_activeScenes[sceneIndex]);
         _activeScenes.erase(_activeScenes.begin() + sceneIndex);
-        _activeScenes.insert(_activeScenes.begin() + inFrontSceneIndex + 1, std::move(sceneSPtr));
+        _activeScenes.insert(_activeScenes.begin() + inFrontSceneIndex + 1, std::move(scenePtr));
         _UpdateSceneZIndices();
         return true;
     }

@@ -1,7 +1,7 @@
 #pragma once
 
-#pragma comment( lib,"d2d1.lib" )
-#include <d2d1_1.h>
+#include "UICore/Window/DirectX.h"
+#include "UICore/Model/Bitmap.h"
 
 #include <string>
 #include <vector>
@@ -23,7 +23,22 @@ public:
     static ID2D1Bitmap* GetImage(std::string name);
 };
 
+namespace zcom
+{
+    class StandaloneBitmap : public BitmapStorage
+    {
+        ID2D1Bitmap* _bitmap;
 
+    public:
+        StandaloneBitmap(ID2D1Bitmap* bitmap) : _bitmap(bitmap) {}
+        ~StandaloneBitmap() {}
+
+        Size GetSize() const override { return { (int)_bitmap->GetSize().width, (int)_bitmap->GetSize().height }; }
+        bool CanBeTarget() const override { return false; }
+        ID2D1Bitmap* GetSource() const override { return _bitmap; }
+        Rect GetSourceRect() const override { return GetSize().ToRect(); }
+    };
+}
 
 class ResourceManager
 {
@@ -47,7 +62,7 @@ public:
     void InitImage(std::string resourceName);
 
     // Returns an image with the specified resource name
-    ID2D1Bitmap* GetImage(std::string name);
+    std::optional<zcom::Bitmap> GetImage(std::string name);
 
 private:
     // Empty vector loads all

@@ -1,9 +1,8 @@
 #pragma once
 
-#include "ComponentBase.h"
+#include "Panel.h"
 #include "Label.h"
 #include "Image.h"
-#include "../ComHelper.h"
 
 #include "Helper/EventEmitter.h"
 #include "Window/KeyboardEventHandler.h"
@@ -21,174 +20,117 @@ namespace zcom
     {
         PRESS,
         RELEASE,
-        PRESS_AND_RELEASE
+        PRESS_OR_RELEASE
     };
-
-    class Button : public Component, public KeyboardEventHandler
+    constexpr std::vector<std::pair<int64_t, std::wstring>> ButtonActivationValueProxySelectionValues()
     {
-        DEFINE_COMPONENT(Button, Component)
+        return {
+            { (int64_t)ButtonActivation::PRESS, L"Press" },
+            { (int64_t)ButtonActivation::RELEASE, L"Release" },
+            { (int64_t)ButtonActivation::PRESS_OR_RELEASE, L"Press or release" }
+        };
+    }
+
+    class Button : public Panel, public KeyboardEventHandler
+    {
+    public:
+        template<typename T>
+        void ValueFromButtonState(Value<T>& value, T defaultValue, T hoveredValue, T clickedValue)
+        {
+            value.ComputedFrom([defaultValue, hoveredValue, clickedValue](bool hovered, bool clicked) {
+                if (clicked)
+                    return clickedValue;
+                else if (hovered)
+                    return hoveredValue;
+                else
+                    return defaultValue;
+            }, buttonHovered_, buttonClicked_);
+        }
+
+        DEFINE_COMPONENT(Button, Panel)
         DEFAULT_DESTRUCTOR(Button)
+        HIDE_PANEL_METHODS
     protected:
-        void Init(std::wstring text, ButtonPreset preset)
+        void Init(std::wstring text, ButtonPreset preset = ButtonPreset::DEFAULT)
         {
-            SetDefaultCursor(zwnd::CursorIcon::HAND);
-            SetSelectable(true);
+            cursorIcon = zwnd::CursorIcon::HAND;
+            selectable = true;
+            buttonHovered_.ComputedFrom([](bool hovered, bool clicked) {
+                return !clicked && hovered;
+            }, hovered_, leftClicked_);
+            buttonClicked_.ComputedFrom([](bool hoveredArea, bool clicked) {
+                return clicked && hoveredArea;
+            }, hoveredArea_, leftClicked_);
 
-            _text = Create<zcom::Label>(text);
-            _text->SetSize(GetWidth(), GetHeight());
-            _text->SetHorizontalTextAlignment(TextAlignment::CENTER);
-            _text->SetVerticalTextAlignment(Alignment::CENTER);
+            _label = Create<zcom::Label>(text);
+            _label->parentSize = SizeF{ 1.0f, 1.0f };
+            _label->xTextAlign = TextAlignment::CENTER;
+            _label->yTextAlign = Alignment::CENTER;
 
-            _image = Create<Image>();
-            _image->SetSize(GetWidth(), GetHeight());
-            _image->SetPlacement(ImagePlacement::FIT);
-            _imageHovered = Create<Image>();
-            _imageHovered->SetSize(GetWidth(), GetHeight());
-            _imageHovered->SetPlacement(ImagePlacement::FIT);
-            _imageClicked = Create<Image>();
-            _imageClicked->SetSize(GetWidth(), GetHeight());
-            _imageClicked->SetPlacement(ImagePlacement::FIT);
+            _image = Create<zcom::Image>();
+            _image->parentSize = SizeF{ 1.0f, 1.0f };
+            _image->imagePlacement = ImagePlacement::FIT;
 
-            // Must be called after image components are initialized
-            SetPreset(preset);
+            AddItem(_label.get());
+            AddItem(_image.get());
+
+            _SetPreset(preset);
         }
-        void Init(std::wstring text)
-        {
-            Init(text, ButtonPreset::DEFAULT);
-        }
-        void Init(ButtonPreset preset)
+        void Init(ButtonPreset preset = ButtonPreset::DEFAULT)
         {
             Init(L"", preset);
         }
-        void Init()
-        {
-            Init(L"", ButtonPreset::DEFAULT);
-        }
 
     public:
-        void SetButtonImageAll(ID2D1Bitmap* image)
+        Value<Color> buttonColor = Value<Color>(Color(), [=](Color& currentValue, const Color& color) {
+            currentValue = color;
+            InvokeRedraw();
+        });
+        Value<ButtonActivation> activation = ButtonActivation::RELEASE;
+
+        Value<bool> buttonHovered_ = false;
+        Value<bool> buttonClicked_ = false;
+
+        Label* Label()
         {
-            _image->SetImage(image);
-            _imageHovered->SetImage(image);
-            _imageClicked->SetImage(image);
+            return _label.get();
         }
 
-        void SetButtonColorAll(D2D1_COLOR_F color)
-        {
-            SetButtonColor(color);
-            SetButtonHoverColor(color);
-            SetButtonClickColor(color);
-        }
-
-        zcom::Image* ButtonImage()
+        Image* Image()
         {
             return _image.get();
         }
 
-        zcom::Image* ButtonHoverImage()
+        [[nodiscard]]
+        EventSubscription<void> SubscribeOnActivated(const std::function<void()>& func)
         {
-            return _imageHovered.get();
+            return _onActivated->Subscribe(func);
         }
 
-        zcom::Image* ButtonClickImage()
-        {
-            return _imageClicked.get();
-        }
+    private:
+        EventEmitter<void> _onActivated;
+        std::unique_ptr<zcom::Label> _label = nullptr;
+        std::unique_ptr<zcom::Image> _image = nullptr;
 
-        // Copies all parameters (except the image itself) to all button images
-        void UseImageParamsForAll(zcom::Image* image)
-        {
-            // Copy image params before overwriting internal images
-            // in case and internal image is used as the copy base
-            RECT_F sourceRect = image->GetSourceRect();
-            RECT_F targetRect = image->GetTargetRect();
-            ImagePlacement placement = image->GetPlacement();
-            float offsetX = image->GetImageOffsetX();
-            float offsetY = image->GetImageOffsetY();
-            float scaleX = image->GetScaleX();
-            float scaleY = image->GetScaleY();
-            bool snap = image->GetPixelSnap();
-            float opacity = image->GetImageOpacity();
-            D2D1_COLOR_F color = image->GetTintColor();
-
-            // Apply to internal images
-            _image->SetSourceRect(sourceRect);
-            _image->SetTargetRect(targetRect);
-            _image->SetPlacement(placement);
-            _image->SetImageOffset(offsetX, offsetY);
-            _image->SetScale(scaleX, scaleY);
-            _image->SetPixelSnap(snap);
-            _image->SetImageOpacity(opacity);
-            _image->SetTintColor(color);
-            _imageHovered->SetSourceRect(sourceRect);
-            _imageHovered->SetTargetRect(targetRect);
-            _imageHovered->SetPlacement(placement);
-            _imageHovered->SetImageOffset(offsetX, offsetY);
-            _imageHovered->SetScale(scaleX, scaleY);
-            _imageHovered->SetPixelSnap(snap);
-            _imageHovered->SetImageOpacity(opacity);
-            _imageHovered->SetTintColor(color);
-            _imageClicked->SetSourceRect(sourceRect);
-            _imageClicked->SetTargetRect(targetRect);
-            _imageClicked->SetPlacement(placement);
-            _imageClicked->SetImageOffset(offsetX, offsetY);
-            _imageClicked->SetScale(scaleX, scaleY);
-            _imageClicked->SetPixelSnap(snap);
-            _imageClicked->SetImageOpacity(opacity);
-            _imageClicked->SetTintColor(color);
-        }
-
-        void SetButtonColor(D2D1_COLOR_F color)
-        {
-            if (color == _color)
-                return;
-            _color = color;
-            InvokeRedraw();
-        }
-
-        void SetButtonHoverColor(D2D1_COLOR_F color)
-        {
-            if (color == _colorHovered)
-                return;
-            _colorHovered = color;
-            InvokeRedraw();
-        }
-
-        void SetButtonClickColor(D2D1_COLOR_F color)
-        {
-            if (color == _colorClicked)
-                return;
-            _colorClicked = color;
-            InvokeRedraw();
-        }
-
-        void SetPreset(ButtonPreset preset)
+    protected:
+        void _SetPreset(ButtonPreset preset)
         {
             switch (preset)
             {
             case ButtonPreset::NO_EFFECTS:
             {
-                SetButtonImageAll(nullptr);
-                SetButtonColorAll(D2D1::ColorF(0, 0.0f));
-                SetBorderVisibility(false);
                 break;
             }
             case ButtonPreset::MINIMAL:
             {
-                SetButtonImageAll(nullptr);
-                SetButtonColor(D2D1::ColorF(0, 0.0f));
-                SetButtonHoverColor(D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.1f));
-                SetButtonClickColor(D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.1f));
+                ValueFromButtonState<Color>(buttonColor, Color(), Color(0xFFFFFF, 0.1f), Color(0x000000, 0.1f));
                 break;
             }
             case ButtonPreset::DEFAULT:
             {
-                SetButtonImageAll(nullptr);
-                SetButtonColor(D2D1::ColorF(0.05f, 0.05f, 0.05f));
-                SetButtonHoverColor(D2D1::ColorF(0.1f, 0.1f, 0.1f));
-                SetButtonClickColor(D2D1::ColorF(0.02f, 0.02f, 0.02f));
-                SetBorderVisibility(true);
-                SetBorderColor(D2D1::ColorF(0.2f, 0.2f, 0.2f));
+                border.visible = true;
+                border.color = Color(0x323232);
+                ValueFromButtonState<Color>(buttonColor, Color(0x0C0C0C), Color(0x1A1A1A), Color(0x050505));
                 break;
             }
             default:
@@ -196,185 +138,32 @@ namespace zcom
             }
         }
 
-        EventSubscription<void> SubscribeOnActivated(const std::function<void()>& func)
+        void _OnDraw(Graphics* g) override
         {
-            return _onActivated->Subscribe(func);
+            g->FillRectangle(size_->ToRect().ToRectF(), buttonColor);
+            Panel::_OnDraw(g);
         }
 
-        void SetActivation(ButtonActivation activation)
+        EventContext _OnLeftPressed(Point point) override
         {
-            _activation = activation;
-        }
-
-        bool Activated()
-        {
-            bool value = _activated;
-            _activated = false;
-            return value;
-        }
-
-        Label* Label()
-        {
-            return _text.get();
-        }
-
-    private:
-        bool _activated = false;
-        ButtonActivation _activation = ButtonActivation::RELEASE;
-        EventEmitter<void> _onActivated;
-
-        bool _hovered = false;
-
-        std::unique_ptr<zcom::Label> _text = nullptr;
-        std::unique_ptr<Image> _image = nullptr;
-        std::unique_ptr<Image> _imageHovered = nullptr;
-        std::unique_ptr<Image> _imageClicked = nullptr;
-        D2D1_COLOR_F _color = D2D1::ColorF(0, 0.0f);
-        D2D1_COLOR_F _colorHovered = D2D1::ColorF(1.0f, 1.0f, 1.0f, 0.1f);
-        D2D1_COLOR_F _colorClicked = D2D1::ColorF(0.0f, 0.0f, 0.0f, 0.1f);
-
-    protected:
-        bool _Redraw() override
-        {
-            return _text->Redraw()
-                || _image->Redraw()
-                || _imageHovered->Redraw()
-                || _imageClicked->Redraw();
-        }
-
-        void _OnDraw(Graphics g) override
-        {
-            // Update images
-            if (_image->Redraw())
-                _image->Draw(g);
-            if (_imageHovered->Redraw())
-                _imageHovered->Draw(g);
-            if (_imageClicked->Redraw())
-                _imageClicked->Draw(g);
-
-            D2D1_COLOR_F color;
-            zcom::Image* image = nullptr;
-            if (GetMouseLeftClicked())
-            {
-                if (GetMouseInsideArea())
-                {
-                    color = _colorClicked;
-                    image = _imageClicked.get();
-                }
-                else
-                {
-                    color = _color;
-                    image = _image.get();
-                }
-            }
-            else
-            {
-                // TODO: Bug - after releasing the left button, if cursor is outside of button and isn't moved, the button stays with hovered visuals
-                if (GetMouseInside())
-                {
-                    color = _colorHovered;
-                    image = _imageHovered.get();
-                }
-                else
-                {
-                    color = _color;
-                    image = _image.get();
-                }
-            }
-            // Draw button color
-            ID2D1SolidColorBrush* brush;
-            g.target->CreateSolidColorBrush(color, &brush);
-            if (brush)
-            {
-                g.target->FillRectangle
-                (
-                    D2D1::RectF(0, 0, g.target->GetSize().width, g.target->GetSize().height),
-                    brush
-                );
-                brush->Release();
-            }
-            else
-            {
-                // TODO: Logging
-            }
-
-            // Draw button image
-            if (image && image->GetImage())
-                g.target->DrawBitmap(image->ContentImage());
-
-            // Draw button text
-            g.target->DrawBitmap(
-                _text->Draw(g),
-                D2D1::RectF(
-                    (FLOAT)_text->GetX(),
-                    (FLOAT)_text->GetY(),
-                    (FLOAT)(_text->GetX() + _text->GetWidth()),
-                    (FLOAT)(_text->GetY() + _text->GetHeight())
-                )
-            );
-        }
-
-        void _OnResize(int width, int height) override
-        {
-            _text->Resize(width, height);
-            _image->Resize(width, height);
-            _imageHovered->Resize(width, height);
-            _imageClicked->Resize(width, height);
-        }
-
-        void _OnMouseEnter() override
-        {
-            InvokeRedraw();
-        }
-
-        void _OnMouseLeave() override
-        {
-            InvokeRedraw();
-        }
-
-        void _OnMouseEnterArea() override
-        {
-            InvokeRedraw();
-        }
-
-        void _OnMouseLeaveArea() override
-        {
-            InvokeRedraw();
-        }
-
-        EventTargets _OnLeftPressed(int x, int y) override
-        {
-            if (_activation == ButtonActivation::PRESS || _activation == ButtonActivation::PRESS_AND_RELEASE)
-            {
-                _activated = true;
+            if (activation == ButtonActivation::PRESS || activation == ButtonActivation::PRESS_OR_RELEASE)
                 _onActivated->InvokeAll();
-            }
-            InvokeRedraw();
-            return EventTargets().Add(this, x, y);
+            return EventContext().Add(this, point);
         }
 
-        EventTargets _OnLeftReleased(int x, int y) override
+        EventContext _OnLeftReleased(std::optional<Point> point) override
         {
-            if (GetMouseInsideArea())
+            if (hoveredArea_)
             {
-                if (_activation == ButtonActivation::RELEASE || _activation == ButtonActivation::PRESS_AND_RELEASE)
-                {
-                    _activated = true;
+                if (activation == ButtonActivation::RELEASE || activation == ButtonActivation::PRESS_OR_RELEASE)
                     _onActivated->InvokeAll();
-                }
             }
-            InvokeRedraw();
-            return EventTargets().Add(this, x, y);
+            return EventContext().Add(this, point);
         }
 
         void _OnSelected(bool reverse) override;
 
         void _OnDeselected() override;
-
-        bool _OnHotkey(int id) override
-        {
-            return false;
-        }
 
         bool _OnKeyDown(BYTE vkCode) override
         {
@@ -386,14 +175,18 @@ namespace zcom
             return false;
         }
 
-        bool _OnKeyUp(BYTE vkCode) override
+    public:
+        std::vector<std::pair<std::string, std::vector<ValueProxy>>> GetReflectionData()
         {
-            return false;
-        }
+            std::vector<ValueProxy> values;
+            values.push_back(ValueProxy::BasicColorValueProxy("button color", std::make_any<Value<Color>*>(&buttonColor)));
+            values.push_back(ValueProxy::BasicEnumValueProxy<ButtonActivation>("button activation", std::make_any<Value<ButtonActivation>*>(&activation), ButtonActivationValueProxySelectionValues()));
+            values.push_back(ValueProxy::BasicBoolValueProxy("hovered", std::make_any<Value<bool>*>(&buttonHovered_)).Computed());
+            values.push_back(ValueProxy::BasicBoolValueProxy("clicked", std::make_any<Value<bool>*>(&buttonClicked_)).Computed());
 
-        bool _OnChar(wchar_t ch) override
-        {
-            return false;
+            auto data = Panel::GetReflectionData();
+            data.insert(data.begin(), { "Button", std::move(values) });
+            return data;
         }
     };
 }
