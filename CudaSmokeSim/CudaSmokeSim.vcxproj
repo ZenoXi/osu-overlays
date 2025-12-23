@@ -84,6 +84,7 @@ xcopy /y /d "$(ProjectDir)build\$(Configuration)\$(TargetName).dll" "$(SolutionD
     </Link>
     <CudaCompile>
       <TargetMachinePlatform>64</TargetMachinePlatform>
+      <Runtime>MT</Runtime>
     </CudaCompile>
     <PostBuildEvent>
       <Command>xcopy /y /d "$(ProjectDir)CudaSmokeSim.h" "$(SolutionDir)include\CudaSmokeSim\"

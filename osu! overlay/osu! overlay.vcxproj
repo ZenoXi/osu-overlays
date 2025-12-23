@@ -136,6 +136,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <AdditionalIncludeDirectories>$(SolutionDir)include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -165,6 +166,7 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
       <AdditionalIncludeDirectories>$(SolutionDir)include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <ExternalWarningLevel>TurnOffAllWarnings</ExternalWarningLevel>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -174,7 +176,7 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
       <EntryPointSymbol>
       </EntryPointSymbol>
       <AdditionalLibraryDirectories>$(SolutionDir)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>CudaSmokeSim.lib;libssl.lib;libcrypto.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>CudaSmokeSim.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy /y /d "$(ProjectDir)build\$(Configuration)\$(TargetFileName)" "$(SolutionDir)output\$(Configuration)\"
@@ -348,6 +350,7 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     <ClInclude Include="Shared\Components\SectionHeader.h" />
     <ClInclude Include="Shared\Scenes\TitleBarScene.h" />
     <ClInclude Include="Shared\Styles\Styles.h" />
+    <ClInclude Include="Shared\Util\base64.h" />
     <ClInclude Include="Shared\Util\Constants.h" />
     <ClInclude Include="Shared\Util\Eigen.h" />
     <ClInclude Include="Shared\Util\Functions.h" />
@@ -355,6 +358,7 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     <ClInclude Include="Shared\Util\httplib.h" />
     <ClInclude Include="Shared\Util\JsonParser.h" />
     <ClInclude Include="Shared\Util\Navigation.h" />
+    <ClInclude Include="Shared\Util\ProcessRunner.h" />
     <ClInclude Include="Shared\Util\Streams.h" />
     <ClInclude Include="Shared\Util\ThreadPool.h" />
     <ClInclude Include="SmokeSim\SmokeSimConfig.h" />

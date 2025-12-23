@@ -104,8 +104,7 @@ void zcom::SettingsScene::_CreateTabs()
         }
     }).Detach();
     
-    auto updatesTabButton = _CreateTabButton(L"Updates", _window->resourceManager.GetImage("update"), SettingsTab::UPDATES);
-    updatesTabButton->Image()->tintColor = Color(0xE3C04B);
+    auto updatesTabButton = _CreateTabButton(L"Updates", _window->resourceManager.GetImage("update_full"), SettingsTab::UPDATES);
     updatesTabButton->SubscribeOnActivated([=]() {
         if (_currentTab != SettingsTab::UPDATES)
         {

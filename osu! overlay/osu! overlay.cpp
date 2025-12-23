@@ -47,7 +47,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
         }
     }
 
-    // Find -update flag
+    // Find -update-finalize flag
     std::optional<DWORD> updateFinalizeProcessId;
     for (size_t i = 0; i < args.size(); i++)
     {
@@ -105,26 +105,27 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
                 }
                 else
                 {
+                    // Wait a bit to ensure file handles are free
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+
                     namespace fs = std::filesystem;
                     try
                     {
                         fs::path tempPath = fs::current_path();
                         fs::path mainPath = tempPath.parent_path();
 
+                        std::cout << fs::remove_all(mainPath / "bin") << '\n';
                         std::cout << fs::remove_all(mainPath / "Resources") << '\n';
                         std::cout << fs::remove(mainPath / "CudaSmokeSim.dll") << '\n';
                         std::cout << fs::remove(mainPath / "CursorTrailEffect.cso") << '\n';
                         std::cout << fs::remove(mainPath / "TintEffect.cso") << '\n';
-                        std::cout << fs::remove(mainPath / "libcrypto-3-x64.dll") << '\n';
-                        std::cout << fs::remove(mainPath / "libssl-3-x64.dll") << '\n';
                         std::cout << fs::remove(mainPath / "OverlayEngine.exe") << '\n';
 
+                        fs::copy(tempPath / "bin", mainPath / "bin", fs::copy_options::recursive);
                         fs::copy(tempPath / "Resources", mainPath / "Resources", fs::copy_options::recursive);
                         fs::copy(tempPath / "CudaSmokeSim.dll", mainPath / "CudaSmokeSim.dll");
                         fs::copy(tempPath / "CursorTrailEffect.cso", mainPath / "CursorTrailEffect.cso");
                         fs::copy(tempPath / "TintEffect.cso", mainPath / "TintEffect.cso");
-                        fs::copy(tempPath / "libcrypto-3-x64.dll", mainPath / "libcrypto-3-x64.dll");
-                        fs::copy(tempPath / "libssl-3-x64.dll", mainPath / "libssl-3-x64.dll");
                         fs::copy(tempPath / "OverlayEngine.exe", mainPath / "OverlayEngine.exe");
 
                         STARTUPINFO info = { sizeof(info) };
@@ -133,9 +134,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
                         std::wstring args = L"\"" + exePath.wstring() + L"\" -update-finalize " + std::to_wstring(GetCurrentProcessId());
                         std::wstring exePathStr = exePath.wstring();
                         std::wstring mainPathStr = mainPath.wstring();
-                        //std::wstring args = L"temp/OverlayEngine.exe -update " + std::to_wstring(GetCurrentProcessId());
-                        //if (CreateProcess(L"temp/OverlayEngine.exe", args.data(), NULL, NULL, TRUE, CREATE_NEW_CONSOLE, NULL, NULL, &info, &processInfo))
-                        if (CreateProcess(exePathStr.c_str(), args.data(), NULL, NULL, TRUE, CREATE_NEW_CONSOLE, NULL, mainPathStr.c_str(), &info, &processInfo))
+                        if (CreateProcess(exePathStr.c_str(), args.data(), NULL, NULL, TRUE, CREATE_NEW_PROCESS_GROUP, NULL, mainPathStr.c_str(), &info, &processInfo))
                         {
                             CloseHandle(processInfo.hProcess);
                             CloseHandle(processInfo.hThread);
@@ -194,6 +193,9 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
                 }
                 else
                 {
+                    // Wait a bit to ensure file handles are free
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+
                     namespace fs = std::filesystem;
                     try
                     {
@@ -264,6 +266,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
 
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+
+    std::cout << "Stopping app..\n";
 
     return 0;
 }

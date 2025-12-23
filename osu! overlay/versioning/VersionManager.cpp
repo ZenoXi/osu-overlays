@@ -2,6 +2,9 @@
 
 #include "Shared/Util/Http.h"
 #include "Shared/Util/JsonParser.h"
+#include "Shared/Util/ProcessRunner.h"
+#include "Shared/Util/base64.h"
+#include "UICore/Helper/Time.h"
 
 #include <filesystem>
 #include <fstream>
@@ -36,24 +39,66 @@ std::unique_ptr<AsyncEventSubscription<void, std::vector<UpdateData>>> VersionMa
     });
 
     std::thread([updateCheckEventEmitter]() {
-        httplib::Client cli("https://api.github.com");
-        httplib::Headers headers = {
+
+        HttpGetRequestData requestData{};
+        requestData.baseUrl = "https://api.github.com";
+        requestData.path = "/repos/ZenoXi/osu-overlays/releases";
+        requestData.headers = {
             { "Accept", "application/json" },
             { "User-Agent", "ZenoXi" }
         };
-        auto resp = cli.Get("/repos/ZenoXi/osu-overlays/releases", headers);
-        //auto resp = cli.Get("/repos/ZenoXi/auto-update-testing/releases", headers);
-        if (!resp || resp->status != httplib::OK_200)
+        std::string requestString = requestData.ToJson() + "\n";
+        std::cout << requestString;
+
+        auto requestRunner = ProcessRunner("bin/http-forwarder");
+        if (!requestRunner.StartProcess())
         {
             updateCheckEventEmitter->InvokeAll({});
             return;
         }
 
+        unsigned long position = 0;
+        while (1)
+        {
+            unsigned long written;
+            requestRunner.WriteToProcess(requestString.substr(position), &written);
+            position += written;
+            if (position >= requestString.length())
+                break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
+        SimpleTimer timeoutTimer;
+        while (!requestRunner.Finished())
+        {
+            if (timeoutTimer.SecondsElapsed() > 10)
+            {
+                updateCheckEventEmitter->InvokeAll({});
+                return;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
+        if (requestRunner.ExitCode() != 0)
+        {
+            updateCheckEventEmitter->InvokeAll({});
+            return;
+        }
+
+        std::string response = requestRunner.GetOutput();
+        if (response.length() <= 3)
+        {
+            updateCheckEventEmitter->InvokeAll({});
+            return;
+        }
+
+        std::string body = response.substr(4);
+
         try
         {
             std::vector<UpdateData> availableUpdates;
 
-            zjson::JsonParser releasesParser(resp->body);
+            zjson::JsonParser releasesParser(body);
             size_t releaseCount = releasesParser.GetArraySize("");
             for (int i = 0; i < releaseCount; i++)
             {
@@ -129,24 +174,85 @@ std::unique_ptr<AsyncEventSubscription<void, std::optional<std::wstring>>> Versi
         std::string host = url.substr(0, hostLength);
         std::string path = url.substr(hostLength);
 
-        httplib::Client cli(host);
-        cli.set_follow_location(true);
-        httplib::Headers headers = {
+        HttpGetRequestData requestData{};
+        requestData.baseUrl = host;
+        requestData.path = path;
+        requestData.headers = {
             { "Accept", "application/octet-stream" },
             { "User-Agent", "ZenoXi" }
         };
-        httplib::Result resp = cli.Get(path, headers);
+        std::string requestString = requestData.ToJson() + "\n";
+        std::cout << requestString;
 
-        if (!resp)
+        auto requestRunner = ProcessRunner("bin/http-forwarder");
+        if (!requestRunner.StartProcess())
+        {
+            updateInitiatedEventEmitter->InvokeAll(L"Failed to start the downloader. Try again or download the update manually");
+            return;
+        }
+
+        unsigned long position = 0;
+        while (1)
+        {
+            unsigned long written;
+            requestRunner.WriteToProcess(requestString.substr(position), &written);
+            position += written;
+            if (position >= requestString.length())
+                break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
+        SimpleTimer timeoutTimer;
+        while (!requestRunner.Finished())
+        {
+            if (timeoutTimer.SecondsElapsed() > 300)
+            {
+                updateInitiatedEventEmitter->InvokeAll(L"Download timeout. Try again or download the update manually");
+                return;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
+        if (requestRunner.ExitCode() == -13)
         {
             updateInitiatedEventEmitter->InvokeAll(L"No response from the server. Try again or download the update manually");
             return;
         }
-        if (resp->status != httplib::OK_200)
+        else if (requestRunner.ExitCode() != 0)
         {
-            updateInitiatedEventEmitter->InvokeAll(L"[" + std::to_wstring(resp->status) + L": " + string_to_wstring(std::string(httplib::status_message(resp->status))) + L"] Try again or download the update manually");
+            updateInitiatedEventEmitter->InvokeAll(L"Unexpected error occured while trying to download update. Try again or download the update manually");
             return;
         }
+
+        std::string response = requestRunner.GetOutput();
+        if (response.length() <= 3)
+        {
+            updateInitiatedEventEmitter->InvokeAll(L"Unexpected response received while trying to download update. Try again or download the update manually");
+            return;
+        }
+
+        std::string status = response.substr(0, 3);
+        int statusCode = 0;
+        try {
+            statusCode = std::stoi(status);
+        } catch (std::exception) { }
+
+        if (status != "200")
+        {
+            updateInitiatedEventEmitter->InvokeAll(L"[" + string_to_wstring(status) + L": " + string_to_wstring(std::string(httplib::status_message(statusCode))) + L"] Try again or download the update manually");
+            return;
+        }
+
+        std::string base64body = response.substr(4);
+        int endIndex = (int)base64body.length();
+        while (endIndex > 0 && (base64body[endIndex - 1] == '\n' || base64body[endIndex - 1] == '\r' || base64body[endIndex - 1] == ' '))
+            endIndex--;
+        if (endIndex <= 0)
+        {
+            updateInitiatedEventEmitter->InvokeAll(L"Update file not present in response. Try again or download the update manually");
+            return;
+        }
+        std::string zipBytes = base64::from_base64(base64body.substr(0, endIndex));
 
         namespace fs = std::filesystem;
 
@@ -165,7 +271,7 @@ std::unique_ptr<AsyncEventSubscription<void, std::optional<std::wstring>>> Versi
         }
 
         std::ofstream zipFile(tempPath / update.zipName, std::ios::binary);
-        zipFile.write(resp->body.data(), resp->body.size());
+        zipFile.write(zipBytes.data(), zipBytes.size());
         zipFile.close();
 
         std::cout << "extracting..\n";
@@ -204,7 +310,7 @@ std::unique_ptr<AsyncEventSubscription<void, std::optional<std::wstring>>> Versi
         std::wstring args = L"\"" + exePath->wstring() + L"\" -update " + std::to_wstring(GetCurrentProcessId());
         std::wstring exePathStr = exePath->wstring();
         std::wstring tempPathStr = tempPath.wstring();
-        if (CreateProcess(exePathStr.c_str(), args.data(), NULL, NULL, TRUE, 0, NULL, tempPathStr.c_str(), &info, &processInfo))
+        if (CreateProcess(exePathStr.c_str(), args.data(), NULL, NULL, TRUE, CREATE_NEW_PROCESS_GROUP, NULL, tempPathStr.c_str(), &info, &processInfo))
         {
             CloseHandle(processInfo.hProcess);
             CloseHandle(processInfo.hThread);

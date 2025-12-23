@@ -803,5 +803,11 @@
     <ClInclude Include="Shared\Util\JsonParser.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Shared\Util\ProcessRunner.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Util\base64.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
