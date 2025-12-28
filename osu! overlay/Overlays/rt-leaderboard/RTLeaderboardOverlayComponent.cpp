@@ -254,7 +254,7 @@ void zcom::RTLeaderboardOverlayComponent::_OnUpdate()
                 }
             }
         }
-        else if (_playingPlayerDataStatus == _LoadStatus::NOT_LOADED)
+        else if (_playingPlayerDataStatus == _LoadStatus::LOADING)
         {
             _otherPlayerDataSubscription->HandlePendingEvents([&](const webapi::resp::WebResponse<webapi::resp::PlayerData>& response) {
                 if (response.status != 200 || !response.content.has_value())
@@ -397,7 +397,7 @@ void zcom::RTLeaderboardOverlayComponent::_OnUpdate()
             int highestLoadedIndexRank = (int)(_leaderboard.front().pageNumber - 1) * 50 + 1;
             if (!_loadingLeaderboardPage && _leaderboard.front().pageNumber > 1 && highestLoadedIndexRank + 50 > _currentRank)
             {
-                _leaderboardPageSubscription = _scene->GetApp()->Shared<SharedContext*>()->webApi.GetLeaderboardPage((int)_leaderboard.front().pageNumber - 1, _playingPlayerData->mode);
+                _leaderboardPageSubscription = _scene->GetApp()->Shared<SharedContext*>()->webApi.GetLeaderboardPage((int)_leaderboard.front().pageNumber - 1, _playingPlayerData->mode, _countryCode);
                 _loadingLeaderboardPage = true;
             }
             if (_loadingLeaderboardPage)
