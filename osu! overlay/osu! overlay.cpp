@@ -227,6 +227,17 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
     }
 
     App app(hInst);
+    auto versionStringOpt = app.config.GetValue(L"version");
+    if (versionStringOpt)
+    {
+        auto tagOpt = VersionTag::Parse(wstring_to_string(versionStringOpt.value()));
+        if (tagOpt)
+        {
+            // Do version specific processing
+        }
+    }
+    app.config.SetValue(L"version", string_to_wstring(OVERLAY_ENGINE_VERSION.ToString()), true);
+
     SharedContext shared;
     shared.overlayManager.Init(&app);
     shared.settingsWindow.Init(&app);
