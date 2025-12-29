@@ -32,19 +32,9 @@ Console.Write((int)response.StatusCode);
 
 if (response.IsSuccessStatusCode)
 {
-    if (requestData.Headers != null && requestData.Headers.ContainsValue("application/octet-stream"))
-    {
-        var content = await response.Content.ReadAsByteArrayAsync();
-        if (content != null)
-            Console.Write(" " + Convert.ToBase64String(content));
-    }
-    else
-    {
-        var content = await response.Content.ReadAsStringAsync();
-        if (content != null)
-            Console.Write(" " + content);
-    }
-
+    var content = await response.Content.ReadAsByteArrayAsync();
+    if (content != null)
+        Console.Write(" " + Convert.ToBase64String(content));
 }
 
 Console.WriteLine();

@@ -24,6 +24,16 @@ size_t GetHostLength(const std::string& url)
     return url.length();
 }
 
+std::optional<std::string> DecodeBase64Body(std::string base64Input)
+{
+    int endIndex = (int)base64Input.length();
+    while (endIndex > 0 && (base64Input[endIndex - 1] == '\n' || base64Input[endIndex - 1] == '\r' || base64Input[endIndex - 1] == ' '))
+        endIndex--;
+    if (endIndex <= 0)
+        return std::nullopt;
+    return base64::from_base64(base64Input.substr(0, endIndex));
+}
+
 VersionManager::~VersionManager()
 {
     _updateCheckEventSubscription.reset();
@@ -92,7 +102,13 @@ std::unique_ptr<AsyncEventSubscription<void, std::vector<UpdateData>>> VersionMa
             return;
         }
 
-        std::string body = response.substr(4);
+        auto bodyOpt = DecodeBase64Body(response.substr(4));
+        if (!bodyOpt)
+        {
+            updateCheckEventEmitter->InvokeAll({});
+            return;
+        }
+        std::string body = bodyOpt.value();
 
         try
         {
@@ -243,16 +259,13 @@ std::unique_ptr<AsyncEventSubscription<void, std::optional<std::wstring>>> Versi
             return;
         }
 
-        std::string base64body = response.substr(4);
-        int endIndex = (int)base64body.length();
-        while (endIndex > 0 && (base64body[endIndex - 1] == '\n' || base64body[endIndex - 1] == '\r' || base64body[endIndex - 1] == ' '))
-            endIndex--;
-        if (endIndex <= 0)
+        auto zipBytesOpt = DecodeBase64Body(response.substr(4));
+        if (!zipBytesOpt)
         {
             updateInitiatedEventEmitter->InvokeAll(L"Update file not present in response. Try again or download the update manually");
             return;
         }
-        std::string zipBytes = base64::from_base64(base64body.substr(0, endIndex));
+        std::string zipBytes = zipBytesOpt.value();
 
         namespace fs = std::filesystem;
 
