@@ -80,6 +80,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
 
     if (updateProcessId)
     {
+        bool waitSuccessful = true;
+
         HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, updateProcessId.value());
         if (hProcess)
         {
@@ -95,6 +97,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
                         + L"\n\nRestart the application and try updating again. If errors keep occuring, you can download the latest version manually from GitHub";
                     errorSceneOpt->showClose = false;
                     errorSceneOpt->clearBackground = false;
+                    waitSuccessful = false;
                     break;
                 }
 
@@ -105,70 +108,110 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
                 }
                 else
                 {
-                    // Wait a bit to ensure file handles are free
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                    break;
+                }
+            }
+            CloseHandle(hProcess);
+        }
 
-                    namespace fs = std::filesystem;
-                    try
+        if (waitSuccessful)
+        {
+            namespace fs = std::filesystem;
+
+            fs::path tempPath = fs::current_path();
+            fs::path mainPath = tempPath.parent_path();
+
+            int attemptCount = 1;
+            int maxAttempts = 5;
+            bool deleteFailed = false;
+            do
+            {
+                if (attemptCount > maxAttempts)
+                {
+                    errorSceneOpt = zcom::UpdateErrorSceneOptions{};
+                    errorSceneOpt->errorText = L"Failed to fully remove current version application files\n\nTry launching the application again. If errors occur, you need to redownload the application (user settings can be preserved by copying the 'config' file to the new download)";
+                    errorSceneOpt->showExit = false;
+                    deleteFailed = true;
+                    break;
+                }
+
+                try
+                {
+                    std::cout << fs::remove_all(mainPath / "bin") << '\n';
+                    std::cout << fs::remove_all(mainPath / "Resources") << '\n';
+                    std::cout << fs::remove(mainPath / "CudaSmokeSim.dll") << '\n';
+                    std::cout << fs::remove(mainPath / "CursorTrailEffect.cso") << '\n';
+                    std::cout << fs::remove(mainPath / "TintEffect.cso") << '\n';
+                    std::cout << fs::remove(mainPath / "OverlayEngine.exe") << '\n';
+                }
+                catch (fs::filesystem_error e)
+                {
+                    std::cout << e.what() << '\n';
+                }
+
+                attemptCount++;
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+            while (
+                fs::exists(mainPath / "bin") ||
+                fs::exists(mainPath / "Resources") ||
+                fs::exists(mainPath / "CudaSmokeSim.dll") ||
+                fs::exists(mainPath / "CursorTrailEffect.cso") ||
+                fs::exists(mainPath / "TintEffect.cso") ||
+                fs::exists(mainPath / "OverlayEngine.exe")
+            );
+
+            if (!deleteFailed)
+            {
+                try
+                {
+                    fs::copy(tempPath / "bin", mainPath / "bin", fs::copy_options::recursive);
+                    fs::copy(tempPath / "Resources", mainPath / "Resources", fs::copy_options::recursive);
+                    fs::copy(tempPath / "CudaSmokeSim.dll", mainPath / "CudaSmokeSim.dll");
+                    fs::copy(tempPath / "CursorTrailEffect.cso", mainPath / "CursorTrailEffect.cso");
+                    fs::copy(tempPath / "TintEffect.cso", mainPath / "TintEffect.cso");
+                    fs::copy(tempPath / "OverlayEngine.exe", mainPath / "OverlayEngine.exe");
+
+                    STARTUPINFO info = { sizeof(info) };
+                    PROCESS_INFORMATION processInfo;
+                    fs::path exePath = mainPath / "OverlayEngine.exe";
+                    std::wstring args = L"\"" + exePath.wstring() + L"\" -update-finalize " + std::to_wstring(GetCurrentProcessId());
+                    std::wstring exePathStr = exePath.wstring();
+                    std::wstring mainPathStr = mainPath.wstring();
+                    if (CreateProcess(exePathStr.c_str(), args.data(), NULL, NULL, TRUE, CREATE_NEW_PROCESS_GROUP, NULL, mainPathStr.c_str(), &info, &processInfo))
                     {
-                        fs::path tempPath = fs::current_path();
-                        fs::path mainPath = tempPath.parent_path();
-
-                        std::cout << fs::remove_all(mainPath / "bin") << '\n';
-                        std::cout << fs::remove_all(mainPath / "Resources") << '\n';
-                        std::cout << fs::remove(mainPath / "CudaSmokeSim.dll") << '\n';
-                        std::cout << fs::remove(mainPath / "CursorTrailEffect.cso") << '\n';
-                        std::cout << fs::remove(mainPath / "TintEffect.cso") << '\n';
-                        std::cout << fs::remove(mainPath / "OverlayEngine.exe") << '\n';
-
-                        fs::copy(tempPath / "bin", mainPath / "bin", fs::copy_options::recursive);
-                        fs::copy(tempPath / "Resources", mainPath / "Resources", fs::copy_options::recursive);
-                        fs::copy(tempPath / "CudaSmokeSim.dll", mainPath / "CudaSmokeSim.dll");
-                        fs::copy(tempPath / "CursorTrailEffect.cso", mainPath / "CursorTrailEffect.cso");
-                        fs::copy(tempPath / "TintEffect.cso", mainPath / "TintEffect.cso");
-                        fs::copy(tempPath / "OverlayEngine.exe", mainPath / "OverlayEngine.exe");
-
-                        STARTUPINFO info = { sizeof(info) };
-                        PROCESS_INFORMATION processInfo;
-                        fs::path exePath = mainPath / "OverlayEngine.exe";
-                        std::wstring args = L"\"" + exePath.wstring() + L"\" -update-finalize " + std::to_wstring(GetCurrentProcessId());
-                        std::wstring exePathStr = exePath.wstring();
-                        std::wstring mainPathStr = mainPath.wstring();
-                        if (CreateProcess(exePathStr.c_str(), args.data(), NULL, NULL, TRUE, CREATE_NEW_PROCESS_GROUP, NULL, mainPathStr.c_str(), &info, &processInfo))
-                        {
-                            CloseHandle(processInfo.hProcess);
-                            CloseHandle(processInfo.hThread);
-                            CloseHandle(hProcess);
-                            return 0;
-                        }
-                        else
-                        {
-                            errorSceneOpt = zcom::UpdateErrorSceneOptions{};
-                            errorSceneOpt->errorText = std::wstring(L"Failed to launch the updated version:\n\n")
-                                + L"[" + std::to_wstring(GetLastError()) + L"] " + ToWinErrorString(GetLastError()).value_or(L"Unspecified error")
-                                + L"\n\nTry launching the application again. If errors occur, you need to redownload the application (user settings can be preserved by copying the 'config' file to the new download)";
-                            errorSceneOpt->showClose = false;
-                            errorSceneOpt->clearBackground = false;
-                        }
+                        CloseHandle(processInfo.hProcess);
+                        CloseHandle(processInfo.hThread);
+                        CloseHandle(hProcess);
+                        return 0;
                     }
-                    catch (fs::filesystem_error e)
+                    else
                     {
                         errorSceneOpt = zcom::UpdateErrorSceneOptions{};
-                        errorSceneOpt->errorText = L"The following error occured while updating:\n\n"
-                            + string_to_wstring(std::string(e.what()))
+                        errorSceneOpt->errorText = std::wstring(L"Failed to launch the updated version:\n\n")
+                            + L"[" + std::to_wstring(GetLastError()) + L"] " + ToWinErrorString(GetLastError()).value_or(L"Unspecified error")
                             + L"\n\nTry launching the application again. If errors occur, you need to redownload the application (user settings can be preserved by copying the 'config' file to the new download)";
                         errorSceneOpt->showClose = false;
                         errorSceneOpt->clearBackground = false;
                     }
                 }
-                break;
+                catch (fs::filesystem_error e)
+                {
+                    errorSceneOpt = zcom::UpdateErrorSceneOptions{};
+                    errorSceneOpt->errorText = L"The following error occured while updating:\n\n"
+                        + string_to_wstring(std::string(e.what()))
+                        + L"\n\nTry launching the application again. If errors occur, you need to redownload the application (user settings can be preserved by copying the 'config' file to the new download)";
+                    errorSceneOpt->showClose = false;
+                    errorSceneOpt->clearBackground = false;
+                }
             }
-            CloseHandle(hProcess);
         }
     }
 
     if (updateFinalizeProcessId)
     {
+        bool waitSuccessful = true;
+
         HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, updateFinalizeProcessId.value());
         if (hProcess)
         {
@@ -183,6 +226,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
                         + L"[" + std::to_wstring(GetLastError()) + L"] " + ToWinErrorString(GetLastError()).value_or(L"Unspecified error")
                         + L"\n\nYou can use the application normally, but consider deleting the folder manually to avoid issues with future updates";
                     errorSceneOpt->showExit = false;
+                    waitSuccessful = false;
                     break;
                 }
 
@@ -193,27 +237,43 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
                 }
                 else
                 {
-                    // Wait a bit to ensure file handles are free
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-
-                    namespace fs = std::filesystem;
-                    try
-                    {
-                        fs::path mainPath = fs::current_path();
-                        std::cout << fs::remove_all(mainPath / ".updatetemp") << '\n';
-                    }
-                    catch (fs::filesystem_error e)
-                    {
-                        errorSceneOpt = zcom::UpdateErrorSceneOptions{};
-                        errorSceneOpt->errorText = L"Failed to remove temporary folder '.update-temp' with the following error:\n\n"
-                            + string_to_wstring(std::string(e.what()))
-                            + L"\n\nYou can use the application normally, but consider deleting the folder manually to avoid issues with future updates";
-                        errorSceneOpt->showExit = false;
-                    }
+                    break;
                 }
-                break;
             }
             CloseHandle(hProcess);
+        }
+
+        if (waitSuccessful)
+        {
+            namespace fs = std::filesystem;
+
+            fs::path mainPath = fs::current_path();
+
+            int attemptCount = 1;
+            int maxAttempts = 5;
+            do
+            {
+                if (attemptCount > maxAttempts)
+                {
+                    errorSceneOpt = zcom::UpdateErrorSceneOptions{};
+                    errorSceneOpt->errorText = L"Failed to remove temporary folder '.update-temp'\n\nYou can use the application normally, but consider deleting the folder manually to avoid issues with future updates";
+                    errorSceneOpt->showExit = false;
+                    break;
+                }
+
+                try
+                {
+                    std::cout << "temp files removed: " << fs::remove_all(mainPath / ".updatetemp") << '\n';
+                }
+                catch (fs::filesystem_error e)
+                {
+                    std::cout << e.what() << '\n';
+                }
+
+                attemptCount++;
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+            }
+            while (fs::exists(mainPath / ".updatetemp"));
         }
     }
 
