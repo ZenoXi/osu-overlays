@@ -1115,6 +1115,16 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
         }
         break;
     }
+    case WM_APP_SET_WINDOW_TITLE:
+    {
+        std::wstring* title = (std::wstring*)lParam;
+        if (title)
+        {
+            SetWindowText(hWnd, title->c_str());
+            delete title;
+        }
+        break;
+    }
     default:
     {
         _m_msg.lock();
@@ -1229,6 +1239,13 @@ void zwnd::WindowBackend::ResetScreenTimer()
 void zwnd::WindowBackend::SetMouseInteraction(MouseWindowInteraction interactionType)
 {
     PostMessage(_hwnd, WM_APP_SET_WINDOW_INTERACTION, (int)interactionType, NULL);
+}
+
+void zwnd::WindowBackend::SetWindowTitle(const std::wstring& title)
+{
+    std::wstring* stringPtr = new std::wstring();
+    *stringPtr = title;
+    PostMessage(_hwnd, WM_APP_SET_WINDOW_TITLE, NULL, (LPARAM)stringPtr);
 }
 
 void zwnd::WindowBackend::AddKeyboardHandler(KeyboardEventHandler* handler)

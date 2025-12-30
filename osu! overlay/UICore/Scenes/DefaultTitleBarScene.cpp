@@ -150,6 +150,10 @@ void zcom::DefaultTitleBarScene::AddTitle(std::wstring title)
     _titleLabel->padding = { 5.0f, 0.0f, 1.0f, 0.0f };
     _titleLabel->xTextAlign = TextAlignment::LEADING;
     _titleLabel->yTextAlign = Alignment::CENTER;
+    _titleLabel->text.Subscribe([=](std::wstring text) {
+        _window->Backend().SetWindowTitle(text);
+    }).Detach();
+    _window->Backend().SetWindowTitle(title);
 
     // Enable ClearType
     if (_useCleartype)

@@ -33,7 +33,8 @@ namespace zwnd
         WM_APP_SET_WINDOW_DISPLAY,
         WM_APP_SET_CURSOR_ICON,
         WM_APP_SET_FOCUS,
-        WM_APP_SET_WINDOW_INTERACTION
+        WM_APP_SET_WINDOW_INTERACTION,
+        WM_APP_SET_WINDOW_TITLE
     };
 
     struct MessageWindowSize
@@ -202,6 +203,7 @@ namespace zwnd
         void ResetScreenTimer();
         // Sets how the mouse interacts with the window
         void SetMouseInteraction(MouseWindowInteraction interactionType);
+        void SetWindowTitle(const std::wstring& title);
 
         void HandleFullscreenChange(bool fullscreen);
         void HandleCursorVisibilityChange(bool visible);
@@ -329,6 +331,7 @@ namespace zwnd
         void ResetScreenTimer() { _wnd->ResetScreenTimer(); }
         // Sets how the mouse interacts with the window
         void SetMouseInteraction(MouseWindowInteraction interactionType) { _wnd->SetMouseInteraction(interactionType); }
+        void SetWindowTitle(const std::wstring& title) { _wnd->SetWindowTitle(title); }
 
         void AddKeyboardHandler(KeyboardEventHandler* handler) { _wnd->AddKeyboardHandler(handler); }
         bool RemoveKeyboardHandler(KeyboardEventHandler* handler) { return _wnd->RemoveKeyboardHandler(handler); }
