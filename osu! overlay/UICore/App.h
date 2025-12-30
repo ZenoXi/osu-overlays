@@ -56,7 +56,7 @@ private:
     // _m_windows must be locked before calling
     void _ReleaseHandle(zwnd::WindowId windowId);
     // _m_windows must be locked before calling
-    void _TryDestruct(zwnd::WindowId windowId);
+    void _TryDestruct(zwnd::WindowId windowId, bool markAsClosed);
 
     void _RemoveUnusedWindows();
 
@@ -67,6 +67,7 @@ private:
     {
         std::unique_ptr<zwnd::Window> window;
         size_t handleCount = 0;
+        bool closed = false;
         bool markedForDeleting = false;
     };
     std::vector<WindowInfo> _windows;

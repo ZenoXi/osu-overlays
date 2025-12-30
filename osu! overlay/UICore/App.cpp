@@ -24,7 +24,7 @@ std::optional<zwnd::WindowId> App::CreateTopWindow(zwnd::WindowProperties props,
     _windows.push_back({
         std::make_unique<zwnd::Window>(this, zwnd::WindowType::TOP, std::nullopt, props, _hinst, std::move(initFunction), [&](zwnd::Window* window) {
             std::lock_guard<std::mutex> lock(_m_windows);
-            _TryDestruct(window->GetWindowId());
+            _TryDestruct(window->GetWindowId(), true);
         })
     });
     zwnd::WindowId windowId = _windows.back().window->GetWindowId();
@@ -56,7 +56,7 @@ std::optional<zwnd::WindowId> App::CreateChildWindow(zwnd::WindowId parentWindow
     _windows.push_back({
         std::make_unique<zwnd::Window>(this, zwnd::WindowType::CHILD, std::optional(parentWindowId), props, _hinst, std::move(initFunction), [&, parentWindowId](zwnd::Window* window) {
             std::lock_guard<std::mutex> lock(_m_windows);
-            _TryDestruct(window->GetWindowId());
+            _TryDestruct(window->GetWindowId(), true);
             //zwnd::Window* parentWindow = _FindWindow(parentWindowId);
             //if (parentWindow)
             //    parentWindow->ResetBlockingWindow();
@@ -83,7 +83,7 @@ std::optional<zwnd::WindowId> App::CreateToolWindow(zwnd::WindowId parentWindowI
     _windows.push_back({
         std::make_unique<zwnd::Window>(this, zwnd::WindowType::TOOL, std::optional(parentWindowId), props, _hinst, std::move(initFunction), [&](zwnd::Window* window) {
             std::lock_guard<std::mutex> lock(_m_windows);
-            _TryDestruct(window->GetWindowId());
+            _TryDestruct(window->GetWindowId(), true);
         })
     });
 
@@ -221,13 +221,13 @@ void App::_ReleaseHandle(zwnd::WindowId windowId)
         if (window.window->GetWindowId() == windowId)
         {
             window.handleCount--;
-            _TryDestruct(windowId);
+            _TryDestruct(windowId, false);
             return;
         }
     }
 }
 
-void App::_TryDestruct(zwnd::WindowId windowId)
+void App::_TryDestruct(zwnd::WindowId windowId, bool markAsClosed)
 {
     for (auto it = _windows.begin(); it != _windows.end(); it++)
     {
@@ -235,7 +235,19 @@ void App::_TryDestruct(zwnd::WindowId windowId)
             continue;
         if (it->window->GetWindowId() != windowId)
             continue;
-        if (!it->window->Closed())
+
+        // When windows are closed, the window->Closed() flag is set outside of the windows mutex lock.
+        //
+        // This means that when closing child window, invocations of _TryDestruct can mark the window for deletion
+        // after window->Closed() becomes true, but before the close handler (which calls _TryDestruct itself
+        // after locking the windows mutex) is called. This gap allows the cleanup thread to lock the mutex
+        // itself and try to delete the not yet deletable window, causing a deadlock.
+        //
+        // This extra flag is set inside the locked context to avoid the issue described
+        if (markAsClosed)
+            it->closed = true;
+
+        if (!it->window->Closed() || !it->closed)
             return;
 
         if (it->window->GetWindowType() == zwnd::WindowType::TOP)
@@ -307,7 +319,7 @@ void App::_TryDestruct(zwnd::WindowId windowId)
             it->markedForDeleting = true;
             
             // Invoke parent destruction check
-            _TryDestruct(it->window->GetParent().value());
+            _TryDestruct(it->window->GetParent().value(), false);
         }
         else if (it->window->GetWindowType() == zwnd::WindowType::TOOL)
         {
@@ -315,7 +327,7 @@ void App::_TryDestruct(zwnd::WindowId windowId)
             it->markedForDeleting = true;
 
             // Invoke parent destruction check
-            _TryDestruct(it->window->GetParent().value());
+            _TryDestruct(it->window->GetParent().value(), false);
         }
 
         return;
