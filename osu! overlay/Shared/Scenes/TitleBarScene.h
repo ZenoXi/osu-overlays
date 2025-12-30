@@ -10,7 +10,7 @@ namespace zcom
 {
     struct TitleBarSceneOptions : public DefaultTitleBarSceneOptions
     {
-
+        bool showUpdate = true;
     };
 
     class TitleBarScene : public DefaultTitleBarScene

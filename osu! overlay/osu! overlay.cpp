@@ -259,6 +259,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
             opt.windowIconResourceName = "cursor_icon";
             opt.windowTitle = L"Overlay engine";
             opt.darkMode = true;
+            if (errorSceneOpt && !errorSceneOpt->showClose)
+                opt.showUpdate = false;
             wnd->LoadTitleBarScene<zcom::TitleBarScene>(&opt);
             wnd->LoadStartingScene<zcom::EntryScene>(nullptr);
             if (errorSceneOpt)

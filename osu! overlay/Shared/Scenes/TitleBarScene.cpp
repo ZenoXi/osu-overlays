@@ -14,6 +14,13 @@ void zcom::TitleBarScene::Init(SceneOptionsBase* options)
 {
     DefaultTitleBarScene::Init(options);
 
+    TitleBarSceneOptions opt;
+    if (options)
+        opt = *reinterpret_cast<const TitleBarSceneOptions*>(options);
+
+    if (!opt.showUpdate)
+        return;
+
     _updateLabel = Create<Label>(L"Major update available");
     _updateLabel->autoWidth = true;
     _updateLabel->autoHeight = true;
