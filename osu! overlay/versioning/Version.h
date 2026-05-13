@@ -59,4 +59,4 @@ public:
     auto operator<=>(const VersionTag&) const = default;
 };
 
-constexpr VersionTag OVERLAY_ENGINE_VERSION = VersionTag(3, 0, 2);
+constexpr VersionTag OVERLAY_ENGINE_VERSION = VersionTag(3, 0, 3);
