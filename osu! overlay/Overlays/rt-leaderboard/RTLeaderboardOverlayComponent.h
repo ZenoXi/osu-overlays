@@ -123,6 +123,7 @@ namespace zcom
         std::optional<_PlayerData> _playingPlayerData = std::nullopt;
         std::optional<_MapPlayerScore> _mapPlayerScore = std::nullopt;
         std::optional<int> _currentMapIndexInPlayerTopScores = std::nullopt;
+        std::optional<int> _playingPlayerInitialRank = std::nullopt;
         std::vector<_LeaderboardPage> _leaderboard;
 
         enum class _LoadStatus

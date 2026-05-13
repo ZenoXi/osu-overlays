@@ -328,7 +328,7 @@ void zcom::RTLeaderboardOverlayComponent::_OnUpdate()
                         _leaderboard.push_back(page);
                     }
 
-                    std::optional<int64_t> playerRank;
+                    _playingPlayerInitialRank = std::nullopt;
                     for (int i = 0; i < _leaderboard.size(); i++)
                     {
                         bool breakOutside = false;
@@ -336,7 +336,7 @@ void zcom::RTLeaderboardOverlayComponent::_OnUpdate()
                         {
                             if (_leaderboard[i].users[j].username == _playingPlayerData->username)
                             {
-                                playerRank = _leaderboard[i].users[j].indexRank;
+                                _playingPlayerInitialRank = _leaderboard[i].users[j].indexRank;
                                 breakOutside = true;
                                 break;
                             }
@@ -345,8 +345,8 @@ void zcom::RTLeaderboardOverlayComponent::_OnUpdate()
                             break;
                     }
 
-                    if (playerRank)
-                        _currentRank = (int)playerRank.value();
+                    if (_playingPlayerInitialRank)
+                        _currentRank = _playingPlayerInitialRank.value();
                     else if (!_leaderboard.empty() && !_leaderboard.back().users.empty())
                         _currentRank = (int)_leaderboard.back().users.back().indexRank;
                     else
@@ -561,7 +561,7 @@ void zcom::RTLeaderboardOverlayComponent::_UpdateCurrentPlayData(const osu::Game
 void zcom::RTLeaderboardOverlayComponent::_UpdateLeaderboardItems()
 {
     int highestLoadedIndexRank = (int)(_leaderboard.front().pageNumber - 1) * 50 + 1;
-    int lowestLoadedIndexRank = (int)(_leaderboard.back().pageNumber - 1) * 50 + 50;
+    int lowestLoadedIndexRank = (int)(_leaderboard.back().pageNumber - 1) * 50 + _leaderboard.back().users.size();
 
     int userPosition = (_currentRank - highestLoadedIndexRank) + 1;
     if (userPosition > _visibleItemCount)
@@ -612,7 +612,7 @@ void zcom::RTLeaderboardOverlayComponent::_UpdateLeaderboardItems()
         // Load initial items
         _leaderboardItems.clear();
         _currentGlobalOffset = (highestCurrentlyVisibleIndexRank - 1) * (_itemSize->height + _itemSpacing);
-        for (int indexRank = highestVisibleIndexRank; indexRank <= lowestVisibleIndexRank; indexRank++)
+        for (int indexRank = highestVisibleIndexRank; indexRank <= lowestVisibleIndexRank && indexRank <= lowestLoadedIndexRank; indexRank++)
         {
             auto newItem = _CreateLeaderboardItemForRank(indexRank);
             _leaderboardPanel->AddItem(newItem.get());
@@ -626,7 +626,7 @@ void zcom::RTLeaderboardOverlayComponent::_UpdateLeaderboardItems()
     {
         int topRank = (int)_leaderboardItems.front()->GetRank();
         int itemsAddedAbove = 0;
-        for (int indexRank = highestVisibleIndexRank; indexRank <= lowestVisibleIndexRank; indexRank++)
+        for (int indexRank = highestVisibleIndexRank; indexRank <= lowestVisibleIndexRank && indexRank <= lowestLoadedIndexRank; indexRank++)
         {
             if (topRank > indexRank)
             {
@@ -988,7 +988,11 @@ std::unique_ptr<zcom::LeaderboardItem> zcom::RTLeaderboardOverlayComponent::_Cre
     item->GetUsernameLabel()->fontColor.ComputedFrom([](Color color) { return color; }, _usernameTextColor);
     item->GetPPLabel()->fontColor.ComputedFrom([](Color color) { return color; }, _ppTextColor);
     item->GetRankLabel()->fontColor.ComputedFrom([](Color color) { return color; }, _rankTextColor);
-    _User* user = _GetUserByIndexRank(indexRank);
+
+    // Skip the playing player itself to avoid seeing multiple copies of the same player (only relevant for like the top 3 players)
+    bool skip = _playingPlayerInitialRank.has_value() && indexRank >= _playingPlayerInitialRank.value();
+
+    _User* user = _GetUserByIndexRank(skip ? indexRank + 1 : indexRank);
     if (!user)
     {
         item->SetUsername(L"-");
@@ -998,7 +1002,7 @@ std::unique_ptr<zcom::LeaderboardItem> zcom::RTLeaderboardOverlayComponent::_Cre
     else
     {
         item->SetUsername(string_to_wstring(user->username));
-        item->SetRank(user->indexRank);
+        item->SetRank(skip ? user->indexRank - 1 : user->indexRank);
         item->SetPP(user->pp);
     }
     // All items start invisible and are made visible in limited counts per frame, to avoid lag spikes when lots of movement is happening in the leaderboard
