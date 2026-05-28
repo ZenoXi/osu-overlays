@@ -14,6 +14,8 @@
 #include "App.h"
 #include "SharedContext.h"
 
+#include "system/GPUDetector.h"
+
 #include <iostream>
 #include <vector>
 
@@ -276,6 +278,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
             while (fs::exists(mainPath / ".updatetemp"));
         }
     }
+
+    GPUDetector::UpdateGPUInfo();
 
     // Enable networking
     WSADATA wsaData;

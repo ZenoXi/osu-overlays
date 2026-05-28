@@ -3,6 +3,8 @@
 #include "DefaultNonClientAreaScene.h"
 #include "DefaultTitleBarScene.h"
 
+#include "system/GPUDetector.h"
+
 void zcom::DefaultNonClientAreaScene::Init(SceneOptionsBase* options)
 {
     DefaultNonClientAreaSceneOptions opt;
@@ -14,11 +16,25 @@ void zcom::DefaultNonClientAreaScene::Init(SceneOptionsBase* options)
     _drawWindowShadow = opt.drawWindowShadow;
     _drawWindowBorder = opt.drawWindowBorder;
 
+    if (!_window->Properties().disableMouseInteraction && GPUDetector::AtLeastOneOfType(GPUDetector::GPUType::AMD))
+    {
+        // AMD GPUs don't handle layered windows correctly which requires a workaround that introduces a Windows 7 border where the shadow would be
+        // In this case just draw over the Win7 border. This means that we can't have transparency in non overlay windows anymore, but it's better
+        // than an application that the user cannot interact with at all
+        _clientAreaMargins = { 1, 1, 1, 1 };
+        _drawWindowShadow = false;
+    }
+
     _windowActivationSubscription = _window->SubscribeToWindowMessages(nullptr);
 
     // Initialize primordial panel containing entire UI layout
     _nonClientAreaPanel = Create<Panel>();
     _basePanel = _nonClientAreaPanel.get();
+    if (!_window->Properties().disableMouseInteraction && GPUDetector::AtLeastOneOfType(GPUDetector::GPUType::AMD))
+    {
+        // Hide windows 7 border
+        _basePanel->backgroundColor = Color::Black();
+    }
 
     _clientAreaPanel = Create<Panel>();
     _clientAreaPanel->parentSize = { 1.0f, 1.0f };
@@ -144,7 +160,12 @@ void zcom::DefaultNonClientAreaScene::_Draw(Graphics* g)
             _basePanel->size_->width - (_clientAreaMargins.right - 0.5f),
             _basePanel->size_->height - (_clientAreaMargins.bottom - 0.5f)
         };
-        g->DrawRectangle(borderRect, _borderColor);
+
+        Color finalColor = _borderColor;
+        if (!_window->Properties().disableMouseInteraction && GPUDetector::AtLeastOneOfType(GPUDetector::GPUType::AMD))
+            finalColor = Color(0x2D2D2D);
+
+        g->DrawRectangle(borderRect, finalColor);
     }
 }
 

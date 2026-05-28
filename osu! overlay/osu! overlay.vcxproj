@@ -230,6 +230,7 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     <ClCompile Include="Shared\Scenes\TitleBarScene.cpp" />
     <ClCompile Include="Shared\Util\Functions.cpp" />
     <ClCompile Include="Shared\Util\Navigation.cpp" />
+    <ClCompile Include="system\GPUDetector.cpp" />
     <ClCompile Include="UICore\App.cpp" />
     <ClCompile Include="UICore\Components\Base\Button.cpp" />
     <ClCompile Include="UICore\Components\Base\Checkbox.cpp" />
@@ -368,6 +369,7 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     <ClInclude Include="SmokeSim\SmokeSimParams.h" />
     <ClInclude Include="SmokeSim\SmokeSimScene.h" />
     <ClInclude Include="SmokeSim\SmokeSimType.h" />
+    <ClInclude Include="system\GPUDetector.h" />
     <ClInclude Include="UICore\App.h" />
     <ClInclude Include="UICore\Components\Base\Button.h" />
     <ClInclude Include="UICore\Components\Base\Checkbox.h" />

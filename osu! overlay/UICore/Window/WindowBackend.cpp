@@ -7,6 +7,7 @@
 #include <hidusage.h>
 
 #include "Helper/Time.h"
+#include "system/GPUDetector.h"
 
 //BOOL CALLBACK enum_windows_callback(HWND handle, LPARAM lParam)
 //{
@@ -139,6 +140,13 @@ zwnd::WindowBackend::WindowBackend(HINSTANCE hInst, WindowProperties props, HWND
     {
         BOOL attrib = TRUE;
         DwmSetWindowAttribute(_hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, &attrib, sizeof(attrib));
+    }
+
+    // Workaround for AMD GPU driver bug on Windows 11 where UpdateLayeredWindowIndirect
+    // doesn't properly handle per-pixel alpha for hit-testing, causing click-through behavior
+    if (!props.disableMouseInteraction && GPUDetector::AtLeastOneOfType(GPUDetector::GPUType::AMD))
+    {
+        SetLayeredWindowAttributes(_hwnd, 0, 255, LWA_ALPHA);
     }
 
     //_disableVsync = props.disableVSync;
@@ -465,6 +473,11 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     {
         // Capture all window area as client area
         return 0;
+    }
+    case WM_DEVICECHANGE:
+    {
+        GPUDetector::UpdateGPUInfo();
+        return TRUE;
     }
     case WM_ACTIVATE:
     {
