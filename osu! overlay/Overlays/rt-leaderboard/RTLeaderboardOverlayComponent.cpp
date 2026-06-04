@@ -194,21 +194,18 @@ void zcom::RTLeaderboardOverlayComponent::_OnUpdate()
 
                 if (response.content->userId == std::to_string(state.profile.id))
                 {
-                    std::wstring userConfigValueName = L"user." + std::to_wstring(state.profile.id) + L".mode." + string_to_wstring(_playMode);
-                    std::optional<int64_t> scoreCount = _scene->GetApp()->config.GetIntValue(userConfigValueName + L".scoreCount");
-
                     _PlayerData data{};
                     data.userId = response.content->userId;
                     data.username = response.content->username;
                     data.mode = response.content->mode;
                     data.pp = response.content->pp;
+                    data.ppSumOfBestScores = 0.0f;
                     for (auto& score : response.content->scores)
+                    {
                         data.scores.push_back({ 0, score.pp, score.ppWeighted, score.mapId });
-
-                    if (scoreCount)
-                        data.scoreCount = (int) scoreCount.value();
-                    else
-                        data.scoreCount = (int) data.scores.size();
+                        data.ppSumOfBestScores += score.ppWeighted;
+                    }
+                    data.scoreCount = -1;
 
                     _loggedInPlayerData = data;
                     _loggedInPlayerDataStatus = _LoadStatus::LOADED;
@@ -273,8 +270,8 @@ void zcom::RTLeaderboardOverlayComponent::_OnUpdate()
                 {
                     // Try again after delay
                     ExecuteSynchronously([=]() {
-                        _loggedInPlayerDataStatus = _LoadStatus::NOT_LOADED;
-                        _loggedInPlayerData = std::nullopt;
+                        _playingPlayerDataStatus = _LoadStatus::NOT_LOADED;
+                        _playingPlayerData = std::nullopt;
                     }, Duration(5, SECONDS));
                     return;
                 }
@@ -284,11 +281,13 @@ void zcom::RTLeaderboardOverlayComponent::_OnUpdate()
                 data.username = response.content->username;
                 data.mode = response.content->mode;
                 data.pp = response.content->pp;
+                data.ppSumOfBestScores = 0.0f;
                 for (auto& score : response.content->scores)
+                {
                     data.scores.push_back({ 0, score.pp, score.ppWeighted, score.mapId });
-                // Make no assumptions about score count and just default to max value
-                // This will be inaccurate in some cases, but estimating is impossible anyway
-                data.scoreCount = 1000;
+                    data.ppSumOfBestScores += score.ppWeighted;
+                }
+                data.scoreCount = -1;
 
                 _playingPlayerData = data;
                 _playingPlayerDataStatus = _LoadStatus::LOADED;
@@ -455,12 +454,6 @@ void zcom::RTLeaderboardOverlayComponent::_OnUpdate()
                 _EvaluateNewScore(state.beatmap.id, std::to_string(state.profile.id), state.resultsScreen.scoreId);
             }
         }
-        // If result loading was interrupted, clear pp gain cache, because optherwise the next pp gain will be a sum of multiple scores and throw off calculations
-        if (!inResultsScreen && _previousState == 7 && _previousResultId == 0)
-        {
-            if (_loggedInPlayerData)
-                _loggedInPlayerData->lastPPGains.clear();
-        }
 
         _previousResultId = state.resultsScreen.scoreId;
         _previousState = state.state.number;
@@ -504,6 +497,11 @@ void zcom::RTLeaderboardOverlayComponent::_OnUpdate()
     }
 }
 
+float CalculateBonusPPForScoreCount(int scoreCount)
+{
+    return 416.6667f * (1 - std::powf(0.995f, (float)std::min(scoreCount + 1, 1000)));
+}
+
 void zcom::RTLeaderboardOverlayComponent::_UpdateCurrentPlayData(const osu::GameState& state)
 {
     float currentPP = state.play.pp.current;
@@ -519,12 +517,29 @@ void zcom::RTLeaderboardOverlayComponent::_UpdateCurrentPlayData(const osu::Game
 
     int newRank = _currentRank;
     float profilePP = _playingPlayerData->pp;
-    float bonusPP = 416.6667f * (1 - std::powf(0.995f, (float)std::min(_playingPlayerData->scoreCount, 1000)));
-    // Bonus pp increases only if map is ranked
-    bool mapIsRanked = state.beatmap.status.number == 4;
-    float bonusPPAfterPlay = mapIsRanked
-        ? 416.6667f * (1 - std::powf(0.995f, (float)std::min(_playingPlayerData->scoreCount + 1, 1000)))
-        : bonusPP;
+
+    // If score count is unknown, calculate bonus pp by subtracting the pp sum of best scores from total profile pp
+    // For players with LESS than 200 best scores, this gives an exact value
+    // For players with MORE than 200 best scores, we get a very close to exact value, since those scores account for well above 99% of all score pp
+    //  and the resulting difference in calculating profile pp is ~0.01pp for a player with 9000pp
+    //  (players with more pp probably have max bonus pp which gets detected after a SINGLE submitted score and even this small difference disappears)
+    static float MAX_BONUS_PP = CalculateBonusPPForScoreCount(1000);
+    float maxBonusPPForUser = std::min(profilePP - _playingPlayerData->ppSumOfBestScores, MAX_BONUS_PP);
+    // Estimate a score count from potentially approximate bonus pp
+    int estimatedScoreCount = (int)std::roundf(std::logf(1.0f - maxBonusPPForUser / 416.6667f) / std::logf(0.995f));
+    float bonusPP = CalculateBonusPPForScoreCount(estimatedScoreCount);
+    float bonusPPAfterPlay = CalculateBonusPPForScoreCount(estimatedScoreCount + 1);
+    if (_playingPlayerData->scoreCount != -1)
+    {
+        float exactBonusPP = CalculateBonusPPForScoreCount(_playingPlayerData->scoreCount);
+        // Defensive: if some calculation gives a score count value above what's possible, just use the original - still quite accurate - estimation
+        if (exactBonusPP < maxBonusPPForUser)
+        {
+            bonusPP = exactBonusPP;
+            bool mapIsRanked = state.beatmap.status.number == 4;
+            bonusPPAfterPlay = mapIsRanked ? CalculateBonusPPForScoreCount(_playingPlayerData->scoreCount + 1) : exactBonusPP;
+        }
+    }
     float bonusPPIncrease = bonusPPAfterPlay - bonusPP;
 
     float newTotalPP = profilePP;
@@ -548,6 +563,10 @@ void zcom::RTLeaderboardOverlayComponent::_UpdateCurrentPlayData(const osu::Game
         {
             newTotalPP = profilePP + bonusPPIncrease;
         }
+    }
+    else
+    {
+        newTotalPP = profilePP + bonusPPIncrease;
     }
     for (int i = 0; i < _leaderboard.size(); i++)
     {
@@ -792,12 +811,7 @@ void zcom::RTLeaderboardOverlayComponent::_EvaluateNewScore(std::string mapId, s
                 _loggedInPlayerData->pp = playerData->pp;
                 _loggedInPlayerData->scoreCount = playerData->scoreCount;
                 _loggedInPlayerData->scores = playerData->scores;
-                _loggedInPlayerData->lastPPGains = playerData->lastPPGains;
-
-                std::cout << "New score count: " << playerData->scoreCount << '\n';
-
-                std::wstring userConfigValueName = L"user." + string_to_wstring(userId) + L".mode." + string_to_wstring(_loggedInPlayerData->mode);
-                _scene->GetApp()->config.SetIntValue(userConfigValueName + L".scoreCount", playerData->scoreCount);
+                _loggedInPlayerData->ppSumOfBestScores = playerData->ppSumOfBestScores;
             }
             _newScoreLoadStatus = _LoadStatus::LOADED;
         });
@@ -851,8 +865,12 @@ void zcom::RTLeaderboardOverlayComponent::_EvaluateNewScore(std::string mapId, s
                 data.userId = response.content->userId;
                 data.username = response.content->username;
                 data.pp = response.content->pp;
+                data.ppSumOfBestScores = 0.0f;
                 for (auto& score : response.content->scores)
+                {
                     data.scores.push_back({ 0, score.pp, score.ppWeighted, score.mapId });
+                    data.ppSumOfBestScores += score.ppWeighted;
+                }
                 newPlayerData = data;
             });
 
@@ -907,37 +925,16 @@ void zcom::RTLeaderboardOverlayComponent::_EvaluateNewScore(std::string mapId, s
                 }
                 else
                 {
-                    newPlayerData->scoreCount++;
+                    if (newPlayerData->scoreCount != -1)
+                        newPlayerData->scoreCount++;
                 }
             }
             // Score is outside top plays
             else
             {
                 float ppGain = newPlayerData->pp - currentPlayerData.pp;
-                std::vector<float> ppGains = currentPlayerData.lastPPGains;
-                if (ppGains.size() == 3)
-                    ppGains.erase(ppGains.begin());
-                ppGains.push_back(ppGain);
-                newPlayerData->lastPPGains = ppGains;
-
-                float totalPPGain = streams::From(ppGains).Sum();
-                float smallestDiff = 1000.0f;
-                int closestScoreCount = 0;
-
-                for (int i = (int)ppGains.size(); i <= 1000; i++)
-                {
-                    float bonusPP1 = 416.6667f * (1.0f - std::powf(0.995f, (float)std::min(i - (int)ppGains.size(), 1000)));
-                    float bonusPP2 = 416.6667f * (1.0f - std::powf(0.995f, (float)std::min(i, 1000)));
-                    float bonusPPDiff = bonusPP2 - bonusPP1;
-                    if (std::fabs(bonusPPDiff - totalPPGain) < smallestDiff)
-                    {
-                        smallestDiff = std::fabs(bonusPPDiff - totalPPGain);
-                        closestScoreCount = i;
-                    }
-                }
-
-                // Allow score count to fluctuate up and down to account for any errors in ppGain value (if it's erroneously 0, the estimated score count is immediatelly 1000)
-                newPlayerData->scoreCount = closestScoreCount;
+                if (ppGain == 0)
+                    newPlayerData->scoreCount = 1000;
             }
 
             if (newPlayerData->scoreCount < 1)

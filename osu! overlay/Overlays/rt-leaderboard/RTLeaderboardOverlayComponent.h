@@ -19,7 +19,7 @@ namespace zcom
     class RTLeaderboardOverlayComponent : public Panel
     {
         DEFINE_COMPONENT(RTLeaderboardOverlayComponent, Panel)
-        DEFAULT_DESTRUCTOR(RTLeaderboardOverlayComponent)
+            DEFAULT_DESTRUCTOR(RTLeaderboardOverlayComponent)
     protected:
         void Init(std::shared_ptr<const Overlay> overlay);
 
@@ -81,8 +81,6 @@ namespace zcom
 
 
         std::optional<int64_t> _scoreCount = std::nullopt;
-        float _sessionBonusPPIncrease = 0.0f;
-        int _sessionScoreCount = 0;
 
         struct _PlayerData
         {
@@ -101,7 +99,7 @@ namespace zcom
             };
             std::vector<_Score> scores;
 
-            std::vector<float> lastPPGains;
+            float ppSumOfBestScores;
         };
 
         struct _MapPlayerScore
