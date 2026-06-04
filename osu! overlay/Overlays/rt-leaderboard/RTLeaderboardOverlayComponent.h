@@ -41,11 +41,15 @@ namespace zcom
         bool _visibleItemCountChanged = false;
         bool _scaleChanged = false;
 
+        Value<bool> _showTitleLabel = true;
+        Value<float> _titleLabelFontSize = 18.0f;
         Value<Color> _playerBackgroundColor = Color();
         Value<Color> _nonPlayerBackgroundColor = Color();
         Value<Color> _usernameTextColor = Color();
         Value<Color> _ppTextColor = Color();
         Value<Color> _rankTextColor = Color();
+
+        void _UpdateVariableConfigValues();
 
         std::unique_ptr<AsyncEventSubscription<void, std::optional<std::pair<std::wstring, std::wstring>>>> _configValueChangedEventSubscription = nullptr;
 

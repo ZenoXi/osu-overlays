@@ -224,6 +224,39 @@ void zcom::RTLeaderboardSetupComponent::Init(std::shared_ptr<const Overlay> over
         _scene->GetApp()->config.SetDoubleValue(RTLeaderboardConfig::UI_SCALE.name, value.getAsDouble());
     }).Detach();
 
+    auto showTitleLabelRow = Create<FlexPanel>(FlexDirection::RIGHT);
+    showTitleLabelRow->parentSize = { 1.0f, 0.0f };
+    showTitleLabelRow->autoHeight = true;
+    showTitleLabelRow->spacing = 10;
+    showTitleLabelRow->padding = { 15, 0, 15, 10 };
+    auto showTitleLabelCheckbox = Create<Checkbox>();
+    showTitleLabelCheckbox->size = { 20, 20 };
+    showTitleLabelCheckbox->backgroundColor = Color(0x101010);
+    showTitleLabelCheckbox->border.cornerRadius = 2.0f;
+    showTitleLabelCheckbox->yAlign = Alignment::CENTER;
+    showTitleLabelCheckbox->checked = _scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::SHOW_TITLE_LABEL, Config::ADD_AND_SAVE_IF_MISSING);
+    showTitleLabelCheckbox->SubscribeOnStateChanged([=](bool state) {
+        _scene->GetApp()->config.SetIntValue(RTLeaderboardConfig::SHOW_TITLE_LABEL.name, state);
+    }).Detach();
+    auto showTitleLabelLabel = Create<Label>(L"Show title label");
+    showTitleLabelLabel->size = { 0, 20 };
+    showTitleLabelLabel->yTextAlign = Alignment::CENTER;
+    showTitleLabelLabel->SetProperty(FlexGrow());
+    showTitleLabelLabel->hoverText = L"If checked, a title above the leaderboard is displayed with the leaderbord type";
+    showTitleLabelRow->AddItem(std::move(showTitleLabelCheckbox));
+    showTitleLabelRow->AddItem(std::move(showTitleLabelLabel));
+
+    auto titleLabelFontSizeInput = Create<NumberParameterInput<float>>(NumberParameterInputParams(
+        L"Title label font size", L"Font size for the title label, in pixels",
+        _scene->GetApp()->config.GetDoubleConfigValue(RTLeaderboardConfig::TITLE_LABEL_FONT_SIZE, Config::ADD_IF_MISSING),
+        0.1f, 1000.0f, 1.0f
+    ));
+    titleLabelFontSizeInput->GetInput()->size.Assign(Width(60));
+    titleLabelFontSizeInput->GetInput()->precision = 1;
+    titleLabelFontSizeInput->GetInput()->SubscribeOnValueChanged([=](NumberInputValue value) {
+        _scene->GetApp()->config.SetDoubleValue(RTLeaderboardConfig::TITLE_LABEL_FONT_SIZE.name, value.getAsDouble());
+    }).Detach();
+
     auto playerBackgroundColorRow = Create<FlexPanel>(FlexDirection::RIGHT);
     playerBackgroundColorRow->parentSize = { 1.0f, 0.0f };
     playerBackgroundColorRow->autoHeight = true;
@@ -306,6 +339,8 @@ void zcom::RTLeaderboardSetupComponent::Init(std::shared_ptr<const Overlay> over
 
     appearanceOptionsPanel->AddItem(std::move(Create<SectionHeader>(L"Appearance options")));
     appearanceOptionsPanel->AddItem(std::move(uiScaleInput));
+    appearanceOptionsPanel->AddItem(std::move(showTitleLabelRow));
+    appearanceOptionsPanel->AddItem(std::move(titleLabelFontSizeInput));
     appearanceOptionsPanel->AddItem(std::move(playerBackgroundColorRow));
     appearanceOptionsPanel->AddItem(std::move(nonPlayerBackgroundColorRow));
     appearanceOptionsPanel->AddItem(std::move(usernameBackgroundColorRow));

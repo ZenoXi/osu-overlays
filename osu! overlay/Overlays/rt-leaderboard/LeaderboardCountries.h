@@ -37,6 +37,14 @@ public:
         return std::nullopt;
     }
 
+    static std::optional<std::wstring> FindFullNameFromCode(const std::wstring& code)
+    {
+        auto index = FindIndexByCode(code);
+        if (index)
+            return COUNTRIES[index.value()].name;
+        return std::nullopt;
+    }
+
     static std::vector<std::wstring> GetCountryNames()
     {
         return streams::From(COUNTRIES)

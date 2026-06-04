@@ -3,6 +3,7 @@
 #include "Window/Window.h"
 #include "RTLeaderboardOverlayComponent.h"
 #include "RTLeaderboardConfig.h"
+#include "LeaderboardCountries.h"
 
 #include "UICore/Fonts/FontLoader.h"
 
@@ -43,12 +44,7 @@ void zcom::RTLeaderboardOverlayComponent::Init(std::shared_ptr<const Overlay> ov
     _mainPanel->parentSize = { 1.0f, 1.0f };
     _mainPanel->visible = false;
 
-    SCALE = _scene->GetApp()->config.GetDoubleConfigValue(RTLeaderboardConfig::UI_SCALE, Config::ADD_AND_SAVE_IF_MISSING);
-    _playerBackgroundColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::PLAYER_BACKGROUND_COLOR, Config::ADD_AND_SAVE_IF_MISSING));
-    _nonPlayerBackgroundColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::NON_PLAYER_BACKGROUND_COLOR, Config::ADD_AND_SAVE_IF_MISSING));
-    _usernameTextColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::USERNAME_TEXT_COLOR, Config::ADD_AND_SAVE_IF_MISSING));
-    _ppTextColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::PP_TEXT_COLOR, Config::ADD_AND_SAVE_IF_MISSING));
-    _rankTextColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::RANK_TEXT_COLOR, Config::ADD_AND_SAVE_IF_MISSING));
+    _UpdateVariableConfigValues();
 
     bool useOtherUser = _scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::USE_OTHER_USER, Config::ADD_AND_SAVE_IF_MISSING);
     if (useOtherUser)
@@ -60,12 +56,7 @@ void zcom::RTLeaderboardOverlayComponent::Init(std::shared_ptr<const Overlay> ov
     _configValueChangedEventSubscription = _scene->GetApp()->config.SubscribeOnConfigValueChanged();
     _configValueChangedEventSubscription->ResetSynchronousHandler([=](std::optional<std::pair<std::wstring, std::wstring>> changes) {
         ExecuteSynchronously([=]() {
-            SCALE = _scene->GetApp()->config.GetDoubleConfigValue(RTLeaderboardConfig::UI_SCALE);
-            _playerBackgroundColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::PLAYER_BACKGROUND_COLOR));
-            _nonPlayerBackgroundColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::NON_PLAYER_BACKGROUND_COLOR));
-            _usernameTextColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::USERNAME_TEXT_COLOR));
-            _ppTextColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::PP_TEXT_COLOR));
-            _rankTextColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::RANK_TEXT_COLOR));
+            _UpdateVariableConfigValues();
             ApplyLayoutStringToComponent(_scene->GetApp()->config.GetConfigValue(RTLeaderboardConfig::LAYOUT_STRING), this);
         });
     });
@@ -77,13 +68,22 @@ void zcom::RTLeaderboardOverlayComponent::Init(std::shared_ptr<const Overlay> ov
     _itemSize.ComputedFrom([](float scale) { return Size{ -10, int(60 * scale) }; }, SCALE);
     _itemSpacing.ComputedFrom([](float scale) { return int(5 * scale); }, SCALE);
 
-    auto leaderboardLabel = Create<Label>(L"Global leaderboard");
+    std::wstring leaderboardString = L"Global leaderboard";
+    if (_countryCode)
+    {
+        auto fullNameOpt = LeaderboardCountries::FindFullNameFromCode(string_to_wstring(_countryCode.value()));
+        if (fullNameOpt)
+            leaderboardString = fullNameOpt.value() + L" leaderboard";
+    }
+    auto leaderboardLabel = Create<Label>(leaderboardString);
     leaderboardLabel->parentSize = { 1.0f, 0.0f };
-    leaderboardLabel->size.ComputedFrom([](float scale) { return Size{ 0, int(20 * scale) }; }, SCALE);
+    leaderboardLabel->autoHeight = true;
     leaderboardLabel->padding.ComputedFrom([](float scale) { return RectF{ 5.0f * scale }; }, SCALE);
     leaderboardLabel->font = L"Nunito";
-    leaderboardLabel->fontSize.ComputedFrom([](float scale) { return 18.0f * scale; }, SCALE);
+    leaderboardLabel->fontSize.ComputedFrom([](float fontSize, float scale) { return fontSize * scale; }, _titleLabelFontSize, SCALE);
     leaderboardLabel->yTextAlign = Alignment::CENTER;
+    leaderboardLabel->wordWrapping = WordWrapping::WRAP;
+    leaderboardLabel->visible.ComputedFrom([](bool visible) { return visible; }, _showTitleLabel);
 
     auto leaderboardPanelWrapper = Create<Panel>();
     leaderboardPanelWrapper->parentSize = { 1.0f, 0.0f };
@@ -111,6 +111,18 @@ void zcom::RTLeaderboardOverlayComponent::Init(std::shared_ptr<const Overlay> ov
     _mainPanel->AddItem(std::move(leaderboardPanelWrapper));
     
     AddItem(_mainPanel.get());
+}
+
+void zcom::RTLeaderboardOverlayComponent::_UpdateVariableConfigValues()
+{
+    SCALE = _scene->GetApp()->config.GetDoubleConfigValue(RTLeaderboardConfig::UI_SCALE);
+    _showTitleLabel = _scene->GetApp()->config.GetDoubleConfigValue(RTLeaderboardConfig::SHOW_TITLE_LABEL);
+    _titleLabelFontSize = _scene->GetApp()->config.GetDoubleConfigValue(RTLeaderboardConfig::TITLE_LABEL_FONT_SIZE);
+    _playerBackgroundColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::PLAYER_BACKGROUND_COLOR));
+    _nonPlayerBackgroundColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::NON_PLAYER_BACKGROUND_COLOR));
+    _usernameTextColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::USERNAME_TEXT_COLOR));
+    _ppTextColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::PP_TEXT_COLOR));
+    _rankTextColor = Color::ARGB(_scene->GetApp()->config.GetIntConfigValue(RTLeaderboardConfig::RANK_TEXT_COLOR));
 }
 
 void zcom::RTLeaderboardOverlayComponent::_OnUpdate()
