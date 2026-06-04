@@ -1,4 +1,3 @@
-
 #include "Window/WindowsEx.h"
 #include <WinSock2.h>
 #include <conio.h>
@@ -8,6 +7,7 @@
 #include "Scenes/DefaultNonClientAreaScene.h"
 #include "Shared/Scenes/TitleBarScene.h"
 #include "Scenes/EntryScene.h"
+#include "Scenes/DebugWindowScene.h"
 #include "versioning/UpdateErrorScene.h"
 
 #include "Window/Window.h"
@@ -79,7 +79,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
         }
         catch (fs::filesystem_error e) { }
     }
-
+    
     if (updateProcessId)
     {
         bool waitSuccessful = true;
@@ -286,19 +286,20 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
     int result = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (result != 0)
     {
-        std::cout << "WSAStartup failed\n";
-        // TODO: Logging
+        errorSceneOpt = zcom::UpdateErrorSceneOptions{};
+        errorSceneOpt->errorText = L"Network initialization failed with code " + std::to_wstring(result) + L". Functionality requiring internet connection will be unavailable. Restarting might fix the problem";
+        errorSceneOpt->showExit = false;
     }
 
     App app(hInst);
     auto versionStringOpt = app.config.GetValue(L"version");
     if (versionStringOpt)
     {
-        auto tagOpt = VersionTag::Parse(wstring_to_string(versionStringOpt.value()));
-        if (tagOpt)
-        {
-            // Do version specific processing
-        }
+         auto tagOpt = VersionTag::Parse(wstring_to_string(versionStringOpt.value()));
+         if (tagOpt)
+         {
+             // Do version specific processing
+         }
     }
     app.config.SetValue(L"version", string_to_wstring(OVERLAY_ENGINE_VERSION.ToString()), true);
 
@@ -307,7 +308,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
     shared.settingsWindow.Init(&app);
     shared.webApi.SetUrl(app.config.GetConfigValue(webapi::WebApiConfig::API_URL));
     app.SetSharedContext(&shared);
-    
+
     std::optional<zwnd::WindowId> id = app.CreateTopWindow(
         zwnd::WindowProperties()
             .WindowClassName(L"mainWindow")
@@ -336,8 +337,39 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, LPWSTR cmdLine, INT argc)
         }
     );
 
+    Handle<zwnd::Window> debugWindow;
     while (true)
     {
+        // Open debug window
+        if ((GetKeyState(VK_CONTROL) & 0x8000) &&
+            (GetKeyState('D') & 0x8000) &&
+            (GetKeyState('O') & 0x8000) &&
+            (!debugWindow.Valid() || debugWindow->Closed()))
+        {
+            std::optional<zwnd::WindowId> debugWindowId = app.CreateTopWindow(
+                zwnd::WindowProperties()
+                .WindowClassName(L"debugWindow")
+                .InitialSize(1000, 600)
+                .MinSize(600, 300),
+                [](zwnd::Window* wnd)
+                {
+                    wnd->resourceManager.SetImageResourceFilePath("Resources/Images/resources.resc");
+                    wnd->resourceManager.InitAllImages();
+                    wnd->LoadNonClientAreaScene<zcom::DefaultNonClientAreaScene>(nullptr);
+                    zcom::DefaultTitleBarSceneOptions opt;
+                    opt.showIcon = false;
+                    opt.windowTitle = L"Debug";
+                    opt.darkMode = true;
+                    wnd->LoadTitleBarScene<zcom::DefaultTitleBarScene>(&opt);
+                    wnd->LoadStartingScene<zcom::DebugWindowScene>(nullptr);
+                }
+            );
+            if (debugWindowId)
+                debugWindow = app.GetWindow(debugWindowId.value());
+        }
+        if (debugWindow.Valid() && debugWindow->Closed())
+            debugWindow.Release();
+
         if (app.WindowsClosed())
             break;
 

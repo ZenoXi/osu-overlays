@@ -20,7 +20,10 @@ App::~App()
 
 std::optional<zwnd::WindowId> App::CreateTopWindow(zwnd::WindowProperties props, std::function<void(zwnd::Window* window)> initFunction)
 {
+    if (_exiting)
+        return std::nullopt;
     std::unique_lock<std::mutex> lock(_m_windows);
+
     _windows.push_back({
         std::make_unique<zwnd::Window>(this, zwnd::WindowType::TOP, std::nullopt, props, _hinst, std::move(initFunction), [&](zwnd::Window* window) {
             std::lock_guard<std::mutex> lock(_m_windows);
@@ -35,6 +38,8 @@ std::optional<zwnd::WindowId> App::CreateTopWindow(zwnd::WindowProperties props,
 
 std::optional<zwnd::WindowId> App::CreateChildWindow(zwnd::WindowId parentWindowId, zwnd::WindowProperties props, std::function<void(zwnd::Window* window)> initFunction)
 {
+    if (_exiting)
+        return std::nullopt;
     std::unique_lock<std::mutex> lock(_m_windows);
 
     zwnd::Window* parentWindow = _FindWindow(parentWindowId);
@@ -72,6 +77,8 @@ std::optional<zwnd::WindowId> App::CreateChildWindow(zwnd::WindowId parentWindow
 
 std::optional<zwnd::WindowId> App::CreateToolWindow(zwnd::WindowId parentWindowId, zwnd::WindowProperties props, std::function<void(zwnd::Window* window)> initFunction)
 {
+    if (_exiting)
+        return std::nullopt;
     std::unique_lock<std::mutex> lock(_m_windows);
 
     zwnd::Window* parentWindow = _FindWindow(parentWindowId);
@@ -95,6 +102,9 @@ std::optional<zwnd::WindowId> App::CreateToolWindow(zwnd::WindowId parentWindowI
 
 std::future<std::optional<zwnd::WindowId>> App::CreateTopWindowAsync(zwnd::WindowProperties props, std::function<void(zwnd::Window* window)> initFunction)
 {
+    if (_exiting)
+        return std::future<std::optional<zwnd::WindowId>>();
+
     // TODO: properly clean up on app close instead of detaching the thread
     std::packaged_task<std::optional<zwnd::WindowId>()> task([=, initFunction = std::move(initFunction)]() mutable { return CreateTopWindow(props, std::move(initFunction)); });
     std::future<std::optional<zwnd::WindowId>> future = task.get_future();
@@ -104,6 +114,9 @@ std::future<std::optional<zwnd::WindowId>> App::CreateTopWindowAsync(zwnd::Windo
 
 std::future<std::optional<zwnd::WindowId>> App::CreateChildWindowAsync(zwnd::WindowId parentWindowId, zwnd::WindowProperties props, std::function<void(zwnd::Window* window)> initFunction)
 {
+    if (_exiting)
+        return std::future<std::optional<zwnd::WindowId>>();
+
     std::packaged_task<std::optional<zwnd::WindowId>()> task([=, initFunction = std::move(initFunction)]() mutable { return CreateChildWindow(parentWindowId, props, std::move(initFunction)); });
     std::future<std::optional<zwnd::WindowId>> future = task.get_future();
     std::thread(std::move(task)).detach();
@@ -112,6 +125,9 @@ std::future<std::optional<zwnd::WindowId>> App::CreateChildWindowAsync(zwnd::Win
 
 std::future<std::optional<zwnd::WindowId>> App::CreateToolWindowAsync(zwnd::WindowId parentWindowId, zwnd::WindowProperties props, std::function<void(zwnd::Window* window)> initFunction)
 {
+    if (_exiting)
+        return std::future<std::optional<zwnd::WindowId>>();
+
     std::packaged_task<std::optional<zwnd::WindowId>()> task([=, initFunction = std::move(initFunction)]() mutable { return CreateToolWindow(parentWindowId, props, std::move(initFunction)); });
     std::future<std::optional<zwnd::WindowId>> future = task.get_future();
     std::thread(std::move(task)).detach();
@@ -200,6 +216,7 @@ void App::Exit()
     std::lock_guard<std::mutex> lock(_m_windows);
     for (auto& window : _windows)
         window.window->Close();
+    _exiting = true;
 }
 
 zwnd::Window* App::_FindWindow(zwnd::WindowId windowId)
@@ -237,12 +254,12 @@ void App::_TryDestruct(zwnd::WindowId windowId, bool markAsClosed)
             continue;
 
         // When windows are closed, the window->Closed() flag is set outside of the windows mutex lock.
-        //
+        // 
         // This means that when closing child window, invocations of _TryDestruct can mark the window for deletion
         // after window->Closed() becomes true, but before the close handler (which calls _TryDestruct itself
         // after locking the windows mutex) is called. This gap allows the cleanup thread to lock the mutex
         // itself and try to delete the not yet deletable window, causing a deadlock.
-        //
+        // 
         // This extra flag is set inside the locked context to avoid the issue described
         if (markAsClosed)
             it->closed = true;

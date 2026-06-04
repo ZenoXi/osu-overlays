@@ -9,8 +9,25 @@ class Handle
     T* _resource;
 
 public:
+    Handle() : _resource(nullptr), _destructor(nullptr) {}
     Handle(T* resource, std::function<void()> handleDestructor) : _resource(resource), _destructor(handleDestructor) {}
-    ~Handle() { _destructor(); }
+    Handle(Handle&& other)
+    {
+        _Swap(other);
+    }
+    Handle& operator=(Handle&& other)
+    {
+        if (this != &other)
+        {
+            _Destroy();
+            _Swap(other);
+        }
+        return *this;
+    }
+    ~Handle()
+    {
+        _Destroy();
+    }
     T* operator->()
     {
         return _resource;
@@ -19,9 +36,26 @@ public:
     {
         return _resource != nullptr;
     }
+    void Release()
+    {
+        _Destroy();
+        _resource = nullptr;
+        _destructor = nullptr;
+    }
 
     Handle(const Handle&) = delete;
-    Handle(Handle&&) = delete;
     Handle& operator=(const Handle&) = delete;
-    Handle& operator=(Handle&&) = delete;
+
+private:
+    void _Destroy()
+    {
+        if (_destructor)
+            _destructor();
+    }
+    void _Swap(Handle& other)
+    {
+        _resource = other._resource;
+        _destructor = std::move(other._destructor);
+        other._resource = nullptr;
+    }
 };

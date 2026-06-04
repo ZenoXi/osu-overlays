@@ -79,6 +79,7 @@ private:
 
     std::thread _windowCleaningThread;
     std::atomic<bool> _closeThread;
+    std::atomic<bool> _exiting = false;
 
 public:
     Config config;
