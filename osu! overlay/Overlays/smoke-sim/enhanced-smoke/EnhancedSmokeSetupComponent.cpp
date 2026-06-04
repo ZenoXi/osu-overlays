@@ -12,6 +12,7 @@
 #include "Shared/Components/OverlayLayoutSetup.h"
 #include "Shared/Components/SectionHeader.h"
 #include "Shared/Components/NumberParameterInput.h"
+#include "Shared/Components/CursorSensitivitySetup.h"
 #include "Shared/Styles/Styles.h"
 
 void zcom::EnhancedSmokeSetupComponent::Init(std::shared_ptr<const Overlay> overlay)
@@ -107,8 +108,13 @@ void zcom::EnhancedSmokeSetupComponent::Init(std::shared_ptr<const Overlay> over
     performancePanel->AddItem(Create<SectionHeader>(L"Performance"));
     performancePanel->AddItem(std::move(cellSizeInput));
     performancePanel->AddItem(std::move(threadCountInput));
+    
 
+    auto cursorSensitivitySetup = Create<CursorSensitivitySetup>();
+    cursorSensitivitySetup->parentSize = { 1.0f, 0.0f };
+    cursorSensitivitySetup->autoHeight = true;
 
+    
     auto interactionPanel = Create<FlexPanel>(FlexDirection::DOWN);
     interactionPanel->parentSize = { 1.0f, 0.0f };
     interactionPanel->autoHeight = true;
@@ -293,6 +299,7 @@ void zcom::EnhancedSmokeSetupComponent::Init(std::shared_ptr<const Overlay> over
     flexPanel->AddItem(std::move(generalPanel));
     flexPanel->AddItem(std::move(overlayLayoutSetupPanel));
     flexPanel->AddItem(std::move(performancePanel));
+    flexPanel->AddItem(std::move(cursorSensitivitySetup));
     flexPanel->AddItem(std::move(interactionPanel));
     flexPanel->AddItem(std::move(appearancePanel));
     flexPanel->AddItem(std::move(simulationPanel));

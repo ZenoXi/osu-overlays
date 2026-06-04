@@ -43,6 +43,27 @@ namespace zcom
         _OverlayLayout _layout{};
         void _UpdateLayoutFromConfig();
 
+        enum class GameClient
+        {
+            STABLE,
+            LAZER
+        };
+
+        bool _rawInputEnabled = false;
+        bool _cursorInsideGameWindow = false;
+        std::unique_ptr<AsyncEventSubscription<void, UINT, WPARAM, LPARAM>> _rawWindowMessageSubscription = nullptr;
+        Point _gameWindowEntryPoint;
+        Point _rawInputOffset;
+        Rect _rawInputOffsetBounds;
+        bool _absoluteMode = false;
+        std::atomic<Rect> _mainMonitorRect;
+        std::atomic<bool> _gameFocused;
+        std::mutex _m_rawInput;
+        GameClient _guardedGameClient;
+        Rect _guardedGameRect;
+        Rect _guardedGameHitTestRect;
+        float _guardedGameSensitivity;
+
         std::unique_ptr<AsyncEventSubscription<bool, zwnd::WindowMessage>> _windowMessageSubscription = nullptr;
         struct _MonitorDesc
         {

@@ -34,7 +34,8 @@ namespace zwnd
         WM_APP_SET_CURSOR_ICON,
         WM_APP_SET_FOCUS,
         WM_APP_SET_WINDOW_INTERACTION,
-        WM_APP_SET_WINDOW_TITLE
+        WM_APP_SET_WINDOW_TITLE,
+        WM_APP_SET_ENABLE_RAW_INPUT
     };
 
     struct MessageWindowSize
@@ -169,6 +170,7 @@ namespace zwnd
         bool RemoveDragDropHandler(IDragDropEventHandler* handler);
 
         void RegisterMessage(UINT messageId, std::function<WindowMessage(WPARAM, LPARAM)> mapper);
+        [[nodiscard]] std::unique_ptr<AsyncEventSubscription<void, UINT, WPARAM, LPARAM>> SubscribeToRawWindowMessages(std::function<void(UINT, WPARAM, LPARAM)> handler);
 
         RECT GetWindowRectangle();
         void SetWindowRectangle(RECT rect);
@@ -205,6 +207,9 @@ namespace zwnd
         void SetMouseInteraction(MouseWindowInteraction interactionType);
         void SetWindowTitle(const std::wstring& title);
 
+        void EnablePointerRawInputCapture();
+        void DisablePointerRawInputCapture();
+
         void HandleFullscreenChange(bool fullscreen);
         void HandleCursorVisibilityChange(bool visible);
 
@@ -236,6 +241,9 @@ namespace zwnd
             std::function<WindowMessage(WPARAM, LPARAM)> mapper;
         };
         std::vector<_RegisteredMessage> _registeredMessages;
+        EventEmitter<void, UINT, WPARAM, LPARAM> _rawWindowMessageEventEmitter = EventEmitter<void, UINT, WPARAM, LPARAM>(EventEmitterThreadMode::MULTITHREADED);
+
+        bool _rawInputEnabled = false;
 
         // Window width, updated only in the WM_SIZE messages
         int _messageWidth = 0;
@@ -333,12 +341,16 @@ namespace zwnd
         void SetMouseInteraction(MouseWindowInteraction interactionType) { _wnd->SetMouseInteraction(interactionType); }
         void SetWindowTitle(const std::wstring& title) { _wnd->SetWindowTitle(title); }
 
+        void EnablePointerRawInputCapture() { _wnd->EnablePointerRawInputCapture(); }
+        void DisablePointerRawInputCapture() { _wnd->DisablePointerRawInputCapture(); }
+
         void AddKeyboardHandler(KeyboardEventHandler* handler) { _wnd->AddKeyboardHandler(handler); }
         bool RemoveKeyboardHandler(KeyboardEventHandler* handler) { return _wnd->RemoveKeyboardHandler(handler); }
         void AddDragDropHandler(IDragDropEventHandler* handler) { _wnd->AddDragDropHandler(handler); }
         bool RemoveDragDropHandler(IDragDropEventHandler* handler) { return _wnd->RemoveDragDropHandler(handler); }
 
         void RegisterMessage(UINT messageId, std::function<WindowMessage(WPARAM, LPARAM)> mapper) { _wnd->RegisterMessage(messageId, mapper); };
+        [[nodiscard]] std::unique_ptr<AsyncEventSubscription<void, UINT, WPARAM, LPARAM>> SubscribeToRawWindowMessages(std::function<void(UINT, WPARAM, LPARAM)> handler) { return _wnd->SubscribeToRawWindowMessages(handler); }
     private:
         WindowBackend* _wnd;
     };

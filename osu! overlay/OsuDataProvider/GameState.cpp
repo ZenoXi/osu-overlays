@@ -10,12 +10,21 @@ void osu::ParseJson(osu::GameState& state, const std::string& inputStr)
     {
         //SimpleTimer timer;
         zjson::JsonParser parser(inputStr);
+        state.game.focused = parser.GetBool(".game.focused");
+        state.game.paused = parser.GetBool(".game.paused");
         state.client = parser.GetString(".client");
         state.server = parser.GetString(".server");
         state.state.number = parser.GetInt(".state.number");
         state.state.name = parser.GetString(".state.name");
+        state.settings.resolution.fullscreen = parser.GetBool(".settings.resolution.fullscreen");
+        state.settings.resolution.width = parser.GetInt(".settings.resolution.width");
+        state.settings.resolution.height = parser.GetInt(".settings.resolution.height");
+        state.settings.resolution.widthFullscreen = parser.GetInt(".settings.resolution.widthFullscreen");
+        state.settings.resolution.heightFullscreen = parser.GetInt(".settings.resolution.heightFullscreen");
         state.settings.mode.number = parser.GetInt(".settings.mode.number");
         state.settings.mode.name = parser.GetString(".settings.mode.name");
+        state.settings.mouse.rawInput = parser.GetBool(".settings.mouse.rawInput");
+        state.settings.mouse.sensitivity = (float)parser.GetDouble(".settings.mouse.sensitivity");
         state.profile.banchoStatus.number = parser.GetInt(".profile.banchoStatus.number");
         state.profile.banchoStatus.name = parser.GetString(".profile.banchoStatus.name");
         state.profile.id = parser.GetInt(".profile.id");

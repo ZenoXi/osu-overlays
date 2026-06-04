@@ -418,6 +418,8 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     //if (_parentHwnd != NULL)
     //    std::cout << msg << '\n';
 
+    _rawWindowMessageEventEmitter->InvokeAll(msg, wParam, lParam);
+
     switch (msg)
     {
     case WM_CLOSE:
@@ -430,16 +432,6 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     case WM_CREATE:
     {
         // TODO: investigate why app crashes on a mutex lock when WM_CREATE isn't handled
-
-        if (_messageOnly && false)
-        {
-            RAWINPUTDEVICE Rid[1] = {};
-            Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
-            Rid[0].usUsage = HID_USAGE_GENERIC_MOUSE;
-            Rid[0].dwFlags = RIDEV_INPUTSINK;
-            Rid[0].hwndTarget = hWnd;
-            RegisterRawInputDevices(Rid, 1, sizeof(Rid[0]));
-        }
 
         //SetLayeredWindowAttributes(hWnd, 0, 0, LWA_ALPHA);
 
@@ -611,31 +603,25 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
     }
     case WM_INPUT:
     {
-        UINT dwSize = sizeof(RAWINPUT);
-        static BYTE lpb[sizeof(RAWINPUT)];
+        UINT dwSize = 0;
+        GetRawInputData((HRAWINPUT)lParam, RID_INPUT, nullptr, &dwSize, sizeof(RAWINPUTHEADER));
+        std::vector<BYTE> buffer(dwSize);
+        GetRawInputData((HRAWINPUT)lParam, RID_INPUT, buffer.data(), &dwSize, sizeof(RAWINPUTHEADER));
+        RAWINPUT* raw = (RAWINPUT*)buffer.data();
 
-        GetRawInputData((HRAWINPUT)lParam, RID_INPUT, lpb, &dwSize, sizeof(RAWINPUTHEADER));
-
-        for (UINT i = 0; i < dwSize; i++)
+        if (raw->header.dwType == RIM_TYPEMOUSE)
         {
-            RAWINPUT* raw = (RAWINPUT*)(lpb + sizeof(RAWINPUT) * i);
-            if (raw->header.dwType == RIM_TYPEMOUSE)
-            {
-                int deltaX = raw->data.mouse.lLastX;
-                int deltaY = raw->data.mouse.lLastY;
-                //std::cout << _hwnd << " - " << deltaX << ":" << deltaY << '\n';
+            int x = raw->data.mouse.lLastX;
+            int y = raw->data.mouse.lLastY;
+            //std::cout << _hwnd << " - " << x << ":" << y << '\n';
 
-                MouseInputMessage message = {};
-                message.deltaX = deltaX;
-                message.deltaY = deltaY;
-                _m_msg.lock();
-                _msgQueue.push(message.Encode());
-                _m_msg.unlock();
-            }
-            else if (raw->header.dwType == RIM_TYPEKEYBOARD)
-            {
-                //std::cout << raw->data.keyboard.ExtraInformation << '\n';
-            }
+            MouseInputMessage message = {};
+            message.x = x;
+            message.y = y;
+            message.absolute = (raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE);
+            _m_msg.lock();
+            _msgQueue.push(message.Encode());
+            _m_msg.unlock();
         }
         break;
     }
@@ -1138,6 +1124,34 @@ LRESULT zwnd::WindowBackend::HandleMsg(HWND hWnd, UINT msg, WPARAM wParam, LPARA
         }
         break;
     }
+    case WM_APP_SET_ENABLE_RAW_INPUT:
+    {
+        if (wParam == 1)
+        {
+            if (!_messageOnly || _rawInputEnabled)
+                break;
+
+            RAWINPUTDEVICE Rid[1] = {};
+            Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+            Rid[0].usUsage = HID_USAGE_GENERIC_MOUSE;
+            Rid[0].dwFlags = RIDEV_INPUTSINK;
+            Rid[0].hwndTarget = _hwnd;
+            RegisterRawInputDevices(Rid, 1, sizeof(Rid[0]));
+        }
+        else
+        {
+            if (_rawInputEnabled)
+                break;
+
+            RAWINPUTDEVICE Rid[1] = {};
+            Rid[0].usUsagePage = HID_USAGE_PAGE_GENERIC;
+            Rid[0].usUsage = HID_USAGE_GENERIC_MOUSE;
+            Rid[0].dwFlags = RIDEV_REMOVE;
+            Rid[0].hwndTarget = _hwnd;
+            RegisterRawInputDevices(Rid, 1, sizeof(Rid[0]));
+        }
+        break;
+    }
     default:
     {
         _m_msg.lock();
@@ -1259,6 +1273,16 @@ void zwnd::WindowBackend::SetWindowTitle(const std::wstring& title)
     std::wstring* stringPtr = new std::wstring();
     *stringPtr = title;
     PostMessage(_hwnd, WM_APP_SET_WINDOW_TITLE, NULL, (LPARAM)stringPtr);
+}
+
+void zwnd::WindowBackend::EnablePointerRawInputCapture()
+{
+    PostMessage(_hwnd, WM_APP_SET_ENABLE_RAW_INPUT, 1, NULL);
+}
+
+void zwnd::WindowBackend::DisablePointerRawInputCapture()
+{
+    PostMessage(_hwnd, WM_APP_SET_ENABLE_RAW_INPUT, 0, NULL);
 }
 
 void zwnd::WindowBackend::AddKeyboardHandler(KeyboardEventHandler* handler)
@@ -1475,4 +1499,9 @@ void zwnd::WindowBackend::SetExcludedCaptionRects(const std::vector<RECT>& rects
 {
     std::lock_guard<std::mutex> lock(_m_hittest);
     _excludedCaptionRects = rects;
+}
+
+std::unique_ptr<AsyncEventSubscription<void, UINT, WPARAM, LPARAM>> zwnd::WindowBackend::SubscribeToRawWindowMessages(std::function<void(UINT, WPARAM, LPARAM)> handler)
+{
+    return _rawWindowMessageEventEmitter->SubscribeAsync(handler);
 }

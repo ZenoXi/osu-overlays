@@ -12,6 +12,7 @@
 #include "Shared/Components/OverlayLayoutSetup.h"
 #include "Shared/Components/SectionHeader.h"
 #include "Shared/Components/NumberParameterInput.h"
+#include "Shared/Components/CursorSensitivitySetup.h"
 #include "Shared/Styles/Styles.h"
 
 void zcom::SmokeTrailSetupComponent::Init(std::shared_ptr<const Overlay> overlay)
@@ -108,6 +109,11 @@ void zcom::SmokeTrailSetupComponent::Init(std::shared_ptr<const Overlay> overlay
     performancePanel->AddItem(std::move(cellSizeInput));
     performancePanel->AddItem(std::move(threadCountInput));
     
+
+    auto cursorSensitivitySetup = Create<CursorSensitivitySetup>();
+    cursorSensitivitySetup->parentSize = { 1.0f, 0.0f };
+    cursorSensitivitySetup->autoHeight = true;
+
 
     auto appearancePanel = Create<FlexPanel>(FlexDirection::DOWN);
     appearancePanel->parentSize = { 1.0f, 0.0f };
@@ -245,7 +251,7 @@ void zcom::SmokeTrailSetupComponent::Init(std::shared_ptr<const Overlay> overlay
         0.0f, 100.0f, 0.05f
     ));
     densityReductionRateInput->GetInput()->size.Assign(Width(60));
-    densityReductionRateInput->GetInput()->precision = 2;
+    densityReductionRateInput->GetInput()->precision = 3;
     densityReductionRateInput->GetInput()->SubscribeOnValueChanged([=](NumberInputValue value) {
         _scene->GetApp()->config.SetDoubleValue(SmokeTrailConfig::DENSITY_REDUCTION_RATE.name, value.getAsDouble());
     }).Detach();
@@ -256,7 +262,7 @@ void zcom::SmokeTrailSetupComponent::Init(std::shared_ptr<const Overlay> overlay
         0.0f, 100.0f, 0.05f
     ));
     temperatureReductionRateInput->GetInput()->size.Assign(Width(60));
-    temperatureReductionRateInput->GetInput()->precision = 2;
+    temperatureReductionRateInput->GetInput()->precision = 3;
     temperatureReductionRateInput->GetInput()->SubscribeOnValueChanged([=](NumberInputValue value) {
         _scene->GetApp()->config.SetDoubleValue(SmokeTrailConfig::TEMPERATURE_REDUCTION_RATE.name, value.getAsDouble());
     }).Detach();
@@ -272,6 +278,7 @@ void zcom::SmokeTrailSetupComponent::Init(std::shared_ptr<const Overlay> overlay
     flexPanel->AddItem(std::move(generalPanel));
     flexPanel->AddItem(std::move(overlayLayoutSetupPanel));
     flexPanel->AddItem(std::move(performancePanel));
+    flexPanel->AddItem(std::move(cursorSensitivitySetup));
     flexPanel->AddItem(std::move(appearancePanel));
     flexPanel->AddItem(std::move(simulationPanel));
 

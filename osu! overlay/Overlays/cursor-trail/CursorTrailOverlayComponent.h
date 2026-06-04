@@ -25,7 +25,7 @@ namespace zcom
 
         std::shared_ptr<const Overlay> _overlay;
 
-        std::unique_ptr<DataProviderView> _dataProviderView; struct Point
+        struct TrailPoint
         {
             Pos2D<float> position{};
             TimePoint time{};
@@ -38,13 +38,7 @@ namespace zcom
             float position;
         };
 
-        //POINT _currentMousePos = { 0, 0 };
-        //std::mutex _m_input;
-        //std::vector<Point> _pendingInput;
-        //Clock _inputClock;
-        //std::unique_ptr<AsyncEventSubscription<bool, zwnd::WindowMessage>> _inputMessageSubscription = nullptr;
-
-        std::vector<Point> _points;
+        std::vector<TrailPoint> _points;
         Pos2D<float> _previousMove = { 0.0f, 0.0f };
         Color _headColor = Color::ARGB(CursorTrailConfig::HEAD_COLOR.defaultValue);
         int _trailWidth = CursorTrailConfig::TRAIL_WIDTH.defaultValue;

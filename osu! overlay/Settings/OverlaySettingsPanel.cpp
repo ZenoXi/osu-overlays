@@ -36,11 +36,11 @@ void zcom::OverlaySettingsPanel::Init(std::optional<std::any> extraOptions)
     monitorDropdown->SubscribeOnValueSelected([=](std::optional<int64_t> value) {
         _scene->GetApp()->config.SetIntValue(OverlayConfig::MONITOR_INDEX.name, value.value());
     }).Detach();
-    std::vector<DropdownItem> dropdownItems;
-    dropdownItems.push_back({ 0l, L"System primary" });
+    std::vector<DropdownItem> monitorDropdownItems;
+    monitorDropdownItems.push_back({ 0l, L"System primary" });
     for (int i = 0; i < monitors.size(); i++)
-        dropdownItems.push_back({ i + 1, std::to_wstring(i + 1) + L"  " + monitors[i] });
-    monitorDropdown->SetDropdownItems(dropdownItems);
+        monitorDropdownItems.push_back({ i + 1, std::to_wstring(i + 1) + L"  " + monitors[i] });
+    monitorDropdown->SetDropdownItems(monitorDropdownItems);
     int64_t monitorIndex = _scene->GetApp()->config.GetIntConfigValue(OverlayConfig::MONITOR_INDEX, Config::ADD_AND_SAVE_IF_MISSING);
     if (monitorIndex <= 0 || monitorIndex > (int64_t)monitors.size())
     {
@@ -180,6 +180,7 @@ void zcom::OverlaySettingsPanel::Init(std::optional<std::any> extraOptions)
     layoutPanel->AddItem(std::move(basicLayoutSection));
     layoutPanel->AddItem(std::move(fitGameWindowRow));
     _contentPanel->AddItem(std::move(layoutPanel));
+
     AddItem(_contentPanel.get());
 }
 

@@ -137,8 +137,10 @@ namespace osu
                     lock.lock();
                     _client->dispatch([&](const std::string& message) {
                         GameState gameState{};
+                        gameState.stateVersion = _gameState ? _gameState->stateVersion : 0;
                         ParseJson(gameState, message);
                         _gameState = gameState;
+                        _gameState->stateVersion++;
                     });
                     break;
                 }

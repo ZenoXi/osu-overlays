@@ -17,4 +17,6 @@ public:
     SettingsWindowController settingsWindow;
     NotificationService notificationService;
     VersionManager versionManager;
+
+    std::atomic<zcom::Point> gameCursorPosition = zcom::Point();
 };

@@ -591,15 +591,17 @@ namespace zwnd
     class MouseInputMessage
     {
     public:
-        int deltaX;
-        int deltaY;
+        int x;
+        int y;
+        bool absolute;
 
         WindowMessage Encode()
         {
             WindowMessage msg;
             msg.id = ID();
-            *(int*)(msg.data + 0) = deltaX;
-            *(int*)(msg.data + 4) = deltaY;
+            *(int*)(msg.data + 0) = x;
+            *(int*)(msg.data + 4) = y;
+            *(bool*)(msg.data + 8) = absolute;
             return msg;
         }
 
@@ -608,8 +610,9 @@ namespace zwnd
             if (msg.id != ID())
                 return false;
 
-            deltaX = *(int*)(msg.data + 0);
-            deltaY = *(int*)(msg.data + 4);
+            x = *(int*)(msg.data + 0);
+            y = *(int*)(msg.data + 4);
+            absolute = *(bool*)(msg.data + 8);
             return true;
         }
 

@@ -17,6 +17,7 @@ public:
     virtual std::wstring GetTitle() const = 0;
     virtual bool RequiresGameData() const = 0;
     virtual bool RequiresUncappedFramerate() const = 0;
+    virtual bool RequiresPrecisePointerData() const = 0;
 
     uint64_t Id() const { return _id; }
 private:

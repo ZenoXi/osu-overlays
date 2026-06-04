@@ -10,4 +10,5 @@ public:
     std::wstring GetTitle() const override { return L"Enhanced smoke"; }
     bool RequiresGameData() const override { return false; }
     bool RequiresUncappedFramerate() const override { return false; }
+    bool RequiresPrecisePointerData() const override { return true; }
 };

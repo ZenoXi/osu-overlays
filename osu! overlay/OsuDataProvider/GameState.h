@@ -142,6 +142,15 @@ namespace osu
 
     struct GameState
     {
+        int64_t stateVersion;
+
+        struct Game
+        {
+            bool focused;
+            bool paused;
+        };
+        Game game;
+
         std::string client;
         std::string server;
 
@@ -161,12 +170,29 @@ namespace osu
 
         struct Settings
         {
+            struct Resolution
+            {
+                bool fullscreen;
+                int64_t width;
+                int64_t height;
+                int64_t widthFullscreen;
+                int64_t heightFullscreen;
+            };
+            Resolution resolution;
+
             struct Mode
             {
                 int number;
                 std::string name;
             };
             Mode mode;
+
+            struct Mouse
+            {
+                bool rawInput;
+                float sensitivity;
+            };
+            Mouse mouse;
         };
         Settings settings;
 

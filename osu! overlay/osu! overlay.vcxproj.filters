@@ -273,6 +273,9 @@
     <ClCompile Include="system\GPUDetector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Shared\Components\CursorSensitivitySetup.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="UICore\Components\Base\Button.h">
@@ -813,6 +816,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="system\GPUDetector.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Components\CursorSensitivityConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shared\Components\CursorSensitivitySetup.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

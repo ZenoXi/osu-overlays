@@ -10,4 +10,5 @@ public:
     std::wstring GetTitle() const override { return L"Cursor trail"; }
     bool RequiresGameData() const override { return false; }
     bool RequiresUncappedFramerate() const override { return true; }
+    bool RequiresPrecisePointerData() const override { return true; }
 };

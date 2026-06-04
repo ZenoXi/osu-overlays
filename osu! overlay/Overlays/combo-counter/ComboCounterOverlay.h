@@ -10,4 +10,5 @@ public:
     std::wstring GetTitle() const override { return L"Combo counter"; }
     bool RequiresGameData() const override { return true; }
     bool RequiresUncappedFramerate() const override { return false; }
+    bool RequiresPrecisePointerData() const override { return false; }
 };

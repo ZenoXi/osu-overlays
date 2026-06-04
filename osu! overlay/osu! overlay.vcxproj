@@ -226,6 +226,7 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     <ClCompile Include="Settings\SettingsScene.cpp" />
     <ClCompile Include="Settings\SettingsWindowController.cpp" />
     <ClCompile Include="Settings\UpdateSettingsPanel.cpp" />
+    <ClCompile Include="Shared\Components\CursorSensitivitySetup.cpp" />
     <ClCompile Include="Shared\Components\OverlayLayoutSetup.cpp" />
     <ClCompile Include="Shared\Scenes\TitleBarScene.cpp" />
     <ClCompile Include="Shared\Util\Functions.cpp" />
@@ -347,6 +348,8 @@ xcopy /y /d /s "$(ProjectDir)Shared\CompiledShaders" "$(SolutionDir)output\$(Con
     <ClInclude Include="Settings\UpdateSettingsPanel.h" />
     <ClInclude Include="SharedContext.h" />
     <ClInclude Include="Shared\Components\ColorSliderInputGroup.h" />
+    <ClInclude Include="Shared\Components\CursorSensitivityConfig.h" />
+    <ClInclude Include="Shared\Components\CursorSensitivitySetup.h" />
     <ClInclude Include="Shared\Components\LoadingAnimation.h" />
     <ClInclude Include="Shared\Components\NumberParameterInput.h" />
     <ClInclude Include="Shared\Components\OverlayLayoutSetup.h" />

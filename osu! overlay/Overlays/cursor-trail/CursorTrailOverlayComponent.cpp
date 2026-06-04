@@ -12,7 +12,6 @@ void zcom::CursorTrailOverlayComponent::Init(std::shared_ptr<const Overlay> over
     Panel::Init();
 
     _overlay = overlay;
-    _dataProviderView = std::make_unique<DataProviderView>(this);
 
     _configValueChangedEventSubscription = _scene->GetApp()->config.SubscribeOnConfigValueChanged();
     _configValueChangedEventSubscription->ResetSynchronousHandler([=](std::optional<std::pair<std::wstring, std::wstring>> changes) {
@@ -63,27 +62,9 @@ void zcom::CursorTrailOverlayComponent::_ParsePaletteString(const std::wstring& 
 
 void zcom::CursorTrailOverlayComponent::_OnUpdate()
 {
-    //static int counter = 0;
-
-    //std::unique_lock<std::mutex> lock(_m_input);
-    //if (counter % 100 == 0)
-    //    GetCursorPos(&_currentMousePos);
-    //counter += _pendingInput.size();
-    //for (auto& point : _pendingInput)
-    //    _points.push_back(point);
-    //_pendingInput.clear();
-    //_inputClock.Update();
-    //TimePoint inputClockTime = _inputClock.Now();
-    //lock.unlock();
-
-    //std::cout << counter << '\n';
-
-    POINT p;
-    GetCursorPos(&p);
-
-    RECT windowRect = _scene->GetWindow()->Backend().GetWindowRectangle();
-
-    Pos2D<float> newPoint = Pos2D{ float(p.x - windowRect.left), float(p.y - windowRect.top) };
+    RECT overlayRect = _scene->GetWindow()->Backend().GetWindowRectangle();
+    Point gameCursorPos = _scene->GetApp()->Shared<SharedContext*>()->gameCursorPosition.load();
+    Pos2D<float> newPoint = Pos2D{ float(gameCursorPos.x - overlayRect.left), float(gameCursorPos.y - overlayRect.top) };
     if (!_points.empty())
     {
         Pos2D<float> previousPoint = _points.back().position;

@@ -4,6 +4,7 @@
 #include "CursorTrailConfig.h"
 
 #include "Shared/Components/OverlayLayoutSetup.h"
+#include "Shared/Components/CursorSensitivitySetup.h"
 #include "Shared/Components/SectionHeader.h"
 #include "Shared/Components/NumberParameterInput.h"
 #include "Shared/Styles/Styles.h"
@@ -25,10 +26,15 @@ void zcom::CursorTrailSetupComponent::Init(std::shared_ptr<const Overlay> overla
     
     _CreateInsertionMarker();
 
+    auto cursorSensitivitySetup = Create<CursorSensitivitySetup>();
+    cursorSensitivitySetup->parentSize = { 1.0f, 0.0f };
+    cursorSensitivitySetup->autoHeight = true;
+
     auto flexPanel = Create<FlexPanel>(FlexDirection::DOWN);
     flexPanel->parentSize = { 1.0f, 0.0f };
     flexPanel->autoHeight = true;
     flexPanel->AddItem(_SetUpGeneralPanel());
+    flexPanel->AddItem(std::move(cursorSensitivitySetup));
     flexPanel->AddItem(_SetUpAppearancePanel());
     flexPanel->AddItem(_SetUpColorsPanel());
     flexPanel->SubscribePostMouseMove([=](Component* panel, std::vector<EventContext::Params> targets, Point point, Point) {

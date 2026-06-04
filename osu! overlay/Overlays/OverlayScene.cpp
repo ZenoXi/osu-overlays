@@ -2,10 +2,12 @@
 #include "Window/Window.h"
 #include "OverlayScene.h"
 #include "OverlayConfig.h"
+#include "SharedContext.h"
 
 #include "UICore/Components/Base/Dummy.h"
 
 #include "Shared/Util/Streams.h"
+#include "Shared/Components/CursorSensitivityConfig.h"
 
 void zcom::OverlayScene::Init(SceneOptionsBase* options)
 {
@@ -38,6 +40,12 @@ void zcom::OverlayScene::Init(SceneOptionsBase* options)
                 _window->Backend().Graphics()->DisableVsync();
             else
                 _window->Backend().Graphics()->EnableVsync();
+
+            _rawInputEnabled = streams::From(_enabledOverlays).AnyMatch([](const EnabledOverlay& overlay) { return overlay.overlay->RequiresPrecisePointerData(); });
+            if (_rawInputEnabled)
+                _app->GetMessageWindow()->Backend().EnablePointerRawInputCapture();
+            else
+                _app->GetMessageWindow()->Backend().DisablePointerRawInputCapture();
         });
     });
 
@@ -62,6 +70,134 @@ void zcom::OverlayScene::Init(SceneOptionsBase* options)
     });
     _UpdateLayoutFromConfig();
 
+    _rawWindowMessageSubscription = _app->GetMessageWindow()->Backend().SubscribeToRawWindowMessages([=](UINT msg, WPARAM wParam, LPARAM lParam) {
+        if (msg == WM_INPUT)
+        {
+            UINT dwSize = 0;
+            GetRawInputData((HRAWINPUT)lParam, RID_INPUT, nullptr, &dwSize, sizeof(RAWINPUTHEADER));
+            std::vector<BYTE> buffer(dwSize);
+            GetRawInputData((HRAWINPUT)lParam, RID_INPUT, buffer.data(), &dwSize, sizeof(RAWINPUTHEADER));
+            RAWINPUT* raw = (RAWINPUT*)buffer.data();
+
+            if (raw->header.dwType == RIM_TYPEMOUSE)
+            {
+                Rect monitorRect = _mainMonitorRect.load();
+                int monitorWidth = monitorRect.right - monitorRect.left;
+                int monitorHeight = monitorRect.bottom - monitorRect.top;
+
+                int x = raw->data.mouse.lLastX;
+                int y = raw->data.mouse.lLastY;
+                bool absolute = (raw->data.mouse.usFlags & MOUSE_MOVE_ABSOLUTE);
+                if (absolute)
+                {
+                    _rawInputOffset.x = int(x / 65535.0f * monitorRect.right);
+                    _rawInputOffset.y = int(y / 65535.0f * monitorRect.bottom);
+                }
+                else
+                {
+                    _rawInputOffset.x += x;
+                    _rawInputOffset.y += y;
+                }
+                if (_rawInputOffset.x < _rawInputOffsetBounds.left)
+                    _rawInputOffset.x = _rawInputOffsetBounds.left;
+                if (_rawInputOffset.y < _rawInputOffsetBounds.top)
+                    _rawInputOffset.y = _rawInputOffsetBounds.top;
+                if (_rawInputOffset.x > _rawInputOffsetBounds.right)
+                    _rawInputOffset.x = _rawInputOffsetBounds.right;
+                if (_rawInputOffset.y > _rawInputOffsetBounds.bottom)
+                    _rawInputOffset.y = _rawInputOffsetBounds.bottom;
+
+                GameClient gameClient;
+                Rect gameRect;
+                Rect gameHitTestRect;
+                float gameSensitivity;
+                {
+                    std::lock_guard<std::mutex> lock(_m_rawInput);
+                    gameClient = _guardedGameClient;
+                    gameRect = _guardedGameRect;
+                    gameHitTestRect = _guardedGameHitTestRect;
+                    gameSensitivity = _guardedGameSensitivity;
+                }
+
+                POINT p;
+                GetCursorPos(&p);
+                Point cursorPos = Point(p.x, p.y);
+                bool insideGameRect = cursorPos.x >= gameHitTestRect.left && cursorPos.y >= gameHitTestRect.top && cursorPos.x < gameHitTestRect.right && cursorPos.y < gameHitTestRect.bottom;
+                if (_cursorInsideGameWindow && !_absoluteMode && gameClient == GameClient::STABLE)
+                {
+                    Point gameCursorPos = _app->Shared<SharedContext*>()->gameCursorPosition;
+                    insideGameRect = gameCursorPos.x >= gameHitTestRect.left && gameCursorPos.y >= gameHitTestRect.top && gameCursorPos.x < gameHitTestRect.right && gameCursorPos.y < gameHitTestRect.bottom;
+                }
+                bool gameFocused = _gameFocused.load();
+                bool resetRawPos = false;
+                if (insideGameRect && gameFocused && !_cursorInsideGameWindow)
+                {
+                    _gameWindowEntryPoint = cursorPos;
+                    resetRawPos = true;
+                }
+                _cursorInsideGameWindow = insideGameRect && gameFocused;
+
+                if (absolute)
+                {
+                    if (!_absoluteMode)
+                    {
+                        _absoluteMode = true;
+                        resetRawPos = true;
+                    }
+                }
+                else
+                {
+                    if (_absoluteMode)
+                    {
+                        _absoluteMode = false;
+                        _gameWindowEntryPoint = _app->Shared<SharedContext*>()->gameCursorPosition;
+                        resetRawPos = true;
+                    }
+                }
+
+                if (resetRawPos)
+                {
+                    if (_absoluteMode)
+                    {
+                        _rawInputOffsetBounds = gameRect;
+                    }
+                    else
+                    {
+                        _rawInputOffset = Point(x, y);
+                        _rawInputOffsetBounds.left = (int)std::floor((gameRect.left - _gameWindowEntryPoint.x) / gameSensitivity);
+                        _rawInputOffsetBounds.top = (int)std::floor((gameRect.top - _gameWindowEntryPoint.y) / gameSensitivity);
+                        _rawInputOffsetBounds.right = (int)std::ceil(((gameRect.right - 1) - _gameWindowEntryPoint.x) / gameSensitivity);
+                        _rawInputOffsetBounds.bottom = (int)std::ceil(((gameRect.bottom - 1) - _gameWindowEntryPoint.y) / gameSensitivity);
+                    }
+                }
+                Point rawInputOffset = _rawInputOffset;
+
+                Point gameCursorPos{};
+                if (_cursorInsideGameWindow)
+                {
+                    if (!_absoluteMode)
+                    {
+                        gameCursorPos = _gameWindowEntryPoint + Point(int(rawInputOffset.x * gameSensitivity), int(rawInputOffset.y * gameSensitivity));
+                    }
+                    else
+                    {
+                        int xOffsetFromCenter = { rawInputOffset.x - monitorWidth / 2 };
+                        int yOffsetFromCenter = { rawInputOffset.y - monitorHeight / 2 };
+                        gameCursorPos = {
+                            int(xOffsetFromCenter * gameSensitivity) + monitorWidth / 2,
+                            int(yOffsetFromCenter * gameSensitivity) + monitorHeight / 2
+                        };
+                    }
+                }
+                else
+                {
+                    gameCursorPos = cursorPos;
+                }
+                _app->Shared<SharedContext*>()->gameCursorPosition = gameCursorPos;
+            }
+        }
+    });
+    
     struct DisplayChangeMessage { static const char* ID() { return "display_change"; } };
     // OverlayScene is initialized only once when the overlay window is created, so the message registration can safely be done here, without worrying about duplication
     _window->Backend().RegisterMessage(WM_DISPLAYCHANGE, [](WPARAM, LPARAM) { return zwnd::WindowMessage{ DisplayChangeMessage::ID() }; });
@@ -138,7 +274,7 @@ BOOL zcom::OverlayScene::_EnumWindowsProc(HWND hwnd, LPARAM lparam)
     GetWindowText(hwnd, buffer, 256);
 
     std::wstring windowName(buffer);
-    if (windowName == L"osu!" || windowName.starts_with(L"osu!  - "))
+    if (windowName == L"osu!" || windowName.starts_with(L"osu! - ") || windowName.starts_with(L"osu!  - "))
     {
         *((HWND*)lparam) = hwnd;
         return FALSE;
@@ -149,7 +285,7 @@ BOOL zcom::OverlayScene::_EnumWindowsProc(HWND hwnd, LPARAM lparam)
 
 void zcom::OverlayScene::_Update()
 {
-    if (_layout.fitToGameWindow && (ztime::Main() - _lastGameHwndUpdate) >= _gameHwndUpdateInterval)
+    if ((ztime::Main() - _lastGameHwndUpdate) >= _gameHwndUpdateInterval)
     {
         _lastGameHwndUpdate = ztime::Main();
 
@@ -162,7 +298,7 @@ void zcom::OverlayScene::_Update()
         }
     }
 
-    if (_layout.fitToGameWindow && (ztime::Main() - _lastGameRectUpdate) >= _gameRectUpdateInterval)
+    if ((ztime::Main() - _lastGameRectUpdate) >= _gameRectUpdateInterval)
     {
         _lastGameRectUpdate = ztime::Main();
 
@@ -192,8 +328,63 @@ void zcom::OverlayScene::_Update()
             _gameRect = std::nullopt;
             _layoutChanged = true;
         }
+
+        int monitorWidth = GetSystemMetrics(SM_CXSCREEN);
+        int monitorHeight = GetSystemMetrics(SM_CYSCREEN);
+        Rect monitorRect = { 0, 0, monitorWidth, monitorHeight };
+        _mainMonitorRect = monitorRect;
+
+        _gameFocused = _gameHwnd ? GetForegroundWindow() == _gameHwnd.value() : false;
     }
 
+    if (_rawInputEnabled)
+    {
+        bool doPositionCalculations = false;
+        if (_gameRect)
+        {
+            std::wstring gameClientStr = _app->config.GetConfigValue(CursorSensitivityConfig::GAME_CLIENT, Config::ADD_AND_SAVE_IF_MISSING);
+            float gameSensitivity = _app->config.GetDoubleConfigValue(CursorSensitivityConfig::SENSITIVITY, Config::ADD_AND_SAVE_IF_MISSING);
+            bool gameRawInput = _app->config.GetIntConfigValue(CursorSensitivityConfig::RAW_INPUT_ENABLED, Config::ADD_AND_SAVE_IF_MISSING);
+            GameClient gameClient = gameClientStr == L"lazer" ? GameClient::LAZER : GameClient::STABLE;
+
+            if (gameRawInput)
+            {
+                doPositionCalculations = true;
+
+                Rect monitorRect = _mainMonitorRect.load();
+                int monitorWidth = monitorRect.right - monitorRect.left;
+                int monitorHeight = monitorRect.bottom - monitorRect.top;
+
+                Rect gameRect = _gameRect.value();
+                Rect gameHitTestRect = gameRect;
+                if (gameClient == GameClient::STABLE)
+                {
+                    // A fullscreen stable window reports has a size 1px taller than the monitor height (hence the monitorHeight + 1)
+                    if (gameRect.left == 0 && gameRect.top == 0 && gameRect.right == monitorWidth && gameRect.bottom == monitorHeight + 1)
+                    {
+                        gameRect = monitorRect;
+                        // Stable has a 1px thick border around the edge of a borderless fullscreen window, where mouse reverts to Windows sensitivity
+                        gameHitTestRect = monitorRect.ShrunkBy(1);
+                    }
+                }
+
+                std::lock_guard<std::mutex> lock(_m_rawInput);
+                _guardedGameClient = gameClient;
+                _guardedGameRect = gameRect;
+                _guardedGameHitTestRect = gameHitTestRect;
+                _guardedGameSensitivity = gameSensitivity;
+            }
+        }
+
+        if (!doPositionCalculations)
+        {
+            POINT p;
+            GetCursorPos(&p);
+            Point cursorPos = Point(p.x, p.y);
+            _app->Shared<SharedContext*>()->gameCursorPosition = cursorPos;
+        }
+        
+    }
 
     if (_layoutChanged)
     {
