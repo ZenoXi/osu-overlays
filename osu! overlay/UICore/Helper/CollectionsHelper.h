@@ -16,10 +16,15 @@ namespace zutil
     std::vector<_Value> Extract(std::vector<_Value>& container, _Predicate predicate)
     {
         std::vector<_Value> extractedValues;
-        auto newEndIt = std::remove_if(container.begin(), container.end(), predicate);
-        for (auto it = newEndIt; it != container.end(); it++)
-            extractedValues.push_back(std::move(*it));
-        container.erase(newEndIt, container.end());
+        for (int i = 0; i < container.size(); i++)
+        {
+            if (predicate(container[i]))
+            {
+                extractedValues.push_back(std::move(container[i]));
+                container.erase(container.begin() + i);
+                i--;
+            }
+        }
         return extractedValues;
     }
 }
